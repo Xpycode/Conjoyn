@@ -88,7 +88,7 @@
 - `22_macos-platform.md` — sandbox/notarization/bookmarks/FSEvents
 - `20_swiftui-gotchas.md` — GUI build
 - `21_coordinate-systems.md` — not expected (no image cropping)
-- `32_git-workflow.md` — git init pending
+- `32_git-workflow.md` — repo initialized 2026-06-09 (`011bf19` on `main`); branch before next port
 
 ## Risks
 - **SRT offset-correction stitching** = highest-uncertainty v1 item ("known unsolved pain
