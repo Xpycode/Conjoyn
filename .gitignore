@@ -1,0 +1,48 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+.swiftpm/
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# Reference clone (port source — not part of this repo)
+_reference/
+
+# App outputs / scratch
+04_Exports/*
+!04_Exports/.gitkeep
+03_Screenshots/*
+!03_Screenshots/.gitkeep
+
+# Bundled binaries + generated notices (large/regenerated — run 01_Project/scripts/fetch-ffmpeg.sh)
+01_Project/**/Resources/Helpers/
+01_Project/**/Resources/ffmpeg
+01_Project/**/Resources/exiftool
+01_Project/**/Resources/lib/
+
+# xcodegen-generated project (project.yml is the source of truth; run `xcodegen generate`)
+01_Project/DJIjoiner.xcodeproj/
+
+# Tool caches
+.fastembed_cache/
+
+# Secrets / signing
+*.p12
+*.cer
+*.mobileprovision
+.env
+.claude/scheduled_tasks.lock

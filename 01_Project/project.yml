@@ -1,0 +1,68 @@
+name: DJIjoiner
+# Source of truth for the Xcode project. After editing this file, regenerate with:
+#   cd 01_Project && xcodegen generate
+options:
+  bundleIdPrefix: com.lucesumbrarum
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+  groupSortPosition: top
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: FDMSRXXN73
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: complete
+
+targets:
+  DJIjoiner:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: DJIjoiner
+        excludes:
+          - "Resources/Helpers/**"   # bundled binaries are copied + signed by a build phase, not compiled
+    settings:
+      base:
+        PRODUCT_NAME: DJIjoiner
+        PRODUCT_BUNDLE_IDENTIFIER: com.lucesumbrarum.djijoiner
+        ARCHS: arm64
+        ONLY_ACTIVE_ARCH: true
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # Direct-distribution profile: sandbox OFF, hardened runtime ON (FFmpeg GPL => MAS out of scope)
+        ENABLE_APP_SANDBOX: NO
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        CODE_SIGN_ENTITLEMENTS: DJIjoiner/DJIjoiner.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.video"
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Bundles FFmpeg (GPL, interim). See ACKNOWLEDGEMENTS."
+        COMBINE_HIDPI_IMAGES: YES
+    postBuildScripts:
+      - name: "Bundle & sign FFmpeg helpers"
+        # Inside-out signing: this runs before Xcode's final app code-sign, so the helpers
+        # are signed first, then the app wrapper is signed over them.
+        script: '"${SRCROOT}/scripts/sign-bundled-binaries.sh"'
+        basedOnDependencyAnalysis: false
+    scheme:
+      testTargets:
+        - DJIjoinerTests
+      gatherCoverageData: false
+
+  DJIjoinerTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: DJIjoinerTests
+    dependencies:
+      - target: DJIjoiner
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lucesumbrarum.djijoiner.tests
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: YES
