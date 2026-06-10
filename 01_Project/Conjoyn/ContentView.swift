@@ -67,6 +67,9 @@ struct ContentView: View {
                     Task { await vm.scan() }
                 } label: {
                     Label(vm.isScanning ? "Scanning…" : "Scan", systemImage: "viewfinder")
+                        // Toolbar items default Label to .iconOnly; force title+icon so the app's
+                        // primary action reads as "Scan", not an ambiguous viewfinder glyph.
+                        .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.cjStandard)
                 .disabled(vm.sourceFolderURL == nil || vm.isScanning)

@@ -90,7 +90,7 @@ final class ConversionViewModel: ObservableObject {
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose"
-        panel.message = "Choose a DJI media folder (e.g. DCIM/100MEDIA)"
+        panel.message = "Choose a media folder (e.g. DCIM/100MEDIA)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         setSourceFolder(url)
@@ -137,7 +137,7 @@ final class ConversionViewModel: ObservableObject {
         isScanning = false
 
         if groups.isEmpty {
-            statusMessage = "No DJI video segments found in \(source.lastPathComponent)."
+            statusMessage = "No video segments found in \(source.lastPathComponent)."
         } else {
             let segs = discovery.clipCount
             let splits = selectedCount
