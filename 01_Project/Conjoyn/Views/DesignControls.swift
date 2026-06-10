@@ -163,24 +163,29 @@ struct CJCheckbox: View {
 
 // MARK: Badge
 
-/// SPLIT · N / SINGLE pill per `styles.css .badge`.
+/// SPLIT · N / SINGLE pill per `styles.css .badge`. A flagged single is tinted orange instead of
+/// greyed, so a lone clip worth re-exporting (bad/missing date) reads as "live" and invites selection.
 struct CJBadge: View {
     let isSplit: Bool
     let count: Int
+    /// Highlights an otherwise-greyed SINGLE when its recording carries an integrity warning.
+    var isFlagged: Bool = false
+
+    private var accented: Bool { isSplit || isFlagged }
 
     var body: some View {
         Text(isSplit ? "SPLIT · \(count)" : "SINGLE")
             .font(.system(size: 10, weight: .bold))
             .kerning(0.4)
-            .foregroundStyle(isSplit ? Theme.acc1 : Theme.txt3)
+            .foregroundStyle(accented ? Theme.acc1 : Theme.txt3)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                Capsule().fill(isSplit ? Theme.acc1.opacity(0.12) : Color.white.opacity(0.04))
+                Capsule().fill(accented ? Theme.acc1.opacity(0.12) : Color.white.opacity(0.04))
             )
             .overlay(
                 Capsule().strokeBorder(
-                    isSplit ? Theme.acc1.opacity(0.28) : Theme.line, lineWidth: 1
+                    accented ? Theme.acc1.opacity(0.28) : Theme.line, lineWidth: 1
                 )
             )
     }
