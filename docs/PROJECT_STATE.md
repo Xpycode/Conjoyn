@@ -23,12 +23,10 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** (1) **`feature/rename-tc-disclosure` — FEATURE-COMPLETE** (both commits done; branch
-  **not yet pushed** — Commit 1 `cfbc5a1` was on `origin`, but Commit 2 `2524b00` is local-ahead).
-  Commit 1 (2026-06-10d) = Rename popover + `RenamePatternEngine`. **Commit 2 DONE** (`2524b00`,
-  2026-06-10e) = per-queue-row TC disclosure (lazy/row-side `TimecodeDisclosure` + caret/panel on
-  `QueueRow`) + ported `SourceTimecodeReader`; 220/220 tests. **Still owe: eyeball the panel on a
-  real card** (empty queue this session) + **push to `origin`**. (2) **UI polish pass** — **3 items
+- **Next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
+  and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
+  `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
+  exactly). 220/220 tests. (2) **UI polish pass** — **3 items
   done 2026-06-10d** (popover width 348→430, draggable list/queue `VSplitView` divider, "Clear Queue"
   button); more sizing/position deviations vs the prototype remain to enumerate against a live build
   (the new TC caret/panel sit in the queue-row region a polish pass touches). (3) **single-file export** (user request 2026-06-10):
@@ -37,6 +35,17 @@
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10f — Eyeballed the TC disclosure live, then merged `feature/rename-tc-disclosure` to `main`.**
+  Cleared the last two owed items on the branch. **Live eyeball** on a real SRT-bearing card
+  (`/Volumes/M4P-1/DCIM/DJI_001`, the 2026-05-21 footage): queued the split `0006–0009`, opened the
+  queue-row caret → **Source TC `—`** (DJI has no `tmcd`), **Applied TC `19:53:03:11` · from SRT cue ·
+  25 fps** (orange), **slow-mo caption** fired. The Applied TC is **byte-identical to the engine's
+  s7-validated stamp** (`19:53:03:11`, frame 11 = floor(.448×25)) — confirming the feature's premise:
+  the row reuses the *same* `RecordingStartResolver`+`TimecodeFormatter` the join calls, so readout
+  can't drift from stamp. Split-group disclosure sublist (`SPLIT·4` + `.SRT` sidecars) also correct.
+  Then **merged `--no-ff` → `main` (`30c8447`) and pushed**; feature branch retired. Caveat logged:
+  the slow-mo path is now eyeballed, but the *original* `2CULL/…/DJI_001` card (2026-03-18, no SRTs)
+  can't exercise it — slow-mo detection is SRT-derived by design. Next: UI polish pass.
 - **2026-06-10e — Implemented Commit 2 (per-queue-row timecode disclosure) + ported `SourceTimecodeReader`.**
   Final commit of `feature/rename-tc-disclosure` (`2524b00`). **Display-only, no engine/export change**
   (spec Part 2 = honesty + exposing already-computed values). New **`TimecodeDisclosure`** value built
