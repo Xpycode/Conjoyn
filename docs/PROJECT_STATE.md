@@ -31,12 +31,27 @@
   button); **2026-06-10h** added a visual-diff rig (cookbook #77) + dropped redundant user-facing
   "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`). **DONE — 220/220 tests,
   merged `--no-ff` → `main` (`f4eeb99`, 2026-06-10i) and pushed; both feature branches deleted.**
-  Empty + Loaded match the prototype; **Scanning/Running/Done still not live-eyeballed.** (3) **single-file export** (user request 2026-06-10):
+  Empty + Loaded match the prototype; Scanning/Running seen during a live join; **Done not yet
+  clean-eyeballed.** (3) **single-file export** (user request 2026-06-10):
   let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
-  carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
+  carried over — today the engine refuses with "need at least two segments". (4) **ETA readout**
+  (2026-06-10i) — surface `SpeedTracker`'s already-tracked throughput as a "~N min" estimate (display
+  only). (5) **Help window** (2026-06-10i) — vendor the standalone `/1-macOS/AppHelp/` package; cost
+  is topic content, not wiring (**no Settings scene** — decided unnecessary). (6) DMG wrapper. Smaller
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10i — Merged the UI-polish pass; scoped Help/Settings; shipped card-aware folder descent.**
+  (1) `feature/ui-polish` → **220/220** → merged `--no-ff` `main` (`f4eeb99`) + pushed; deleted it and
+  the stale-merged `feature/rename-tc-disclosure`. (2) **Help/Settings audit:** neither ever scoped;
+  **decided no Settings scene** (no persistent pref — tunables in-context, rename/override session-only)
+  and **Help = deferred backlog** (vendor the standalone `/1-macOS/AppHelp/` package; cost is content).
+  (3) Live test on the card root surfaced four items: queue "won't clear" = **by-design** restore
+  (`queue.json` reloads on launch → use Clear Queue); ETA → backlog; "slower I/O" = **the UHS-I SD card**
+  (source `disk12` SD read-capped ~95 MB/s, dest `disk11` USB — different disks, earlier runs read from
+  USB), not a regression. (4) **Card-aware descent** (`feature/recursive-card-scan`, `543ddc8`): new
+  `DJIFolderReader.resolveMediaFolders(startingAt:)` finds `DCIM/*` media when a card *root* is dropped,
+  **bounded to one subdir level** (no deep walk). **7 tests → 227/227.** Live-verified on `/Volumes/M4P-1`.
 - **2026-06-10h — UI polish pass (visual-diff driven): dropped redundant "DJI" copy + restored the
   Scan button label.** From the user's "Choose a DJI folder is a bit redundant now." Built a
   visual-diff rig (**cookbook #77** — Playwright+WebKit rendered all 5 prototype states; live
@@ -149,7 +164,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 220 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 227 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
