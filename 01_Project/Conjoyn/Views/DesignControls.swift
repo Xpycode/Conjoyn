@@ -321,4 +321,26 @@ enum CJFormat {
 
     static func date(_ d: Date) -> String { dateFormatter.string(from: d) }
     static func time(_ d: Date) -> String { timeFormatter.string(from: d) }
+
+    /// Prettifies an ffprobe codec name for display: `hevc` → `HEVC`, `h264` → `H.264`.
+    /// Unknown codecs are uppercased verbatim.
+    static func codec(_ name: String) -> String {
+        switch name.lowercased() {
+        case "hevc", "h265": return "HEVC"
+        case "h264", "avc1": return "H.264"
+        default: return name.uppercased()
+        }
+    }
+
+    /// `3840×2160` (true × multiplication sign, not the letter x).
+    static func resolution(width: Int, height: Int) -> String { "\(width)×\(height)" }
+
+    /// `25 fps` / `29.97 fps`; `nil` (indeterminate rate) → empty string.
+    static func fps(_ fps: Double?) -> String {
+        guard let fps else { return "" }
+        let rounded = (fps * 100).rounded() / 100
+        return rounded == rounded.rounded()
+            ? "\(Int(rounded)) fps"
+            : String(format: "%.2f fps", rounded)
+    }
 }
