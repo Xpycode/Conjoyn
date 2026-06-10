@@ -138,10 +138,18 @@ struct QueueSection: View {
                 count: queue.jobs.isEmpty ? nil
                     : "\(queue.jobs.count) \(queue.jobs.count == 1 ? "job" : "jobs")"
             ) {
-                if queue.completedCount + queue.failedCount > 0 {
-                    Button("Clear Finished") { queue.clearFinishedJobs() }
-                        .buttonStyle(.cjGhost)
-                        .font(.system(size: 11))
+                HStack(spacing: 8) {
+                    if queue.completedCount + queue.failedCount > 0 {
+                        Button("Clear Finished") { queue.clearFinishedJobs() }
+                            .buttonStyle(.cjGhost)
+                            .font(.system(size: 11))
+                    }
+                    if !queue.jobs.isEmpty {
+                        Button("Clear Queue") { queue.clearAllJobs() }
+                            .buttonStyle(.cjGhost)
+                            .font(.system(size: 11))
+                            .help("Remove all jobs (a running job keeps going — press Stop first to abandon it)")
+                    }
                 }
             }
             .overlay(alignment: .top) { Theme.line.frame(height: 1) }
