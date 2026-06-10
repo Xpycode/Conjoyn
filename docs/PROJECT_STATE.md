@@ -67,7 +67,15 @@
   card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
   neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
   `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. **(10) Output-folder ↔
-  queue clarity — APPROVED A+B, next session** (user hit it live 2026-06-10k): `addToQueue()`
+  queue clarity — PLANNED 2026-06-10l, ready to implement** (plan in repo:
+  `docs/plans/output-folder-clarity.md`; branch `feature/output-folder-clarity`). User picked
+  **A = Hybrid** (per-job destination always in the row's TC disclosure panel + an inline ⚠ badge/
+  sub-line only when a job's folder ≠ the current Output-bar folder) and **B = themed popover**
+  (click-away = the safe "Keep"). Shared `QueueManager.directoriesDiffer(_:_:)` (robust dir compare,
+  cookbook #52) powers both halves; new `reassignPendingDestinations(to:)` preserves each pending
+  job's filename stem + re-resolves collisions (mirrors `resolveFilenameConflict`); `.pending` only,
+  never active/finished; **no new source files** (no xcodegen regen). Original diagnosis:
+  `addToQueue()`
   (`ConversionViewModel.swift:177-187`) **freezes** `outputFolderURL` into each `job.destinationURL`
   at enqueue; the Output bar governs only *future* adds and **rows never show their destination**, so
   changing the folder after queuing silently doesn't apply. Per-job freezing is correct for a queue —
@@ -82,6 +90,15 @@
   camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10l — Planned the output-folder ↔ queue clarity (A+B) feature (no code).** 3 Explore
+  agents mapped the freeze point (`addToQueue` bakes `outputFolderURL` into each `job.destinationURL`),
+  the job/status model, collision logic, and the all-in-`QueuePanel.swift` UI; confirmed dialog APIs
+  via sosumi MCP. User chose **A = Hybrid** (destination always in the row's TC disclosure panel +
+  inline ⚠ badge only when a job's folder ≠ the current Output folder) and **B = themed popover**
+  (click-away = "Keep"). A shared robust `QueueManager.directoriesDiffer(_:_:)` powers both halves;
+  `reassignPendingDestinations(to:)` re-points `.pending` jobs (preserve stem, re-resolve collisions).
+  Plan at `~/.claude/plans/merry-painting-toast.md`; **no new source files**. User exited before
+  approving — implementation next session.
 - **2026-06-10k — Live-tested + merged single-file export; added the Singles filter; reaffirmed TC
   source; approved A+B for the output-folder trap.** (1) **Single-file export** clean-built (229/229,
   both single-file tests ran w/ real ffmpeg), **independently verified on real clip `0004`** via the
