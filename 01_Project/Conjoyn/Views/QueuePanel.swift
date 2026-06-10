@@ -263,7 +263,13 @@ private struct QueueRow: View {
                         .help("This job targets a different folder than the current Output setting")
                 }
 
-                CJProgressBar(fraction: barFraction, fill: barFill)
+                // No bar for a not-yet-started job — an empty track reads as a heavy black rectangle.
+                // A clear filler of the same footprint keeps the status column aligned.
+                if job.status == .pending {
+                    Color.clear.frame(height: 5)
+                } else {
+                    CJProgressBar(fraction: barFraction, fill: barFill)
+                }
 
                 Text(statusText)
                     .font(.system(size: 11, weight: statusBold ? .semibold : .regular))
