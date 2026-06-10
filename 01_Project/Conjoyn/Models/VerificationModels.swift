@@ -24,6 +24,7 @@ enum VerificationStatus: Equatable, Codable, Sendable {
     case unverified       // Not yet verified
     case verifying        // Currently running verification
     case verified         // Passed verification
+    case warning(String)  // Passed but flagged — orange "flagged-but-passed" state
     case failed(String)   // Failed with error message
 
     var displayName: String {
@@ -31,6 +32,7 @@ enum VerificationStatus: Equatable, Codable, Sendable {
         case .unverified: return "Not Verified"
         case .verifying: return "Verifying..."
         case .verified: return "Verified"
+        case .warning: return "Flagged"
         case .failed: return "Failed"
         }
     }
@@ -40,13 +42,14 @@ enum VerificationStatus: Equatable, Codable, Sendable {
         case .unverified: return "questionmark.circle"
         case .verifying: return "arrow.triangle.2.circlepath"
         case .verified: return "checkmark.seal.fill"
+        case .warning: return "exclamationmark.seal.fill"
         case .failed: return "xmark.seal.fill"
         }
     }
 
     var isFinished: Bool {
         switch self {
-        case .verified, .failed: return true
+        case .verified, .warning, .failed: return true
         default: return false
         }
     }
@@ -65,6 +68,9 @@ enum VerificationStatus: Equatable, Codable, Sendable {
         case "unverified": self = .unverified
         case "verifying": self = .verifying
         case "verified": self = .verified
+        case "warning":
+            let message = try container.decode(String.self, forKey: .errorMessage)
+            self = .warning(message)
         case "failed":
             let message = try container.decode(String.self, forKey: .errorMessage)
             self = .failed(message)
@@ -79,6 +85,9 @@ enum VerificationStatus: Equatable, Codable, Sendable {
         case .unverified: try container.encode("unverified", forKey: .type)
         case .verifying: try container.encode("verifying", forKey: .type)
         case .verified: try container.encode("verified", forKey: .type)
+        case .warning(let message):
+            try container.encode("warning", forKey: .type)
+            try container.encode(message, forKey: .errorMessage)
         case .failed(let message):
             try container.encode("failed", forKey: .type)
             try container.encode(message, forKey: .errorMessage)
