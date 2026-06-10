@@ -326,13 +326,8 @@ struct ClipThumbnailView: View {
     }
 
     private var placeholder: some View {
-        ZStack {
-            // Flat dark fill (no gradient seam) — reads as a neutral "loading" tile, not a 3D card.
-            Color(hex: 0x222222)
-            Image(systemName: "play.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.35))
-        }
+        // Flat dark loading tile — no glyph, so it never reads as a clickable play button.
+        Color(hex: 0x222222)
     }
 }
 
