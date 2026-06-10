@@ -96,8 +96,14 @@ extension FFmpegWrapper {
     /// Writes a temporary concat list, runs the join, and removes the list afterward. The caller
     /// is responsible for grouping (segments must share codec/res/fps — the param guard, task
     /// 2.6, lands in this path next) and for supplying `totalFrames` for accurate progress.
+    ///
+    /// **Single-file export:** a lone segment is the degenerate N=1 case — the concat demuxer
+    /// copies its streams byte-for-byte, drops the mjpeg preview / data tracks, runs `+faststart`,
+    /// and stamps the resolved `creation_time`/`tmcd`. The param guard is skipped (nothing to
+    /// compare against), so a single clip can be re-exported purely to fix its date/timecode.
     /// - Parameters:
-    ///   - segments: Ordered segment URLs (already validated as a contiguous group).
+    ///   - segments: Ordered segment URLs (already validated as a contiguous group). One segment
+    ///     is a valid single-file export.
     ///   - outputURL: Destination for the joined file.
     ///   - metadata: Optional `creation_time` / start timecode to stamp on the output.
     ///   - totalFrames: Optional combined frame count for progress estimation.
@@ -119,14 +125,16 @@ extension FFmpegWrapper {
             logHandler("ERROR: FFmpeg not found!")
             throw FFmpegError.ffmpegNotFound
         }
-        guard segments.count >= 2 else {
-            throw FFmpegError.invalidInput("Need at least two segments to join (got \(segments.count))")
+        guard segments.count >= 1 else {
+            throw FFmpegError.invalidInput("Nothing to export (no segments)")
         }
+        let isSingle = segments.count == 1
 
-        progress(0.0, "Preparing join…")
+        progress(0.0, isSingle ? "Preparing export…" : "Preparing join…")
 
         // Pre-join parameter guard (task 2.6): refuse a lossless copy of mismatched streams.
-        if verifyParameters {
+        // Skipped for a single-file export — there is nothing to compare against.
+        if verifyParameters && !isSingle {
             progress(0.05, "Verifying segment compatibility…")
             try ensureJoinable(segments, logHandler: logHandler)
         }
@@ -144,7 +152,9 @@ extension FFmpegWrapper {
             metadata: metadata
         )
         logHandler("Command: ffmpeg " + args.joined(separator: " "))
-        logHandler("Joining \(segments.count) segments → \(outputURL.lastPathComponent)")
+        logHandler(isSingle
+            ? "Exporting single file → \(outputURL.lastPathComponent)"
+            : "Joining \(segments.count) segments → \(outputURL.lastPathComponent)")
 
         progress(0.1, "Starting FFmpeg…")
         try await runFFmpeg(
@@ -155,6 +165,6 @@ extension FFmpegWrapper {
             logHandler: logHandler,
             metricsHandler: metricsHandler
         )
-        progress(1.0, "Join complete")
+        progress(1.0, isSingle ? "Export complete" : "Join complete")
     }
 }
