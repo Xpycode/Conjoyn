@@ -29,9 +29,9 @@
   exactly). 220/220 tests. (2) **UI polish pass** — **3 items
   done 2026-06-10d** (popover width 348→430, draggable list/queue `VSplitView` divider, "Clear Queue"
   button); **2026-06-10h** added a visual-diff rig (cookbook #77) + dropped redundant user-facing
-  "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`) on `feature/ui-polish`
-  (**uncommitted-to-`main`; tests + merge deferred to next session**). Empty + Loaded now match the
-  prototype; **Scanning/Running/Done not yet live-eyeballed.** (3) **single-file export** (user request 2026-06-10):
+  "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`). **DONE — 220/220 tests,
+  merged `--no-ff` → `main` (`f4eeb99`, 2026-06-10i) and pushed; both feature branches deleted.**
+  Empty + Loaded match the prototype; **Scanning/Running/Done still not live-eyeballed.** (3) **single-file export** (user request 2026-06-10):
   let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
   carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
