@@ -390,6 +390,76 @@ final class QueueManager: ObservableObject {
         return finalURL
     }
 
+    // MARK: - Output-folder ↔ queue clarity
+
+    /// Robust directory comparison for the output-folder-vs-queue feature. Returns `false` when
+    /// either URL is `nil`; otherwise compares fully-resolved, standardized paths
+    /// **case-insensitively** (macOS's default filesystem is case-insensitive — matching
+    /// `RenamePatternEngine.uniqueStem`). Folded into one helper so the Part A per-row ⚠ badge and
+    /// the Part B change-detection can't drift apart (URL directory equality is finicky — cookbook
+    /// #52).
+    static func directoriesDiffer(_ a: URL?, _ b: URL?) -> Bool {
+        guard let a, let b else { return false }
+        let pa = a.resolvingSymlinksInPath().standardizedFileURL.path
+        let pb = b.resolvingSymlinksInPath().standardizedFileURL.path
+        return pa.caseInsensitiveCompare(pb) != .orderedSame
+    }
+
+    /// Re-points every `.pending` job's output into `newFolder`, **preserving each job's filename
+    /// stem** and re-resolving collisions. Only `.pending` jobs move — `.active`/`.preparing` are in
+    /// flight and finished jobs are immutable, so their destinations are seeded as already-taken and
+    /// never clobbered. The `.SRT` sidecar follows automatically (its path is derived from
+    /// `destinationURL` at process time). Each moved job's `outputBookmarkData` is refreshed for the
+    /// new directory so a stale security-scoped bookmark can't keep pointing at the old folder.
+    func reassignPendingDestinations(to newFolder: URL) {
+        // Seed "taken" with destinations that are NOT up for grabs — non-pending jobs' planned and
+        // actual outputs — so a re-pointed job can never collide with a path already committed to.
+        var taken = Set<String>()
+        for job in jobs where job.status != .pending {
+            taken.insert(job.destinationURL.path.lowercased())
+            for url in job.actualOutputURLs { taken.insert(url.path.lowercased()) }
+        }
+
+        // One fresh directory bookmark for the new folder, reused across all moved jobs.
+        let refreshedBookmark = try? newFolder.bookmarkData(
+            options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil
+        )
+
+        var moved = 0
+        for index in jobs.indices where jobs[index].status == .pending {
+            let stem = jobs[index].destinationURL.lastPathComponent
+            let resolved = uniqueDestination(
+                newFolder.appendingPathComponent(stem), taken: &taken
+            )
+            jobs[index].destinationURL = resolved
+            jobs[index].outputBookmarkData = refreshedBookmark
+            moved += 1
+        }
+
+        guard moved > 0 else { return }
+        saveQueue()
+        log("Re-pointed \(moved) pending job\(moved == 1 ? "" : "s") to \(newFolder.path)")
+    }
+
+    /// Picks a non-colliding URL for `url`, appending ` (n)` before the extension until the path is
+    /// free of both `taken` (lowercased full paths) and any on-disk file. Records the chosen path in
+    /// `taken`. Mirrors `resolveFilenameConflict`'s `Output (1).mp4` style for batch reassignment.
+    private func uniqueDestination(_ url: URL, taken: inout Set<String>) -> URL {
+        let directory = url.deletingLastPathComponent()
+        let filename = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension
+
+        var finalURL = url
+        var counter = 1
+        while taken.contains(finalURL.path.lowercased())
+                || FileManager.default.fileExists(atPath: finalURL.path) {
+            finalURL = directory.appendingPathComponent("\(filename) (\(counter)).\(ext)")
+            counter += 1
+        }
+        taken.insert(finalURL.path.lowercased())
+        return finalURL
+    }
+
     // MARK: - Safe Job Lookup
 
     /// Safely updates a job property by looking up the current index by ID.

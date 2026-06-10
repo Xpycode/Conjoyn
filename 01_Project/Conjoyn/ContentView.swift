@@ -46,7 +46,12 @@ struct ContentView: View {
 
             FooterBar()
         }
-        .frame(minWidth: 1000, minHeight: 640)
+        // The Output bar's intrinsic width (~1160 pt worst-case: path well + 4 switch labels + gear +
+        // "Add N to Queue") is the true floor. `.windowResizability(.contentMinSize)` does NOT derive
+        // it through the VSplitView, so the window min is set explicitly here — 1220 gives the bar a
+        // comfortable margin so its labels never wrap/clip (the OutputBar labels are also `.fixedSize`d
+        // as a backstop). See `03_Screenshots/min-window-size_2026-06-10m/`.
+        .frame(minWidth: 1220, minHeight: 640)
         .background(Theme.bg)
         // Native titlebar toolbar (App Shell Standard, matching Penumbra/CropBatch): the source path
         // well sits centered, Scan trailing. Replaces the old custom 52 pt TitleBar HStack — the
