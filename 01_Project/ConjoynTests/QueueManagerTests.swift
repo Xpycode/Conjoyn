@@ -153,6 +153,119 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(manager.jobs.last?.displayName, "Flight (1).mp4")
     }
 
+    // MARK: - Output-folder ↔ queue clarity
+
+    func testDirectoriesDifferNilSafety() {
+        XCTAssertFalse(QueueManager.directoriesDiffer(nil, tmpDir))
+        XCTAssertFalse(QueueManager.directoriesDiffer(tmpDir, nil))
+        XCTAssertFalse(QueueManager.directoriesDiffer(nil, nil))
+    }
+
+    func testDirectoriesDifferNormalizesTrailingSlashDotAndCase() {
+        let base = URL(fileURLWithPath: "/tmp/conjoyn-dirtest", isDirectory: true)
+        // Trailing slash / `.` segment / case variations all describe the same directory.
+        XCTAssertFalse(QueueManager.directoriesDiffer(base, URL(fileURLWithPath: "/tmp/conjoyn-dirtest/")))
+        XCTAssertFalse(QueueManager.directoriesDiffer(base, URL(fileURLWithPath: "/tmp/./conjoyn-dirtest")))
+        XCTAssertFalse(QueueManager.directoriesDiffer(base, URL(fileURLWithPath: "/tmp/CONJOYN-DIRTEST")))
+    }
+
+    func testDirectoriesDifferResolvesSymlinks() throws {
+        // A real directory and a symlink that points at it describe the same place. (macOS only
+        // canonicalizes symlinks for paths that actually exist, so the test uses real ones — the
+        // production folders are always real directories chosen via NSOpenPanel.)
+        let real = tmpDir.appendingPathComponent("realdir", isDirectory: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        let link = tmpDir.appendingPathComponent("linkdir")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        XCTAssertFalse(QueueManager.directoriesDiffer(real, link))
+    }
+
+    func testDirectoriesDifferTrueForGenuinelyDifferent() {
+        XCTAssertTrue(QueueManager.directoriesDiffer(
+            URL(fileURLWithPath: "/tmp/folderA"), URL(fileURLWithPath: "/tmp/folderB")))
+    }
+
+    func testReassignMovesPendingJobsPreservingStem() throws {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "FlightA.mp4"))
+        manager.addJob(makeJob(outputName: "FlightB.mp4"))
+
+        let newFolder = tmpDir.appendingPathComponent("NewOut", isDirectory: true)
+        manager.reassignPendingDestinations(to: newFolder)
+
+        for job in manager.jobs {
+            XCTAssertEqual(job.destinationURL.deletingLastPathComponent().path, newFolder.path,
+                           "pending job moved to the new folder")
+        }
+        // Filename stems are preserved.
+        XCTAssertEqual(manager.jobs.map { $0.destinationURL.lastPathComponent }.sorted(),
+                       ["FlightA.mp4", "FlightB.mp4"])
+    }
+
+    func testReassignSuffixesTwoPendingJobsSharingAStem() throws {
+        let manager = makeManager()
+        // Two distinct jobs that would collapse to the same name in the new folder.
+        manager.addJob(makeJob(outputName: "Sub1/Clip.mp4"))
+        manager.addJob(makeJob(outputName: "Sub2/Clip.mp4"))
+
+        let newFolder = tmpDir.appendingPathComponent("Merged", isDirectory: true)
+        manager.reassignPendingDestinations(to: newFolder)
+
+        let names = manager.jobs.map { $0.destinationURL.lastPathComponent }.sorted()
+        XCTAssertEqual(names, ["Clip (1).mp4", "Clip.mp4"], "second collision gets a counter suffix")
+    }
+
+    func testReassignAvoidsCollisionWithNonPendingDestination() throws {
+        let manager = makeManager()
+        let newFolder = tmpDir.appendingPathComponent("Dest", isDirectory: true)
+
+        // A completed job already owns Dest/Clip.mp4 — its destination must not be clobbered.
+        var done = makeJob(outputName: "Whatever.mp4", status: .completed)
+        done.destinationURL = newFolder.appendingPathComponent("Clip.mp4")
+        manager.addJob(done)
+        let doneID = manager.jobs[0].id
+
+        manager.addJob(makeJob(outputName: "Clip.mp4"))   // pending, same stem
+
+        manager.reassignPendingDestinations(to: newFolder)
+
+        let doneJob = manager.jobs.first { $0.id == doneID }!
+        XCTAssertEqual(doneJob.destinationURL.lastPathComponent, "Clip.mp4",
+                       "finished job's destination untouched")
+        let pendingJob = manager.jobs.first { $0.status == .pending }!
+        XCTAssertEqual(pendingJob.destinationURL.lastPathComponent, "Clip (1).mp4",
+                       "pending job avoids the finished job's path")
+    }
+
+    func testReassignNeverModifiesNonPendingJobs() throws {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Active.mp4"))
+        manager.addJob(makeJob(outputName: "Done.mp4"))
+        manager.addJob(makeJob(outputName: "Failed.mp4"))
+        manager.jobs[0].status = .active
+        manager.jobs[1].status = .completed
+        manager.jobs[2].status = .failed("x")
+
+        let originals = manager.jobs.map { $0.destinationURL.path }
+
+        manager.reassignPendingDestinations(to: tmpDir.appendingPathComponent("Other"))
+
+        XCTAssertEqual(manager.jobs.map { $0.destinationURL.path }, originals,
+                       "active/completed/failed destinations are never re-pointed")
+    }
+
+    func testReassignPersistsNewPaths() throws {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        let newFolder = tmpDir.appendingPathComponent("Persisted", isDirectory: true)
+        manager.reassignPendingDestinations(to: newFolder)
+
+        // A fresh manager on the same store restores the re-pointed destination.
+        let reloaded = makeManager()
+        XCTAssertEqual(reloaded.jobs.count, 1)
+        XCTAssertEqual(reloaded.jobs[0].destinationURL.deletingLastPathComponent().path, newFolder.path)
+    }
+
     // MARK: - Queue management operations
 
     func testRemoveJobOnlyRemovesNonActive() throws {

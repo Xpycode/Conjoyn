@@ -29,6 +29,11 @@ final class ConversionViewModel: ObservableObject {
     @Published var outputFolderURL: URL?
     @Published var settings = ConversionSettings()
 
+    /// Drives the "Apply new output folder to N pending jobs?" popover. Set true by
+    /// `chooseOutputFolder()` only when the chosen folder actually differs *and* there are pending
+    /// jobs to re-point; the popover's Keep/click-away resets it (the safe no-op).
+    @Published var showApplyFolderPrompt = false
+
     /// Output-renaming state. Session-only (not in `ConversionSettings`, which is `Codable` and
     /// frozen onto every job) — only the *resolved* output name needs to ride on the job, and that
     /// already does via `destinationURL`. Toggling `renameEnabled` opens/closes the rename popover;
@@ -66,6 +71,9 @@ final class ConversionViewModel: ObservableObject {
     var selectedCount: Int { selectedGroupIDs.count }
 
     var canAddToQueue: Bool { !selectedGroups.isEmpty && outputFolderURL != nil && !isScanning }
+
+    /// Pending (unstarted) jobs — the only ones `applyOutputFolderToPendingJobs` may re-point.
+    var pendingJobCount: Int { queue.pendingCount }
 
     func isSelected(_ group: RecordGroup) -> Bool { selectedGroupIDs.contains(group.id) }
 
@@ -116,7 +124,23 @@ final class ConversionViewModel: ObservableObject {
         panel.prompt = "Choose"
         panel.message = "Choose where to save the joined file(s)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        // Per-job destinations were frozen at enqueue from the *old* folder; changing the folder now
+        // only governs future adds. If the folder actually changed and pending jobs exist, offer to
+        // re-point them so the change isn't a silent miss (the trap hit live 2026-06-10k).
+        let previous = outputFolderURL
         outputFolderURL = url
+        if QueueManager.directoriesDiffer(previous, url) && pendingJobCount > 0 {
+            showApplyFolderPrompt = true
+        }
+    }
+
+    /// Re-points every pending job's output into the current `outputFolderURL` (Part B "Apply").
+    /// Pending-only; preserves each job's filename stem and re-resolves collisions in `QueueManager`.
+    func applyOutputFolderToPendingJobs() {
+        guard let folder = outputFolderURL else { return }
+        queue.reassignPendingDestinations(to: folder)
+        showApplyFolderPrompt = false
     }
 
     // MARK: - Scan

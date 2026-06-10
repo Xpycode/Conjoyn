@@ -27,6 +27,9 @@ struct OutputBar: View {
                     choose: vm.chooseOutputFolder
                 )
             }
+            .popover(isPresented: $vm.showApplyFolderPrompt, arrowEdge: .bottom) {
+                ApplyFolderPopover().environmentObject(vm)
+            }
 
             Spacer()
 
@@ -126,6 +129,42 @@ private struct MoreOptionsPopover: View {
     }
 }
 
+/// Part B of output-folder ↔ queue clarity: shown when the Output folder changes while pending jobs
+/// exist. **Apply** re-points the pending jobs to the new folder; **Keep** (and click-away) is the
+/// safe no-op that leaves each job at the destination frozen when it was queued.
+private struct ApplyFolderPopover: View {
+    @EnvironmentObject private var vm: ConversionViewModel
+
+    private var count: Int { vm.pendingJobCount }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Apply new output folder to \(count) pending job\(count == 1 ? "" : "s")?")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.txt2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let name = vm.outputFolderURL?.lastPathComponent {
+                Text("Queued jobs keep the folder they were added with. Apply moves the pending "
+                     + "ones to “\(name)”. Started and finished jobs are never changed.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.txt3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Keep") { vm.showApplyFolderPrompt = false }
+                    .buttonStyle(.cjGhost)
+                Button("Apply") { vm.applyOutputFolderToPendingJobs() }
+                    .buttonStyle(.cjPrimary)
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
+    }
+}
+
 // MARK: Queue
 
 struct QueueSection: View {
@@ -177,10 +216,19 @@ struct QueueSection: View {
 private struct QueueRow: View {
     let job: ConversionJob
     @EnvironmentObject private var queue: QueueManager
+    // Observed so the badge/sub-line clear or appear reactively when the Output folder changes.
+    @EnvironmentObject private var vm: ConversionViewModel
 
     // Per-row, session-only: the disclosure expand state and its lazily-built timecode readout.
     @State private var expanded = false
     @State private var disclosure: TimecodeDisclosure?
+
+    /// A pending job whose frozen destination folder no longer matches the current Output setting —
+    /// the stale case the user can fix via *Choose…* → Apply. Only `.pending` jobs are re-pointable.
+    private var folderMismatch: Bool {
+        job.status == .pending &&
+        QueueManager.directoriesDiffer(job.destinationURL.deletingLastPathComponent(), vm.outputFolderURL)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -201,6 +249,13 @@ private struct QueueRow: View {
                     .truncationMode(.middle)
                     .frame(width: 220, alignment: .leading)
                     .help(job.destinationURL.path)
+
+                if folderMismatch {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.acc1)
+                        .help("This job targets a different folder than the current Output setting")
+                }
 
                 CJProgressBar(fraction: barFraction, fill: barFill)
 
@@ -241,8 +296,21 @@ private struct QueueRow: View {
             .padding(.vertical, 7)
             .help(failureMessage ?? "")
 
+            // Always visible (not gated by the caret) when the destination is stale, so the user
+            // sees where this job will actually land before pressing Start.
+            if folderMismatch {
+                Text("⚠ → \(job.destinationURL.deletingLastPathComponent().path)  (≠ current output)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.acc1)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 26)
+                    .padding(.bottom, 6)
+            }
+
             if expanded {
-                TimecodeDisclosurePanel(disclosure: disclosure)
+                TimecodeDisclosurePanel(disclosure: disclosure, destination: job.destinationURL)
                     .padding(.leading, 26)   // align under the name, clear of the caret
                     .padding(.bottom, 8)
             }
@@ -315,6 +383,9 @@ private struct QueueRow: View {
 /// component), plus the slow-mo caption when relevant. `nil` while the async build is in flight.
 private struct TimecodeDisclosurePanel: View {
     let disclosure: TimecodeDisclosure?
+    /// The job's frozen output path — its parent folder is shown as the always-on "Output" row
+    /// (the transparency half of the Hybrid: every expanded row reveals where the file will land).
+    let destination: URL
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -360,6 +431,16 @@ private struct TimecodeDisclosurePanel: View {
                 Text("Reading timecode…")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.txt3)
+            }
+
+            // Always-on transparency: where this job's file will actually be written.
+            HStack(spacing: 8) {
+                label("Output")
+                Text(destination.deletingLastPathComponent().path)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Theme.txt2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
