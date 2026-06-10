@@ -85,6 +85,18 @@ private struct RecordingRow: View {
 
     private var isSplit: Bool { group.groupType == .split }
 
+    /// `HEVC · 3840×2160 · 25 fps` from the first segment's stream params. All clips in a group
+    /// share these (the grouping gate refuses to chain mismatched codec/res/fps), so one segment
+    /// speaks for the whole recording. `nil` when ffprobe couldn't read the stream.
+    private var streamSummary: String? {
+        guard let v = group.clips.first?.streamInfo?.video else { return nil }
+        var parts = [CJFormat.codec(v.codecName),
+                     CJFormat.resolution(width: v.width, height: v.height)]
+        let fps = CJFormat.fps(v.framesPerSecond)
+        if !fps.isEmpty { parts.append(fps) }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         let checked = vm.isSelected(group)
 
@@ -132,6 +144,17 @@ private struct RecordingRow: View {
                 .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Codec · resolution · fps, filling the gap before the badge. The name VStack above
+            // takes the flexible space, so this keeps its intrinsic width and the title truncates
+            // first when the row is cramped.
+            if let streamSummary {
+                Text(streamSummary)
+                    .font(.system(size: 11))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.txt3)
+                    .lineLimit(1)
+            }
 
             CJBadge(isSplit: isSplit, count: group.clipCount)
 
