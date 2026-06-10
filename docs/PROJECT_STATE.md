@@ -48,12 +48,10 @@
   list + queue have lots of empty vertical space; use it to surface per-recording integrity info
   (e.g. **timecode ≠ creation_time**, missing embedded date, slow-mo dual-timebase) — which also makes
   **single-file export discoverable** ("you can re-export this lone clip just to write a correct TC").
-  **(5b) Codec + dimensions in the recordings-row empty space** (user request 2026-06-10k, screenshot)
-  — each list row has empty *horizontal* space between the name and the SINGLE/SPLIT badge; surface
-  per-recording **codec + resolution (+ fps)** there (e.g. `HEVC · 3840×2160 · 25fps`). **Data already
-  in hand** — scan reads `VideoStreamParams` (codec/width/height/fps) per clip via ffprobe for the
-  param guard (`SegmentStreamInfo` on `DJIClip`), so this is a pure display add, no new I/O. Pairs with
-  (5)'s integrity info; together they fill the row's empty space.
+  **(5b) Codec + dimensions in the recordings-row empty space — DONE 2026-06-10o (`6683656`).**
+  Each row now shows `HEVC · 3840×2160 · 25 fps` in the gap before the SINGLE/SPLIT badge (new
+  `CJFormat.codec`/`resolution`/`fps` + `RecordingRow.streamSummary` off the first segment's
+  `streamInfo`). Pure display add as predicted; +7 tests. Live-confirmed on the `2CULL` card.
   (6) **Wire up source↔target verification** (user asked 2026-06-10j) — `VerificationService` +
   `QueueManager+Verification` (`verifyJob`/`verifyAllCompleted`) are **ported from Penumbra but have
   zero callers**; add a post-join result check + log/UI surface. (7) **Help window** (2026-06-10i) —
@@ -104,6 +102,18 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-10o — Two UI polish items shipped: codec/resolution on rows (backlog 5b) + a font cleanup.**
+  (1) **Codec · resolution · fps on each recording row** (`6683656`) — pure display add (scan already
+  reads `VideoStreamParams` per clip for the param guard, so no new I/O). New `CJFormat` helpers
+  (`codec`/`resolution`/`fps`) + `RecordingRow.streamSummary` reading the first segment's `streamInfo`
+  (speaks for the whole group — the grouping gate refuses mismatched codec/res/fps), placed in the
+  empty space before the SINGLE/SPLIT badge. `CJFormatTests` +7 → **245/245**. Live-confirmed on the
+  `2CULL` card (`HEVC · 3840×2160 · 25 fps`); wrong-folder empty state also confirmed. (2) **Font
+  cleanup** (`6adb44a`) — the "serif-like" font was **SF Mono** (`design: .monospaced`). Switched the
+  segment-sublist filenames + queue-row disclosure **Output** path to **SF Pro** (kept
+  `.monospacedDigit()` for column/date alignment); **TC stays SF Mono** (user's choice); console +
+  Rename token field left mono. Path wells + queue-row title were already SF Pro. Both merged `--no-ff`
+  → `main`, branches deleted, pushed.
 - **2026-06-10n — Fixed the min-window Output-bar bug, live-verified output-folder A+B, merged + pushed.**
   (1) **Window fix:** the `minWidth: 1000` floor let the Output bar overflow (truncate/wrap/clip);
   `.windowResizability(.contentMinSize)` doesn't derive the bar's floor through the `VSplitView`.
@@ -276,7 +286,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 238 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 245 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
