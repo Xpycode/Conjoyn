@@ -42,9 +42,15 @@
   packet **MD5 == output v:0 MD5** (byte-identical, truly lossless), 5554→5554 frames, mjpeg preview
   + 2 telemetry data tracks dropped, duration 222.16 s exact, `creation_time=2026-05-21T17:47:15Z` +
   `tmcd=19:47:15:08` stamped, faststart (moov before mdat). **GUI eyeball (tick lone row → Start)
-  still owed** (no UI automation). (4) **ETA readout**
-  (2026-06-10i) — surface `SpeedTracker`'s already-tracked throughput as a "~N min" estimate (display
-  only). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
+  still owed** (no UI automation). (4) ~~**ETA readout**~~ **DONE + MERGED → `main` (`2f0cde4`,
+  2026-06-10p); branch deleted, pushed.** Surfaced the ETA machinery ported-but-unused from P2toMXF
+  (Penumbra has none). Per active queue row: `12.5× · ~2:34 left` (1 s `TimelineView`;
+  history-independent `elapsed/progress`, historical `currentJobEstimate` fallback before 5%; speed
+  from ffmpeg's live `speed=` via new `QueueManager.activeMetrics`). Footer: whole-queue
+  `· ~N min left` (`remainingQueueSeconds(at:)` = active live remaining + pending historical
+  estimate). Shared `formattedCoarseDuration()`; no new source files. **+5 tests → 250/250.**
+  **Owed:** live eyeball during a real join (display-only; math unit-tested) + cosmetics (140 pt
+  metrics column at the 1220 pt min window; `×` vs `x`). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
   list + queue have lots of empty vertical space; use it to surface per-recording integrity info
   (e.g. **timecode ≠ creation_time**, missing embedded date, slow-mo dual-timebase) — which also makes
   **single-file export discoverable** ("you can re-export this lone clip just to write a correct TC").
@@ -102,6 +108,19 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-10p — Shipped the live ETA + speed readout (backlog 4); planned against Penumbra/P2toMXF.**
+  Research keystone: it was a **wiring** job — `ProgressMetrics.estimatedRemainingSeconds`,
+  `currentJobEstimate`, and ffmpeg's live `speed=` were all **ported from P2toMXF and sitting unused**
+  (Penumbra has no ETA). Scope (user): **per-row + footer total**, and **show the speed multiplier**
+  (the only part needing plumbing — the live `ProgressMetrics` was discarded after the slow-speed
+  check). Impl, no new files: `QueueManager.activeMetrics` (`@Published`, fed by the `metricsHandler`,
+  cleared at job start/end); testable `remainingQueueSeconds(at:)` (active job's live
+  `elapsed/progress` remaining + historical fallback < 5% + `getTotalQueueEstimate()` for pending);
+  shared `formattedCoarseDuration()` (de-duped `ConversionEstimate.formattedEstimate` onto it).
+  `QueueRow` → `12.5× · ~2:34 left` inline (1 s `TimelineView`, active rows only); `FooterBar` →
+  whole-queue `· ~N min left`. Per-row ETA is history-independent (robust on a fresh install). **+5
+  tests → 250/250.** Merged `--no-ff` → `main` (`a9f4de1`→`2f0cde4`), branch deleted, pushed; Debug
+  app launched. **Owed:** live eyeball during a real join + 2 cosmetic confirmations.
 - **2026-06-10o — Two UI polish items shipped: codec/resolution on rows (backlog 5b) + a font cleanup.**
   (1) **Codec · resolution · fps on each recording row** (`6683656`) — pure display add (scan already
   reads `VideoStreamParams` per clip for the param guard, so no new I/O). New `CJFormat` helpers
@@ -286,7 +305,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 245 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 250 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
