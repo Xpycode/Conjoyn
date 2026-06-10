@@ -4,6 +4,32 @@ This file tracks the WHY behind technical and design decisions for DJIjoiner.
 
 ---
 
+### 2026-06-10 - Help window: defer (but adopt the reusable `AppHelp` package when built); no Settings scene
+**Context:** User asked whether a **Help menu/window** and a **Settings window** had ever been
+scoped for Conjoyn. Audit found **neither was ever discussed** — no session log, decision, spec, or
+`ideas.md` entry. Current `ConjoynApp.swift` is a bare `WindowGroup`: **no `Settings` scene, no
+`.commands { }`, no Help wiring**, so the app ships only the stock macOS menu bar (default
+About/Quit + an empty Help search field; ⌘, is a no-op). User maintains a separate standalone Swift
+package at `/1-macOS/AppHelp/` — a drop-in `HelpMenu` library (sidebar + markdown-detail
+`HelpWindowController`/`HelpWindowView`, `HelpTopic`/`HelpContent` models, swift-markdown-ui
+rendering, **both** `SwiftUIHelpCommands` and `AppKitHelpMenu` integration shims).
+**Decision:** (1) **No Settings scene** — Conjoyn has no persistent cross-launch preference to house.
+Every tunable is already in-context (output-bar switches + the gear popover for engine knobs; rename
+& date-override are deliberately session-only on the ViewModel, kept off the `Codable`
+`ConversionSettings`). A Settings window would be hollow today. Revisit only if a persisted default
+(output folder, default container) or **watch-folder config** (still unbuilt) lands. (2) **Help —
+deferred backlog item, not now.** When done, vendor the existing `AppHelp` package rather than
+hand-rolling (it's turnkey; `33_app-minimums.md` lists a Help menu as a baseline for notarized
+direct-distribution apps). The real cost is *content*, not wiring: topics for continuity-grouping,
+the camera-variant guard, the date/timecode model, SRT stitching, watch-folder.
+**Why:** Don't add empty chrome. Settings scenes exist to persist app-global prefs; Conjoyn has
+none, and forcing one now contradicts the deliberate "rename/override state is per-run" decision.
+Help is genuinely valuable but lower-priority than the owed items (single-file export, DMG, UI-state
+eyeballing), and the heavy lifting is writing topic content — so park it with the component already
+identified.
+
+---
+
 ### 2026-06-10 - Reframe "Preserve timecode" as "Timecode from recording time" + surface it per job
 **Context:** The 2026-06-10 design handoff bar still labeled the TC toggle **"Preserve timecode."**
 That's misleading: DJI's source `tmcd` is almost always `00:00:00:00`, and the engine has (since the
