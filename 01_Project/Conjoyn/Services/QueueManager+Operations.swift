@@ -88,6 +88,19 @@ extension QueueManager {
         saveQueue()
     }
 
+    /// Empties the queue, keeping only a job that is mid-write (`active`/`preparing`) so an in-flight
+    /// ffmpeg run isn't yanked out from under the processor. The processing loop re-queries pending
+    /// jobs each iteration, so removing the pending ones simply lets it finish the current job (if
+    /// any) and stop. Pair with **Stop** first to abandon a running queue entirely.
+    func clearAllJobs() {
+        let kept = jobs.filter { $0.status == .active || $0.status == .preparing }
+        let removed = jobs.count - kept.count
+        guard removed > 0 else { return }
+        jobs = kept
+        log("Cleared \(removed) job\(removed == 1 ? "" : "s") from the queue")
+        saveQueue()
+    }
+
     /// Retries a failed or cancelled job by resetting its status to pending.
     func retryJob(_ jobId: UUID) {
         guard let index = jobs.firstIndex(where: { $0.id == jobId }) else { return }

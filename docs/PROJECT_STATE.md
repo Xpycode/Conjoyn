@@ -23,18 +23,42 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** (1) **`feature/rename-tc-disclosure`** — branch live off `830b8fa`, **approved 2-commit
-  plan, implementation deferred to next session** (see `docs/sessions/2026-06-10c.md`): Commit 1 =
-  Rename Joined Files popover + pure `RenamePatternEngine`; Commit 2 = per-queue-row TC disclosure +
-  `SourceTimecodeReader`. Part 2's **relabel is already done** ("Timecode from recording time") — only
-  the disclosure remains. (2) **UI polish pass** over the finished UI — user flagged sizing/position
-  deviations vs the prototype (to be enumerated against a live build; deliberately *after* the feature,
-  since both touch the output bar + queue rows). (3) **single-file export** (user request 2026-06-10):
+- **Next:** (1) **`feature/rename-tc-disclosure` — FEATURE-COMPLETE** (both commits done; branch
+  **not yet pushed** — Commit 1 `cfbc5a1` was on `origin`, but Commit 2 `2524b00` is local-ahead).
+  Commit 1 (2026-06-10d) = Rename popover + `RenamePatternEngine`. **Commit 2 DONE** (`2524b00`,
+  2026-06-10e) = per-queue-row TC disclosure (lazy/row-side `TimecodeDisclosure` + caret/panel on
+  `QueueRow`) + ported `SourceTimecodeReader`; 220/220 tests. **Still owe: eyeball the panel on a
+  real card** (empty queue this session) + **push to `origin`**. (2) **UI polish pass** — **3 items
+  done 2026-06-10d** (popover width 348→430, draggable list/queue `VSplitView` divider, "Clear Queue"
+  button); more sizing/position deviations vs the prototype remain to enumerate against a live build
+  (the new TC caret/panel sit in the queue-row region a polish pass touches). (3) **single-file export** (user request 2026-06-10):
   let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
   carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10e — Implemented Commit 2 (per-queue-row timecode disclosure) + ported `SourceTimecodeReader`.**
+  Final commit of `feature/rename-tc-disclosure` (`2524b00`). **Display-only, no engine/export change**
+  (spec Part 2 = honesty + exposing already-computed values). New **`TimecodeDisclosure`** value built
+  **lazily in the row** (`.task(id:)`, deviation from the plan's "freeze on `ConversionJob`" — user
+  approved: same values from the job's frozen `clips`+`settings` via the *identical*
+  `RecordingStartResolver`+`TimecodeFormatter` the engine stamps with, but zero model/`addJob`/`queue.json`
+  churn). Async only for the `tmcd` read. **Ported `SourceTimecodeReader`** 1:1 (TN2310 `AVAssetReader`;
+  `Result` `@unchecked Sendable` for strict-concurrency `complete`); DJI usually has no `tmcd` → "—".
+  **`QueueRow`** gains a disclosure caret (per-row session-only) + inline panel (Source TC · Applied TC +
+  origin tag + fps · slow-mo note). **Best-effort slow-mo detection** from the SRT playback-vs-real
+  wall-clock span ratio. **9 tests → 220/220.** Not yet eyeballed live (empty queue) / not pushed.
+- **2026-06-10d — Implemented Commit 1 (Rename Joined Files popover) + 3 live-review UI fixes.** Built
+  the patterned-output-name feature from the 2026-06-10c plan: new pure **`RenamePatternEngine`** (1:1
+  `cjApplyPattern` port + `uniqueStem` collision-suffixer), **ViewModel** rename state (session-only,
+  memoised start-date cache) + batch enqueue that de-dups vs *batch ∪ unfinished-queue ∪ dest-folder*
+  (rename-OFF path untouched), new **`RenamePopover`** + a **`CaretTextField`** `NSViewRepresentable`
+  for caret token-insertion, 4th "Rename files" switch. `{date}`/`{time}` share the same
+  `RecordingStartResolver` instant as the date/TC stamp. **16 new tests → 211/211.** Merged into
+  Commit 1: popover **widened 348→430** (native controls bulkier than the CSS mockup). Two more
+  review fixes as their own commits: draggable list/queue **`VSplitView` divider** (`18d617a`) and a
+  **"Clear Queue" button** (`8579210`, keeps a mid-write job). Branch **pushed** to `origin`. Next:
+  Commit 2 (per-row TC disclosure + `SourceTimecodeReader`).
 - **2026-06-10c — Reconciled this Mac's git, then scoped (and deferred) the next feature.** A routine
   `/status` exposed a git/reality split: docs describe many merges to `main`, but this Mac's `.git`
   held only 2 commits with the whole Conjoyn source uncommitted. Root cause: the repo syncs via
@@ -92,7 +116,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 195 (all pass). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 220 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).

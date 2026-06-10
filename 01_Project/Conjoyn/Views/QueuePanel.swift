@@ -10,6 +10,7 @@ import AppKit
 struct OutputBar: View {
     @EnvironmentObject private var vm: ConversionViewModel
     @State private var showMoreOptions = false
+    @State private var showRename = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -32,6 +33,16 @@ struct OutputBar: View {
             OptionSwitch(label: "Fix recording date", isOn: $vm.settings.fixCreationDate)
             OptionSwitch(label: "Timecode from recording time", isOn: $vm.settings.preserveTimecode)
             OptionSwitch(label: "Stitch telemetry", isOn: $vm.settings.stitchSRT)
+
+            // Fourth switch: turning it ON opens the rename popover; the popover's ✕ turns it OFF
+            // (which closes the popover via the onChange below). Clicking away just dismisses the
+            // panel — renaming stays on with the last pattern intact (re-toggle to edit again).
+            OptionSwitch(label: "Rename files", isOn: $vm.renameEnabled)
+                .popover(isPresented: $showRename, arrowEdge: .top) {
+                    RenamePopover { vm.renameEnabled = false }
+                        .environmentObject(vm)
+                }
+                .onChange(of: vm.renameEnabled) { _, on in showRename = on }
 
             // The handoff bar carries only the three core switches; the engine's remaining knobs
             // (container, filename, re-encode, delete-after-verify) live behind this gear.
@@ -127,10 +138,18 @@ struct QueueSection: View {
                 count: queue.jobs.isEmpty ? nil
                     : "\(queue.jobs.count) \(queue.jobs.count == 1 ? "job" : "jobs")"
             ) {
-                if queue.completedCount + queue.failedCount > 0 {
-                    Button("Clear Finished") { queue.clearFinishedJobs() }
-                        .buttonStyle(.cjGhost)
-                        .font(.system(size: 11))
+                HStack(spacing: 8) {
+                    if queue.completedCount + queue.failedCount > 0 {
+                        Button("Clear Finished") { queue.clearFinishedJobs() }
+                            .buttonStyle(.cjGhost)
+                            .font(.system(size: 11))
+                    }
+                    if !queue.jobs.isEmpty {
+                        Button("Clear Queue") { queue.clearAllJobs() }
+                            .buttonStyle(.cjGhost)
+                            .font(.system(size: 11))
+                            .help("Remove all jobs (a running job keeps going — press Stop first to abandon it)")
+                    }
                 }
             }
             .overlay(alignment: .top) { Theme.line.frame(height: 1) }
@@ -159,56 +178,82 @@ private struct QueueRow: View {
     let job: ConversionJob
     @EnvironmentObject private var queue: QueueManager
 
+    // Per-row, session-only: the disclosure expand state and its lazily-built timecode readout.
+    @State private var expanded = false
+    @State private var disclosure: TimecodeDisclosure?
+
     var body: some View {
-        HStack(spacing: 12) {
-            Text(job.displayName)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.txt)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 220, alignment: .leading)
-                .help(job.destinationURL.path)
-
-            CJProgressBar(fraction: barFraction, fill: barFill)
-
-            Text(statusText)
-                .font(.system(size: 11, weight: statusBold ? .semibold : .regular))
-                .foregroundStyle(statusColor)
-                .frame(width: 84, alignment: .leading)
-
-            HStack(spacing: 4) {
-                if isFailedOrCancelled {
-                    Button { queue.retryJob(job.id) } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.cjIcon)
-                    .help("Retry")
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
                 }
-                if job.status == .completed {
-                    Button {
-                        if let url = job.actualOutputURLs.first {
-                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                .buttonStyle(.cjIcon)
+                .frame(width: 14)
+                .help(expanded ? "Hide timecode detail" : "Show timecode detail")
+
+                Text(job.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.txt)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(width: 220, alignment: .leading)
+                    .help(job.destinationURL.path)
+
+                CJProgressBar(fraction: barFraction, fill: barFill)
+
+                Text(statusText)
+                    .font(.system(size: 11, weight: statusBold ? .semibold : .regular))
+                    .foregroundStyle(statusColor)
+                    .frame(width: 84, alignment: .leading)
+
+                HStack(spacing: 4) {
+                    if isFailedOrCancelled {
+                        Button { queue.retryJob(job.id) } label: {
+                            Image(systemName: "arrow.clockwise")
                         }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
+                        .buttonStyle(.cjIcon)
+                        .help("Retry")
                     }
-                    .buttonStyle(.cjIcon)
-                    .help("Reveal in Finder")
-                }
-                if job.status == .pending || isFailedOrCancelled {
-                    Button { queue.removeJob(job.id) } label: {
-                        Image(systemName: "xmark")
+                    if job.status == .completed {
+                        Button {
+                            if let url = job.actualOutputURLs.first {
+                                NSWorkspace.shared.activateFileViewerSelecting([url])
+                            }
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .buttonStyle(.cjIcon)
+                        .help("Reveal in Finder")
                     }
-                    .buttonStyle(.cjIcon)
-                    .help("Remove from queue")
+                    if job.status == .pending || isFailedOrCancelled {
+                        Button { queue.removeJob(job.id) } label: {
+                            Image(systemName: "xmark")
+                        }
+                        .buttonStyle(.cjIcon)
+                        .help("Remove from queue")
+                    }
                 }
+                .frame(width: 52, alignment: .trailing)
             }
-            .frame(width: 52, alignment: .trailing)
+            .padding(.vertical, 7)
+            .help(failureMessage ?? "")
+
+            if expanded {
+                TimecodeDisclosurePanel(disclosure: disclosure)
+                    .padding(.leading, 26)   // align under the name, clear of the caret
+                    .padding(.bottom, 8)
+            }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 7)
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
-        .help(failureMessage ?? "")
+        // Recompute only when the row is bound to a different job. The build reads the job's frozen
+        // clips + settings, so the values shown always match what the engine stamps for this job.
+        .task(id: job.id) {
+            disclosure = await TimecodeDisclosure.build(clips: job.clips, settings: job.settings)
+        }
     }
 
     private var isActive: Bool { job.status == .active || job.status == .preparing }
@@ -262,6 +307,69 @@ private struct QueueRow: View {
         case .failed:    return Theme.bad
         case .cancelled: return Theme.txt2
         }
+    }
+}
+
+/// The per-row timecode disclosure (rename-and-tc-disclosure, Part 2). Shows DJI's inert source
+/// `tmcd` beside the timecode Conjoyn actually applies (with its origin + the fps used for the frame
+/// component), plus the slow-mo caption when relevant. `nil` while the async build is in flight.
+private struct TimecodeDisclosurePanel: View {
+    let disclosure: TimecodeDisclosure?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let d = disclosure {
+                // Source TC — the camera's original, visibly inert (DJI is almost always "—").
+                HStack(spacing: 8) {
+                    label("Source TC")
+                    Text(d.sourceTimecode ?? "—")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Theme.txt3)
+                }
+
+                if d.timecodeEnabled {
+                    if let applied = d.appliedTimecode {
+                        HStack(spacing: 8) {
+                            label("Applied TC")
+                            Text(applied)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(Theme.acc1)
+                            Text("· \(d.originTag) · \(d.frameRateLabel) fps")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.txt2)
+                        }
+                    } else {
+                        Text("No recording-start signal — timecode not stamped.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.txt3)
+                    }
+                } else {
+                    Text("Timecode from recording time is off — source timecode passed through.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.txt3)
+                }
+
+                if d.isSlowMotion {
+                    Text("Slow-mo: timecode starts at the real recording time and advances at the "
+                         + "file's playback rate (\(d.frameRateLabel) fps).")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.txt2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text("Reading timecode…")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.txt3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(Theme.txt3)
+            .frame(width: 72, alignment: .leading)
     }
 }
 
