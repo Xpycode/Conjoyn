@@ -4,6 +4,29 @@ This file tracks the WHY behind technical and design decisions for DJIjoiner.
 
 ---
 
+### 2026-06-10 - Card-aware folder descent (drop a card root, not just the leaf media folder)
+**Context:** Live UI test exposed that dropping/choosing a card **root** (`/Volumes/M4P-1`) reported
+"No video segments found" — `DJIFolderReader.read` scanned only the chosen folder
+(`.skipsSubdirectoryDescendants`), but DJI clips live in `DCIM/DJI_001`. The user had to drill into
+the media folder by hand. CLAUDE.md already said discovery should run "over DCIM/`100MEDIA`" and the
+empty-state copy invites "drop a card," so this was a real gap, not new scope.
+**Decision:** Chose **shallow, card-shaped descent** over full recursion. New internal
+`resolveMediaFolders(startingAt:)`: returns the folder unchanged when it directly holds DJI video
+(common fast path); otherwise treats a `DCIM` container (under the folder, or the folder itself when
+it *is* DCIM) — and the folder itself for DCIM-less cards — as parents whose *immediate* subfolders
+are media folders, and pools those that hold DJI video. **Bounded to one subdirectory level** (card
+root → `DCIM` → media folder); falls back to `[folder]` when nothing is found so the empty scan still
+names the dropped folder. Multi-folder cards pool sorted (`DJI_001` before `DJI_002`).
+**Why:** A "drop a card" affordance must work on the card root, but **full recursion is a footgun** —
+dropping a home folder would enumerate tens of thousands of files. Bounding to real camera-card
+layouts (the only shape we promise) gets the ergonomics with no deep-walk risk; a `testDescentIsBounded`
+case pins it. Grouping is by metadata continuity + the stream-param guard, so pooling clips across
+`DCIM/*` subfolders can't wrongly merge distinct recordings. **Caveat:** cross-folder filename-index
+collisions only matter when `creation_time` is missing (ordering then falls back to index/stem) — an
+existing limitation, not introduced here.
+
+---
+
 ### 2026-06-10 - Help window: defer (but adopt the reusable `AppHelp` package when built); no Settings scene
 **Context:** User asked whether a **Help menu/window** and a **Settings window** had ever been
 scoped for Conjoyn. Audit found **neither was ever discussed** — no session log, decision, spec, or
