@@ -32,13 +32,23 @@
   "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`). **DONE — 220/220 tests,
   merged `--no-ff` → `main` (`f4eeb99`, 2026-06-10i) and pushed; both feature branches deleted.**
   Empty + Loaded match the prototype; Scanning/Running seen during a live join; **Done not yet
-  clean-eyeballed.** (3) **single-file export** (user request 2026-06-10):
-  let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
-  carried over — today the engine refuses with "need at least two segments". (4) **ETA readout**
+  clean-eyeballed.** (3) ~~**single-file export**~~ **DONE (engine) on `feature/single-file-export`
+  (`b6916ec`, 2026-06-10j) — pending live test + merge.** Relaxed `mergeClips`'s `>= 2` guard to
+  `>= 1`; a lone clip runs the same concat-`-c copy` path (preview/data dropped, +faststart,
+  creation_time/tmcd stamped, `.SRT` carried over via the N=1 stitch). Param guard skipped for N=1;
+  in-place export can't clobber its source (`addJob` case-insensitive collision → `(1)`). UI already
+  allowed ticking single rows. **+2 integration tests → 229/229.** (4) **ETA readout**
   (2026-06-10i) — surface `SpeedTracker`'s already-tracked throughput as a "~N min" estimate (display
-  only). (5) **Help window** (2026-06-10i) — vendor the standalone `/1-macOS/AppHelp/` package; cost
-  is topic content, not wiring (**no Settings scene** — decided unnecessary). (6) DMG wrapper. Smaller
-  polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
+  only). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
+  list + queue have lots of empty vertical space; use it to surface per-recording integrity info
+  (e.g. **timecode ≠ creation_time**, missing embedded date, slow-mo dual-timebase) — which also makes
+  **single-file export discoverable** ("you can re-export this lone clip just to write a correct TC").
+  (6) **Wire up source↔target verification** (user asked 2026-06-10j) — `VerificationService` +
+  `QueueManager+Verification` (`verifyJob`/`verifyAllCompleted`) are **ported from Penumbra but have
+  zero callers**; add a post-join result check + log/UI surface. (7) **Help window** (2026-06-10i) —
+  vendor the standalone `/1-macOS/AppHelp/` package; cost is topic content, not wiring (**no Settings
+  scene** — decided unnecessary). (8) DMG wrapper. Smaller polish: Apple `Keys` creationdate atom
+  (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
 - **2026-06-10i — Merged the UI-polish pass; scoped Help/Settings; shipped card-aware folder descent.**
