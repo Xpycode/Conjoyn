@@ -350,6 +350,73 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(manager.overallProgress, 0.75, accuracy: 0.0001)
     }
 
+    // MARK: - ETA readout (queue time-remaining)
+
+    func testFormattedCoarseDuration() {
+        XCTAssertEqual(formattedCoarseDuration(30), "< 1 min")     // sub-minute collapses
+        XCTAssertEqual(formattedCoarseDuration(120), "~2 min")
+        XCTAssertEqual(formattedCoarseDuration(3_700), "~1h 1m")   // 1h 1m 40s → hours + whole minutes
+    }
+
+    func testRemainingQueueSecondsNilWhenIdle() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        // A queued-but-not-processing manager shows no readout.
+        XCTAssertNil(manager.remainingQueueSeconds(at: Date()))
+    }
+
+    func testRemainingQueueSecondsLiveExtrapolationForActiveJob() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+        manager.jobs[0].status = .active
+        manager.jobs[0].progress = 0.5
+        manager.jobs[0].startedAt = start
+        manager.currentJobId = manager.jobs[0].id
+        manager.isProcessing = true
+
+        // 60s elapsed at 50% → 120s total → 60s remaining; no pending jobs to add on top.
+        let remaining = manager.remainingQueueSeconds(at: start.addingTimeInterval(60))
+        XCTAssertNotNil(remaining)
+        XCTAssertEqual(remaining!, 60, accuracy: 0.5)
+    }
+
+    func testRemainingQueueSecondsFallsBackToHistoricalEstimateBeforeFivePercent() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+        manager.jobs[0].status = .active
+        manager.jobs[0].progress = 0.02      // below the 5% live-extrapolation floor
+        manager.jobs[0].startedAt = start
+        manager.currentJobId = manager.jobs[0].id
+        manager.isProcessing = true
+        manager.currentJobEstimate = ConversionEstimate(
+            totalBytes: 0, totalDurationSeconds: 0, clipCount: 1,
+            estimatedSeconds: 200, speedMultiplier: 15, confidence: .low
+        )
+
+        // Live formula returns nil this early, so the pre-job historical estimate stands in.
+        let remaining = manager.remainingQueueSeconds(at: start.addingTimeInterval(2))
+        XCTAssertEqual(remaining!, 200, accuracy: 0.5)
+    }
+
+    func testRemainingQueueSecondsAddsPendingJobs() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Active.mp4"))
+        manager.addJob(makeJob(outputName: "Waiting.mp4"))   // stays pending
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+        manager.jobs[0].status = .active
+        manager.jobs[0].progress = 0.5
+        manager.jobs[0].startedAt = start
+        manager.currentJobId = manager.jobs[0].id
+        manager.isProcessing = true
+
+        // Active job alone is ~60s remaining; the still-pending job must add a positive estimate.
+        let remaining = manager.remainingQueueSeconds(at: start.addingTimeInterval(60))
+        XCTAssertNotNil(remaining)
+        XCTAssertGreaterThan(remaining!, 60)
+    }
+
     // MARK: - Job-level aggregates
 
     func testTotalContentDurationSeconds() {

@@ -270,6 +270,9 @@ private struct QueueRow: View {
                     .foregroundStyle(statusColor)
                     .frame(width: 84, alignment: .leading)
 
+                liveMetrics
+                    .frame(width: 140, alignment: .leading)
+
                 HStack(spacing: 4) {
                     if isFailedOrCancelled {
                         Button { queue.retryJob(job.id) } label: {
@@ -380,6 +383,34 @@ private struct QueueRow: View {
         case .completed: return Theme.ok
         case .failed:    return Theme.bad
         case .cancelled: return Theme.txt2
+        }
+    }
+
+    /// Live speed + time-remaining for the active job, ticking once a second so the countdown advances
+    /// smoothly between ffmpeg progress callbacks. Speed comes from ffmpeg's `speed=` (`activeMetrics`);
+    /// the ETA is the history-independent `elapsed / progress` extrapolation off the job's own
+    /// `progress`/`startedAt`, falling back to the pre-job historical estimate before 5% progress so
+    /// the row never shows a blank while preparing. Renders nothing for inactive rows.
+    @ViewBuilder
+    private var liveMetrics: some View {
+        if isActive, job.id == queue.currentJobId {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let metrics = ProgressMetrics(progress: job.progress, startTime: job.startedAt)
+                HStack(spacing: 6) {
+                    if let speed = queue.activeMetrics?.formattedSpeed {
+                        Text(speed.replacingOccurrences(of: "x", with: "×"))
+                    }
+                    if let remaining = metrics.formattedRemaining(at: context.date) {
+                        Text("~\(remaining) left")
+                    } else if let estimate = queue.currentJobEstimate {
+                        Text("\(estimate.formattedEstimate) left")
+                    }
+                }
+                .font(.system(size: 11))
+                .monospacedDigit()
+                .foregroundStyle(Theme.txt2)
+                .lineLimit(1)
+            }
         }
     }
 }
@@ -603,6 +634,19 @@ struct FooterBar: View {
                 .font(.system(size: 12))
                 .monospacedDigit()
                 .foregroundStyle(Theme.txt2)
+
+                // Whole-queue time-remaining, ticking once a second. Only while processing and once
+                // there's enough signal to estimate (active job's live remaining + pending history).
+                if queue.isProcessing {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        if let remaining = queue.remainingQueueSeconds(at: context.date) {
+                            Text("· \(formattedCoarseDuration(remaining)) left")
+                                .font(.system(size: 12))
+                                .monospacedDigit()
+                                .foregroundStyle(Theme.txt2)
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)

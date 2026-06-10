@@ -65,6 +65,10 @@ final class QueueManager: ObservableObject {
     @Published var isVerifying = false
     @Published var slowSpeedWarning: SlowSpeedWarning?
     @Published var currentJobEstimate: ConversionEstimate?
+    /// Latest live progress metrics from FFmpeg for the active job (ffmpeg's `speed=` etc.). Fed by
+    /// the `metricsHandler` during a join, cleared when no job is running. Drives the live speed
+    /// readout in the queue row; `nil` between jobs and before the first metrics callback arrives.
+    @Published var activeMetrics: ProgressMetrics?
     /// Error message when queue persistence fails (nil if no error). Displayed in the UI to warn
     /// users their queue may not survive app restarts.
     @Published var persistenceError: String?
