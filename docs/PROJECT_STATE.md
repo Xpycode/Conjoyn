@@ -18,6 +18,10 @@
   `git-remote-reconciliation`).
 
 ## Now
+- **⚠ HANDOFF (switched Macs 2026-06-10l — delete this line once reconciled):** if local `main` is
+  behind `origin`, run `git fetch origin && git reset --hard origin/main` **before editing** (the
+  Syncthing'd tree is already updated but `.git` isn't — see memory `git-remote-reconciliation`).
+  Next work = backlog (10), plan in repo at `docs/plans/output-folder-clarity.md`.
 - **Phase:** implementation, ~97%. Engine validated end-to-end on real footage (14/14 batch,
   date/TC/SRT all `ffprobe`-verified), **signed + notarized + stapled**, and the **designed UI is
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
