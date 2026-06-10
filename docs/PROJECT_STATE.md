@@ -32,8 +32,8 @@
   "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`). **DONE — 220/220 tests,
   merged `--no-ff` → `main` (`f4eeb99`, 2026-06-10i) and pushed; both feature branches deleted.**
   Empty + Loaded match the prototype; Scanning/Running seen during a live join; **Done not yet
-  clean-eyeballed.** (3) ~~**single-file export**~~ **DONE (engine) on `feature/single-file-export`
-  (`b6916ec`, 2026-06-10j) — engine + 229/229 + LIVE-TESTED, pending merge.** Relaxed `mergeClips`'s
+  clean-eyeballed.** (3) ~~**single-file export**~~ **DONE + LIVE-TESTED + MERGED → `main`
+  (`73cffed`, 2026-06-10k); branch deleted.** Relaxed `mergeClips`'s
   `>= 2` guard to `>= 1`; a lone clip runs the same concat-`-c copy` path (preview/data dropped,
   +faststart, creation_time/tmcd stamped, `.SRT` carried over via the N=1 stitch). Param guard
   skipped for N=1; in-place export can't clobber its source (`addJob` case-insensitive collision →
@@ -42,7 +42,7 @@
   packet **MD5 == output v:0 MD5** (byte-identical, truly lossless), 5554→5554 frames, mjpeg preview
   + 2 telemetry data tracks dropped, duration 222.16 s exact, `creation_time=2026-05-21T17:47:15Z` +
   `tmcd=19:47:15:08` stamped, faststart (moov before mdat). **GUI eyeball (tick lone row → Start)
-  still owed** (no UI automation). Ready to merge `--no-ff` → `main`. (4) **ETA readout**
+  still owed** (no UI automation). (4) **ETA readout**
   (2026-06-10i) — surface `SpeedTracker`'s already-tracked throughput as a "~N min" estimate (display
   only). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
   list + queue have lots of empty vertical space; use it to surface per-recording integrity info
@@ -66,10 +66,37 @@
   ranked **above** creation_time in `RecordingStartResolver` — filename is camera-local + survives a
   card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
   neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
-  `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. Smaller polish: Apple
-  `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
+  `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. **(10) Output-folder ↔
+  queue clarity — APPROVED A+B, next session** (user hit it live 2026-06-10k): `addToQueue()`
+  (`ConversionViewModel.swift:177-187`) **freezes** `outputFolderURL` into each `job.destinationURL`
+  at enqueue; the Output bar governs only *future* adds and **rows never show their destination**, so
+  changing the folder after queuing silently doesn't apply. Per-job freezing is correct for a queue —
+  the defect is missing feedback. **A (Transparency):** show each job's destination in the queue
+  (inline `→ <folder>/` or in the row-disclosure panel; data on `job.destinationURL`). **B (Re-apply
+  on change):** when the Output folder changes *and* `.pending` jobs exist, prompt "Apply new output
+  folder to N pending jobs? [Apply / Keep]" — pending/unstarted only (`!status.isFinished`, not
+  `active`/`preparing`), recompute `newFolder + same stem`, re-run collision resolution; never touch
+  active/Done. Tier C (pending jobs track the live folder, freeze at start) noted as a bigger optional
+  model change — defer. **DONE this session:** "Singles" added to the selection filter
+  (All·None·Splits·Singles, `cee27e3`). Smaller polish: Apple `Keys` creationdate atom (6.3), doubled
+  camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10k — Live-tested + merged single-file export; added the Singles filter; reaffirmed TC
+  source; approved A+B for the output-folder trap.** (1) **Single-file export** clean-built (229/229,
+  both single-file tests ran w/ real ffmpeg), **independently verified on real clip `0004`** via the
+  bundled ffmpeg + the exact production N=1 arg vector: **source v:0 packet MD5 == output v:0 MD5**
+  (byte-identical, truly lossless), 5554→5554 frames, mjpeg preview + 2 telemetry data tracks dropped,
+  duration exact, `creation_time`+`tmcd=19:47:15:08` stamped, faststart. Merged `--no-ff` → `main`
+  (`73cffed`), pushed, branch deleted. (2) **"Singles" selection filter** (`cee27e3`) — mirror of
+  Splits; bar = All·None·Splits·Singles; built, merged, pushed, branch deleted. (3) **TC source: no
+  change** — user asked to switch filename→creation_time; traced the resolver and showed filename is
+  correctly ranked higher (camera-local + copy-proof; atom is UTC/skewed, filesystem resets on copy;
+  no `:00`-frame precision gain — only SRT cue is sub-second), user confirmed *keep filename priority*.
+  (4) **Output-folder ↔ queue trap diagnosed** — destination frozen per-job at enqueue + no per-row
+  dest shown → changing the folder after queuing silently no-ops. **Approved A+B** (transparency +
+  re-apply-to-pending prompt) for next session. Logged backlog (5b) codec/dimensions in row, (9)
+  manual TC entry. Owed: GUI eyeball of single-file export (tick lone row → Start).
 - **2026-06-10i — Merged the UI-polish pass; scoped Help/Settings; shipped card-aware folder descent.**
   (1) `feature/ui-polish` → **220/220** → merged `--no-ff` `main` (`f4eeb99`) + pushed; deleted it and
   the stale-merged `feature/rename-tc-disclosure`. (2) **Help/Settings audit:** neither ever scoped;
@@ -193,7 +220,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 227 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 229 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
