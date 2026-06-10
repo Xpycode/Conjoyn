@@ -35,17 +35,28 @@ enum DJIFolderReader {
         var clipCount: Int { groups.reduce(0) { $0 + $1.clipCount } }
     }
 
-    /// Reads `folder` non-recursively and returns grouped, ordered clips.
+    /// Reads `folder` and returns grouped, ordered clips.
+    ///
+    /// The chosen folder is scanned non-recursively first. If it holds no DJI media — common when
+    /// the user drops a card *root* (`/Volumes/CARD`) whose clips actually live in `DCIM/DJI_001` —
+    /// discovery falls back to a **shallow, card-shaped descent** (`resolveMediaFolders`): it looks
+    /// through a `DCIM` container for the media subfolders and pools their contents. It is bounded
+    /// to the depths real camera cards use (root → `DCIM` → media folder), never a deep recursive
+    /// walk of an arbitrary directory.
     /// - Parameters:
-    ///   - folder: The DCIM media folder to scan (e.g. `…/DCIM/100MEDIA`).
+    ///   - folder: The dropped/chosen folder — a media folder (`…/DCIM/100MEDIA`), a `DCIM`, or a
+    ///     card root.
     ///   - ffmpeg: Wrapper used for the ffprobe stream-parameter pass.
     static func read(folder: URL, using ffmpeg: FFmpegWrapper) async -> Discovery {
         let fm = FileManager.default
-        let contents = (try? fm.contentsOfDirectory(
-            at: folder,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
-        )) ?? []
+        // Pool contents across every media folder the descent resolves (usually just `folder`).
+        let contents = resolveMediaFolders(startingAt: folder).flatMap { dir in
+            (try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+            )) ?? []
+        }
 
         // Pair sidecars to videos by shared stem (a video and its `.SRT`/`.LRF` share the stem).
         var srtByStem: [String: URL] = [:]
@@ -245,6 +256,61 @@ enum DJIFolderReader {
                 variantSuffix: runClips.first?.variantSuffix
             )
         }
+    }
+
+    // MARK: - Folder resolution (card-aware descent)
+
+    /// Resolves which folder(s) to actually scan for media, starting from what the user dropped/chose.
+    ///
+    /// Returns `[folder]` unchanged when it directly contains DJI video (the common case: a media
+    /// folder was picked). Otherwise performs a **shallow, card-shaped descent**: it treats a `DCIM`
+    /// directory (under `folder`, or `folder` itself when it *is* `DCIM`) — and `folder` itself, for
+    /// DCIM-less layouts — as parents whose *immediate* subfolders are media folders, and returns the
+    /// subfolders that hold DJI video. Bounded to one subdirectory level (card root → `DCIM` → media
+    /// folder), so dropping a huge home directory never triggers a deep walk.
+    ///
+    /// When nothing is found it returns `[folder]` so the caller still produces an (empty) scan with
+    /// the original folder's name in the status message.
+    static func resolveMediaFolders(startingAt folder: URL) -> [URL] {
+        if containsDJIMedia(folder) { return [folder] }
+
+        // Parents whose immediate children are candidate media folders.
+        var parents: [URL] = []
+        let dcim = folder.appendingPathComponent("DCIM", isDirectory: true)
+        if isDirectory(dcim) { parents.append(dcim) }
+        if folder.lastPathComponent.caseInsensitiveCompare("DCIM") == .orderedSame { parents.append(folder) }
+        parents.append(folder) // DCIM-less cards: media folders sit directly under the dropped folder.
+
+        let fm = FileManager.default
+        var found: [URL] = []
+        var seen = Set<String>()
+        for parent in parents {
+            let subdirs = (try? fm.contentsOfDirectory(
+                at: parent,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+            )) ?? []
+            for sub in subdirs where isDirectory(sub) && containsDJIMedia(sub) {
+                if seen.insert(sub.standardizedFileURL.path).inserted { found.append(sub) }
+            }
+        }
+        // Stable order so multi-folder cards enqueue predictably (DJI_001 before DJI_002).
+        return found.isEmpty ? [folder] : found.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// Whether a folder directly contains at least one file that parses as DJI **video** (cheap —
+    /// filename enumeration only, no media decode).
+    private static func containsDJIMedia(_ folder: URL) -> Bool {
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
+        )) ?? []
+        return contents.contains { DJIFilenameParser.parse($0)?.mediaKind == .video }
+    }
+
+    private static func isDirectory(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
     }
 
     // MARK: - Helpers
