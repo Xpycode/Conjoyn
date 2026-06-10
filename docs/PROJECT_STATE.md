@@ -28,13 +28,27 @@
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
   exactly). 220/220 tests. (2) **UI polish pass** — **3 items
   done 2026-06-10d** (popover width 348→430, draggable list/queue `VSplitView` divider, "Clear Queue"
-  button); more sizing/position deviations vs the prototype remain to enumerate against a live build
-  (the new TC caret/panel sit in the queue-row region a polish pass touches). (3) **single-file export** (user request 2026-06-10):
+  button); **2026-06-10h** added a visual-diff rig (cookbook #77) + dropped redundant user-facing
+  "DJI" copy + restored the Scan button label (`.labelStyle(.titleAndIcon)`) on `feature/ui-polish`
+  (**uncommitted-to-`main`; tests + merge deferred to next session**). Empty + Loaded now match the
+  prototype; **Scanning/Running/Done not yet live-eyeballed.** (3) **single-file export** (user request 2026-06-10):
   let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
   carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10h — UI polish pass (visual-diff driven): dropped redundant "DJI" copy + restored the
+  Scan button label.** From the user's "Choose a DJI folder is a bit redundant now." Built a
+  visual-diff rig (**cookbook #77** — Playwright+WebKit rendered all 5 prototype states; live
+  `screencapture` blocked by missing Screen Recording permission, user supplied Empty+Loaded
+  manually). `Theme.swift` mirrors `styles.css` 1:1 — port is faithful; 3 divergences are
+  intentional (native-toolbar wordmark drop, Rename+gear, queue TC caret). **Only 2 user-facing
+  "DJI" strings** (both `ConversionViewModel.swift`); ~18 internal `DJI*` identifiers are the domain
+  model and stay. Applied 3 edits on `feature/ui-polish`: picker msg → "Choose a media folder (e.g.
+  DCIM/100MEDIA)", empty-scan status → "No video segments found…", and `ContentView.swift:69` Scan
+  `Label` gains `.labelStyle(.titleAndIcon)` (toolbars default `Label` to `.iconOnly` → primary
+  action had been a bare `viewfinder` glyph since the 2026-06-10g native-toolbar move). Clean build
+  ✓, user confirmed. **Committed on branch — tests + merge deferred to next session per user.**
 - **2026-06-10g — Migrated the custom titlebar to a native macOS toolbar (UI polish).** From the
   user's "could the toolbar be in the title bar?" Replaced the custom 52 pt `TitleBar` HStack +
   `WindowConfigurator` with a native `.toolbar` + `.toolbarRole(.editor)` (App Shell Standard, like
