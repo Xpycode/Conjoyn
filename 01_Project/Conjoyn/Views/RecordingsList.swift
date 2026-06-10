@@ -42,6 +42,7 @@ struct RecordingsList: View {
                     ("All", { vm.selectAllGroups() }),
                     ("None", { vm.selectNoGroups() }),
                     ("Splits", { vm.selectSplitGroupsOnly() }),
+                    ("Singles", { vm.selectSingleGroupsOnly() }),
                 ])
             }
 

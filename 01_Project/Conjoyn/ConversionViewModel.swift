@@ -81,6 +81,9 @@ final class ConversionViewModel: ObservableObject {
     func selectSplitGroupsOnly() {
         selectedGroupIDs = Set(groups.filter { $0.groupType == .split }.map(\.id))
     }
+    func selectSingleGroupsOnly() {
+        selectedGroupIDs = Set(groups.filter { $0.groupType == .single }.map(\.id))
+    }
 
     // MARK: - Folder selection
 
