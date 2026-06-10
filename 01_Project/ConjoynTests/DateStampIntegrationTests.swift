@@ -80,6 +80,49 @@ final class DateStampIntegrationTests: XCTestCase {
         XCTAssertEqual(timecode, "19:53:03:11", "start timecode not stamped (got '\(timecode)')")
     }
 
+    /// Single-file export (N=1): a lone segment runs the same concat path and gets its
+    /// `creation_time`/`tmcd` stamped — proving a single clip can be re-exported just to fix its
+    /// date/timecode. The pre-relax guard threw "Need at least two segments" here.
+    func testSingleFileExportStampsTimecode() async throws {
+        let (ffmpeg, ffprobe) = try tools()
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let a = dir.appendingPathComponent("a.mp4")
+        let out = dir.appendingPathComponent("export.mp4")
+        try generateClip(ffmpeg: ffmpeg, to: a)
+
+        let metadata = FFmpegWrapper.JoinMetadata(
+            creationTime: "2026-05-21T17:53:03.000Z",
+            timecode: "19:53:03:11"
+        )
+
+        try await FFmpegWrapper().mergeClips([a], to: out, metadata: metadata, progress: { _, _ in })
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: out.path), "single-file export produced no output")
+
+        let creation = probe(ffprobe, ["-show_entries", "format_tags=creation_time",
+                                       "-of", "default=nokey=1:noprint_wrappers=1", out.path])
+        XCTAssertTrue(creation.hasPrefix("2026-05-21T17:53:03"),
+                      "creation_time not stamped on single export, got '\(creation)'")
+
+        let timecode = probe(ffprobe, ["-select_streams", "d", "-show_entries", "stream_tags=timecode",
+                                       "-of", "default=nokey=1:noprint_wrappers=1", out.path])
+        XCTAssertEqual(timecode, "19:53:03:11", "start timecode not stamped on single export (got '\(timecode)')")
+    }
+
+    /// An empty segment list is the one case `mergeClips` still refuses.
+    func testEmptySegmentsThrows() async throws {
+        _ = try tools()
+        let out = try makeTempDir().appendingPathComponent("none.mp4")
+        do {
+            try await FFmpegWrapper().mergeClips([], to: out, progress: { _, _ in })
+            XCTFail("expected mergeClips([]) to throw")
+        } catch {
+            // expected — nothing to export
+        }
+    }
+
     /// With both stamps suppressed (the toggles are off upstream), the join writes neither tag —
     /// guarding against an accidental always-stamp regression.
     func testEmptyMetadataStampsNothing() async throws {
