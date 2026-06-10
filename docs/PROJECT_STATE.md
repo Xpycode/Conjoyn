@@ -50,10 +50,19 @@
   `· ~N min left` (`remainingQueueSeconds(at:)` = active live remaining + pending historical
   estimate). Shared `formattedCoarseDuration()`; no new source files. **+5 tests → 250/250.**
   **Owed:** live eyeball during a real join (display-only; math unit-tested) + cosmetics (140 pt
-  metrics column at the 1220 pt min window; `×` vs `x`). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
-  list + queue have lots of empty vertical space; use it to surface per-recording integrity info
-  (e.g. **timecode ≠ creation_time**, missing embedded date, slow-mo dual-timebase) — which also makes
-  **single-file export discoverable** ("you can re-export this lone clip just to write a correct TC").
+  metrics column at the 1220 pt min window; `×` vs `x`). (5) ~~**Empty-space metadata-integrity panel**~~ **DONE + MERGED → `main` (`e74f431`, 2026-06-11);
+  feature `3a7a238`, branch deleted, pushed.** New pure `RecordingIntegrity` service built lazily per
+  row (`.task`), reusing the engine's `RecordingStartResolver` + `TimecodeDisclosure.detectSlowMotion`
+  (no engine coupling; skips the absent-for-DJI `tmcd` read). The row's date line now shows the
+  **corrected** date + an origin tag ("from filename"/"from SRT cue") instead of parroting a
+  wrong/missing embedded date; a chip strip appears **only** for genuine problems (no date / bad date /
+  SRT↔filename mismatch) + slow-mo, each with a `.help()` tooltip. `CJBadge` gained `isFlagged`
+  (flagged lone clip → orange SINGLE badge → single-file re-export discoverable). The routine
+  "date from X" is the inline tag only, never a chip (no duplication). **+13 tests → 263/263.**
+  Live-confirmed the SRT path (all "from SRT cue", clean → no chips); **owed:** eyeball the slow-mo +
+  SRT-mismatch warning chips (no such clip on the cards seen — unit-tested only). Original ask: the
+  recordings list/queue have empty vertical space; surface per-recording integrity (missing embedded
+  date, slow-mo dual-timebase) — which also makes single-file export discoverable.
   **(5b) Codec + dimensions in the recordings-row empty space — DONE 2026-06-10o (`6683656`).**
   Each row now shows `HEVC · 3840×2160 · 25 fps` in the gap before the SINGLE/SPLIT badge (new
   `CJFormat.codec`/`resolution`/`fps` + `RecordingRow.streamSummary` off the first segment's
@@ -108,6 +117,22 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11 — Shipped the per-recording metadata-integrity flags (backlog 5) + two eyeball fixes.**
+  Planned with Explore + Plan agents and a web/HIG check, then live-iterated on real cards. New pure
+  `RecordingIntegrity` service (lazy `.task` per row, reuses `RecordingStartResolver` +
+  `TimecodeDisclosure.detectSlowMotion`, no engine coupling): the date line now shows the **corrected**
+  date + origin tag rather than a wrong/missing embedded date, and a chip strip appears **only** for
+  real problems (no date / bad date / SRT↔filename mismatch) + slow-mo, each with a tooltip. `CJBadge`
+  `isFlagged` tints a flagged lone clip's SINGLE badge orange. Plan-agent catch: `displayStartDate`
+  returned the raw embedded date only; DJI's real integrity story is date *provenance*, not
+  source-`tmcd`. Dropped the redundant "date from X" chip (duplicated the inline tag). **+13 tests →
+  263/263.** Merged `--no-ff` (`e74f431`, feature `3a7a238`), pushed. Then two eyeball fixes: the
+  queued-job "black rectangle" was `CJProgressBar`'s empty track at 0% → **hidden for `.pending`
+  jobs** (`d96bc51`, `119e2c3`); and the **thumbnail loading placeholder** flattened + its `play.fill`
+  glyph removed (flat tile + ▶ read as a clickable play button) → bare flat dark tile (`1d6136a`,
+  `abe96eb`). Diagnosed "thumbnails not loading" as a non-bug — `ThumbnailManager` caps extraction at
+  3 concurrent FFmpeg procs, so large 4K segments fill in slower. **Owed:** live-eyeball the slow-mo +
+  SRT-mismatch chips.
 - **2026-06-10p — Shipped the live ETA + speed readout (backlog 4); planned against Penumbra/P2toMXF.**
   Research keystone: it was a **wiring** job — `ProgressMetrics.estimatedRemainingSeconds`,
   `currentJobEstimate`, and ffmpeg's live `speed=` were all **ported from P2toMXF and sitting unused**
@@ -305,7 +330,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 250 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 263 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
