@@ -58,8 +58,16 @@
   `QueueManager+Verification` (`verifyJob`/`verifyAllCompleted`) are **ported from Penumbra but have
   zero callers**; add a post-join result check + log/UI surface. (7) **Help window** (2026-06-10i) —
   vendor the standalone `/1-macOS/AppHelp/` package; cost is topic content, not wiring (**no Settings
-  scene** — decided unnecessary). (8) DMG wrapper. Smaller polish: Apple `Keys` creationdate atom
-  (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
+  scene** — decided unnecessary). (8) DMG wrapper. (9) **Per-recording manual TC entry** (user asked
+  2026-06-10k) — a `HH:MM:SS:FF` field (in the queue-row disclosure panel) that overrides the stamped
+  `tmcd` frame-accurately. **Engine hook already exists** (`ConversionSettings.dateOverride`, top of the
+  resolver chain) but is **date-only + unsurfaced in the UI**; manual TC needs a real frame field. The
+  `Timecode` model already parses/formats `HH:MM:SS:FF`. **Reaffirmed same session:** filename stays
+  ranked **above** creation_time in `RecordingStartResolver` — filename is camera-local + survives a
+  card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
+  neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
+  `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. Smaller polish: Apple
+  `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
 - **2026-06-10i — Merged the UI-polish pass; scoped Help/Settings; shipped card-aware folder descent.**
