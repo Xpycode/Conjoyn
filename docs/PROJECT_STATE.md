@@ -18,10 +18,6 @@
   `git-remote-reconciliation`).
 
 ## Now
-- **⚠ HANDOFF (switched Macs 2026-06-10l — delete this line once reconciled):** if local `main` is
-  behind `origin`, run `git fetch origin && git reset --hard origin/main` **before editing** (the
-  Syncthing'd tree is already updated but `.git` isn't — see memory `git-remote-reconciliation`).
-  Next work = backlog (10), plan in repo at `docs/plans/output-folder-clarity.md`.
 - **Phase:** implementation, ~97%. Engine validated end-to-end on real footage (14/14 batch,
   date/TC/SRT all `ffprobe`-verified), **signed + notarized + stapled**, and the **designed UI is
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
@@ -71,8 +67,9 @@
   card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
   neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
   `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. **(10) Output-folder ↔
-  queue clarity — PLANNED 2026-06-10l, ready to implement** (plan in repo:
-  `docs/plans/output-folder-clarity.md`; branch `feature/output-folder-clarity`). User picked
+  queue clarity — IMPLEMENTED 2026-06-10m on `feature/output-folder-clarity` (`2eb0143`), 238/238,
+  built+launched, but UNMERGED: live A+B GUI verify still owed, then merge `--no-ff` → `main`.**
+  (plan in repo: `docs/plans/output-folder-clarity.md`). User picked
   **A = Hybrid** (per-job destination always in the row's TC disclosure panel + an inline ⚠ badge/
   sub-line only when a job's folder ≠ the current Output-bar folder) and **B = themed popover**
   (click-away = the safe "Keep"). Shared `QueueManager.directoriesDiffer(_:_:)` (robust dir compare,
@@ -92,8 +89,29 @@
   model change — defer. **DONE this session:** "Singles" added to the selection filter
   (All·None·Splits·Singles, `cee27e3`). Smaller polish: Apple `Keys` creationdate atom (6.3), doubled
   camera-variant suffix (`…_0009_D_D.mp4`).
+  **(11) Minimum window size mangles the Output bar — NEW 2026-06-10m.** At the root
+  `.frame(minWidth: 1000 …)` floor (`ContentView.swift:49`, with `.windowResizability(.contentMinSize)`),
+  the Output bar middle row breaks: "Output" clips to "utput", "Add to Queue" is cut off, "Timecode
+  from recording time" wraps. The bar's intrinsic width exceeds 1000 but its elements
+  truncate/wrap instead of forcing the window min, so `.contentMinSize` never sees the true floor.
+  **Fix:** raise `minWidth` to ≈ the "Choose-button-stops-moving" width (measure live), or make the
+  Output bar non-compressible so `.contentMinSize` derives it. 3 reference screenshots in
+  `03_Screenshots/min-window-size_2026-06-10m/` (1=broken, 2=comfortable, 3=Choose-button-stops-moving).
 
 ## Recent (newest first)
+- **2026-06-10m — Reconciled git after the Mac switch, then implemented output-folder ↔ queue clarity
+  (A+B); found a min-window-size bug.** (1) **Git:** no `origin` on this Mac + `main` stale at
+  `3e27526` — later work showed "uncommitted" only because Syncthing excludes `.git`. Wired
+  `origin`→`github.com/Xpycode/Conjoyn`, fetched (`e6a2fb1`), proved on-disk source byte-identical to
+  origin (only the gitignored generated `.xcodeproj` differed), user-approved the auto-blocked
+  `reset --hard origin/main` → reconciled, regenerated `.xcodeproj`, removed the resolved handoff
+  banner. (2) **Feature `2eb0143`** on `feature/output-folder-clarity`, per the in-repo plan, **no new
+  files:** `QueueManager.directoriesDiffer` + `reassignPendingDestinations` (pending-only, stem-
+  preserving, collision-safe, bookmark-refreshing); VM prompt state + change-detect in
+  `chooseOutputFolder`; `ApplyFolderPopover` + per-row ⚠ badge/sub-line + always-on "Output" disclosure
+  row. **+9 tests → 238/238**; Debug build SUCCEEDED + launched. **UNMERGED — live A+B GUI verify
+  owed.** (3) **NEW BUG:** at `minWidth: 1000` the Output bar middle row mangles; 3 reference
+  screenshots saved. Next: bump `minWidth`, live-verify A+B, merge.
 - **2026-06-10l — Planned the output-folder ↔ queue clarity (A+B) feature (no code).** 3 Explore
   agents mapped the freeze point (`addToQueue` bakes `outputFolderURL` into each `job.destinationURL`),
   the job/status model, collision logic, and the all-in-`QueuePanel.swift` UI; confirmed dialog APIs
