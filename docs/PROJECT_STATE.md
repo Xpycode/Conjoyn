@@ -33,16 +33,27 @@
   merged `--no-ff` → `main` (`f4eeb99`, 2026-06-10i) and pushed; both feature branches deleted.**
   Empty + Loaded match the prototype; Scanning/Running seen during a live join; **Done not yet
   clean-eyeballed.** (3) ~~**single-file export**~~ **DONE (engine) on `feature/single-file-export`
-  (`b6916ec`, 2026-06-10j) — pending live test + merge.** Relaxed `mergeClips`'s `>= 2` guard to
-  `>= 1`; a lone clip runs the same concat-`-c copy` path (preview/data dropped, +faststart,
-  creation_time/tmcd stamped, `.SRT` carried over via the N=1 stitch). Param guard skipped for N=1;
-  in-place export can't clobber its source (`addJob` case-insensitive collision → `(1)`). UI already
-  allowed ticking single rows. **+2 integration tests → 229/229.** (4) **ETA readout**
+  (`b6916ec`, 2026-06-10j) — engine + 229/229 + LIVE-TESTED, pending merge.** Relaxed `mergeClips`'s
+  `>= 2` guard to `>= 1`; a lone clip runs the same concat-`-c copy` path (preview/data dropped,
+  +faststart, creation_time/tmcd stamped, `.SRT` carried over via the N=1 stitch). Param guard
+  skipped for N=1; in-place export can't clobber its source (`addJob` case-insensitive collision →
+  `(1)`). UI already allowed ticking single rows. **+2 integration tests → 229/229.** **Live-tested
+  2026-06-10k** (independent ffmpeg repro on real clip `0004`, 0.98 GB, 4 streams): source v:0
+  packet **MD5 == output v:0 MD5** (byte-identical, truly lossless), 5554→5554 frames, mjpeg preview
+  + 2 telemetry data tracks dropped, duration 222.16 s exact, `creation_time=2026-05-21T17:47:15Z` +
+  `tmcd=19:47:15:08` stamped, faststart (moov before mdat). **GUI eyeball (tick lone row → Start)
+  still owed** (no UI automation). Ready to merge `--no-ff` → `main`. (4) **ETA readout**
   (2026-06-10i) — surface `SpeedTracker`'s already-tracked throughput as a "~N min" estimate (display
   only). (5) **Empty-space metadata-integrity panel** (user request 2026-06-10j) — the recordings
   list + queue have lots of empty vertical space; use it to surface per-recording integrity info
   (e.g. **timecode ≠ creation_time**, missing embedded date, slow-mo dual-timebase) — which also makes
   **single-file export discoverable** ("you can re-export this lone clip just to write a correct TC").
+  **(5b) Codec + dimensions in the recordings-row empty space** (user request 2026-06-10k, screenshot)
+  — each list row has empty *horizontal* space between the name and the SINGLE/SPLIT badge; surface
+  per-recording **codec + resolution (+ fps)** there (e.g. `HEVC · 3840×2160 · 25fps`). **Data already
+  in hand** — scan reads `VideoStreamParams` (codec/width/height/fps) per clip via ffprobe for the
+  param guard (`SegmentStreamInfo` on `DJIClip`), so this is a pure display add, no new I/O. Pairs with
+  (5)'s integrity info; together they fill the row's empty space.
   (6) **Wire up source↔target verification** (user asked 2026-06-10j) — `VerificationService` +
   `QueueManager+Verification` (`verifyJob`/`verifyAllCompleted`) are **ported from Penumbra but have
   zero callers**; add a post-join result check + log/UI surface. (7) **Help window** (2026-06-10i) —
