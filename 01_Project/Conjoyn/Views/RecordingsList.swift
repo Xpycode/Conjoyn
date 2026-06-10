@@ -215,7 +215,7 @@ private struct SegmentSublist: View {
                     }
                     .foregroundStyle(Theme.txt3)
                 }
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: 11))
                 .monospacedDigit()
                 .padding(.vertical, 4)
                 .padding(.leading, 78)
