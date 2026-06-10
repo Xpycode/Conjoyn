@@ -35,10 +35,11 @@ _reference/
 01_Project/**/Resources/lib/
 
 # xcodegen-generated project (project.yml is the source of truth; run `xcodegen generate`)
-01_Project/DJIjoiner.xcodeproj/
+01_Project/Conjoyn.xcodeproj/
 
 # Tool caches
 .fastembed_cache/
+.serena/
 
 # Secrets / signing
 *.p12

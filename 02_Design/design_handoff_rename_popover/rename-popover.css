@@ -1,0 +1,160 @@
+/* Rename popover — extracted styles (depends on these tokens) */
+:root {
+  --acc1: #FFB23E;            /* light accent: tokens, preview results */
+  --acc2: #F0622A;            /* control accent: selected chips, focus ring */
+  --line: rgba(255,255,255,0.07);
+  --line-strong: rgba(255,255,255,0.12);
+  --txt: #E8E8E8;
+  --txt-2: #9F9F9F;
+  --txt-3: #6E6E6E;
+  --mac-font: -apple-system, BlinkMacSystemFont, "SF Pro", "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ── Rename popover (anchored to the Rename toggle) ── */
+.rename-anchor { position: relative; display: flex; align-items: center; }
+.rename-hud {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 348px;
+  z-index: 30;
+  border-radius: 11px;
+  background: rgba(45, 45, 45, 0.96);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.7), 0 14px 38px rgba(0, 0, 0, 0.5);
+  padding-bottom: 13px;
+  font-family: var(--mac-font);
+}
+.rename-hud::after {
+  content: "";
+  position: absolute;
+  bottom: -6.5px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: rgb(45, 45, 45);
+  border-right: 0.5px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.16);
+  border-bottom-right-radius: 2px;
+}
+.hud-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 9px 12px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--txt);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  user-select: none;
+}
+.hud-close {
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--txt-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.hud-close:hover { background: rgba(255, 255, 255, 0.18); color: var(--txt); }
+
+/* macOS form: right-aligned label column + control column */
+.hud-form {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  column-gap: 10px;
+  row-gap: 11px;
+  padding: 12px 14px 0;
+  align-items: start;
+}
+.hud-form .flabel {
+  text-align: right;
+  font-size: 12px;
+  color: var(--txt-2);
+  white-space: nowrap;
+  padding-top: 3px;
+  user-select: none;
+}
+.hud-form .flabel.dim, .hud-counter.dim { opacity: 0.45; }
+
+.hud-presets, .hud-tokens { display: flex; gap: 5px; flex-wrap: wrap; }
+.hud-tokens { margin-top: 7px; }
+.hud-chip {
+  font-family: var(--mac-font);
+  font-size: 11px;
+  color: var(--txt);
+  background: rgba(255, 255, 255, 0.10);
+  border: none;
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hud-chip:hover { background: rgba(255, 255, 255, 0.16); }
+.hud-chip.on { background: var(--acc2); color: #fff; box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.3); }
+.hud-chip.mono {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--acc2) 20%, transparent);
+  color: var(--acc1);
+  box-shadow: none;
+}
+.hud-chip.mono:hover { background: color-mix(in srgb, var(--acc2) 32%, transparent); }
+
+.hud-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--txt);
+  background: rgba(0, 0, 0, 0.30);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 5px 8px;
+  outline: none;
+}
+.hud-input:focus {
+  border-color: color-mix(in srgb, var(--acc2) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc2) 30%, transparent);
+}
+.hud-input.num { width: 52px; font-family: var(--mac-font); text-align: right; flex-shrink: 0; }
+
+.hud-counter { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.hud-field { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--txt-2); white-space: nowrap; }
+
+.hud-preview {
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.hud-preview-row {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hud-preview-row .from { color: var(--txt-3); }
+.hud-preview-row .arr { color: var(--txt-3); }
+.hud-preview-row .to { display: block; color: var(--acc1); padding-left: 12px; overflow: hidden; text-overflow: ellipsis; }

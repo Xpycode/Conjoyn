@@ -1,122 +1,92 @@
 # Project State
 
-> **Size limit: <100 lines.** This is a digest, not an archive. Details go in session logs.
+> Lean digest (<100 lines). Detail lives in session logs and `decisions.md`.
 
 ## Identity
-- **Project:** DJIjoiner
-- **One-liner:** macOS app that merges DJI media with its metadata — combining footage with telemetry/SRT/flight-log data and/or muxing audio+video tracks.
+- **Project:** Conjoyn (visible brand `conjoyn`; bundle id `com.lucesumbrarum.conjoyn`). Xcode
+  project/target/module/.app = `Conjoyn`; source folders `01_Project/Conjoyn` + `ConjoynTests`.
+  **Repo root folder is still `DJIjoiner`** (intentionally not renamed — keeps tooling/memory paths
+  stable). "DJIjoiner" was the working placeholder.
+- **One-liner:** macOS app that auto-stitches split DJI drone MP4 segments back into one lossless
+  file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
 - **Tags:** macOS, video, DJI, metadata, ffmpeg
 - **Started:** 2026-06-07
 
-## Current Position
-- **Funnel:** build (Wave 0+1 slice · Wave 2 2.1/2.5/2.6/2.8 · Wave 3.1+3.2 · Wave 1.5 ·
-  **Wave 1.2/1.3 model layer** done)
-- **Phase:** implementation — Wave 2 (footage-free) + Wave 3 SRT + DJIClip model layer + **1.8 SpeedTracker** done;
-  **Wave 1 queue ports continuing** (1.9 VerificationService next)
-- **1.8 SpeedTracker — landed this session:** ported from P2toMXF with three DJI adaptations —
-  drop `processingMode` (single join mode), sum `DJIClip.durationInSeconds` directly (exact `CMTime`,
-  no edit-unit/frame-rate math), and an **injectable storage dir** (`init(storageDirectory:)`) so tests
-  hit a temp dir, not the real `~/Library/Application Support/DJIjoiner`. App-support folder renamed
-  `P2toMXF`→`DJIjoiner`. Persistence made **synchronous** (tiny file, job-boundary writes — removes the
-  detached-write lifetime race). **16 new tests** (estimate tiers, 50-record cap, slow-speed, on-disk
-  round-trip). 121 tests pass.
-- **Model layer (1.2/1.3) — landed this session (`fa468af`):** `DJIClip` (Int64+Int32 duration
-  backing → exact `CMTime`; embeds `SegmentStreamInfo?`; `from(parsed:)` factory), `ConversionSettings`
-  (lean + `OutputContainer{.mp4,.mov}`), `RecordGroup` (transient), `DJIFolder`, `ConversionJob`+
-  `JobStatus` (one job = one record group), `VerificationModels`, `ProgressModels` estimation types.
-  `StreamParameterGuard` param structs made `Hashable, Codable, Sendable` (additive). **14 new tests**,
-  keystone full-`ConversionJob` Codable round-trip green.
-- **Focus:** Engine front-end + SRT parse/stitch landed, all unit-testable without footage:
-  - **3.1 `SRTParser`** — tolerant structure-only SubRip parser for all 3 DJI layouts (modern
-    bracketed, FrameCnt/DiffTime, legacy `<font>`/`GPS()`/`HOME()`). Index + start/end ms +
-    **verbatim payload** + embedded wall-clock; tolerates BOM/CRLF/CR/dot-or-comma ms; skips
-    malformed blocks. Canonical serializer for 3.2 round-trips. **20 tests.**
-  - **3.2 `SRTStitcher`** — splices per-segment sidecars into one continuous track; offset =
-    Σ **decoded `format=duration`** of preceding segments (NOT cue math), global renumber,
-    missing sidecar still advances offset. Pure core + `FFmpegWrapper.probeDurationMilliseconds`/
-    `stitchSRT((video,srt?))`. **11 tests** incl. skippable real-ffprobe end-to-end alignment.
-  - **1.5 `TempDirectoryManager` + `DiskSpace`** — model-agnostic queue infra, ported first.
-    DiskSpace verbatim; TempDir only renamed its defaults key. **10 tests.**
-  - **2.1 `DJIFilenameParser`** — both naming schemes → index/timestamp/variant-suffix/media-kind.
-  - **2.5 `FFmpegWrapper+Conversion`** — pure concat-join builders + thin `mergeClips`.
-  - **2.6 `StreamParameterGuard`** — ffprobe each segment; refuse `-c copy` on codec/res/pix_fmt/
-    fps/timebase/audio mismatch with a field-level reason; wired into `mergeClips`
-    (`verifyParameters`, default on).
-  - **2.8 `QuickTimeAtomWriter`** — re-mux-free, size-preserving mvhd/tkhd/mdhd date patch
-    (1904 epoch, v0/v1) + read path. **Deferred:** size-changing `Keys` creationdate atom
-    (needs stco/co64 offset fixups) → flagged for real-footage validation (Wave 6).
-- **Status:** **121 tests pass** (105 prior + 16 new SpeedTracker tests; incl. skippable ffmpeg/ffprobe
-  integration tests that ran). Remaining Wave 2: **2.2/2.3/2.4 (metadata reader, folder reader,
-  grouping) blocked on real DJI footage**; 2.7 TS-remux fallback needs a stubborn set. Wave 3:
-  **3.3 wire SRT into join pipeline** is the last SRT task — needs the join/queue path. **Wave 1
-  queue ports in progress** (1.5 + model layer + 1.8 SpeedTracker done;
-  Verification/Thumbnail/QueueManager next).
-- **Last updated:** 2026-06-09 (1.8 SpeedTracker landed)
+## Now
+- **Phase:** implementation, ~97%. Engine validated end-to-end on real footage (14/14 batch,
+  date/TC/SRT all `ffprobe`-verified), **signed + notarized + stapled**, and the **designed UI is
+  now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
+  on the real card (user-driven, 1/1 joined).
+- **Blockers:** none.
+- **Next:** (1) **UI polish pass** — user flagged sizing/position deviations vs the prototype;
+  (2) **single-file export** (new user request 2026-06-10): let a lone 1-segment recording be
+  exported via copy/remux so its date/timecode get stamped + `.SRT` carried over — today the
+  engine refuses with "need at least two segments"; (3) **`feature/rename-tc-disclosure`** —
+  Rename Joined Files popover + per-job TC disclosure (`specs/rename-and-tc-disclosure.md`;
+  relabel already done, research done, implementation pending); (4) DMG wrapper. Smaller polish:
+  Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
-## Funnel Progress (Ralph-style)
+## Recent (newest first)
+- **2026-06-10b — Ported the design handoff to SwiftUI; live-validated on the real card.** The
+  main window is now the designed vertical flow (titlebar/source bar → recordings hero → output
+  bar → queue → collapsible console → footer) with the full token set, real row thumbnails,
+  split-disclosure sublists, drag-drop, and a gear popover for the off-design engine knobs.
+  195/195 tests; merged to `main`. User drove a real join through the new UI (1/1 ✓) and asked
+  for: a sizing/position polish pass + **single-file export** (stamp TC on lone clips — engine
+  currently refuses 1-segment jobs).
+- **2026-06-10 — Wired in the final app icon (molten-weld-bead).** User delivered the final icon;
+  the project had **no asset catalog at all** (generic icon until now). Created
+  `01_Project/Conjoyn/Assets.xcassets/AppIcon.appiconset/` (10 renditions 16→512@2x), set
+  `ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon`, regenerated via xcodegen. Debug-build verified:
+  `Assets.car` carries all renditions, Info.plist icon keys = `AppIcon`, launches with the icon in
+  the Dock. Design source (1024 SVG master + `.iconset`) committed under `02_Design/conjoinAppIcon/`.
+- **2026-06-10 — Added the canonical UI design handoff (port target).** High-fidelity design for the
+  single main window across its 5 states (Empty → Scanning → Loaded → Running → Done): HTML/React
+  prototype + authoritative `styles.css` tokens + a SwiftUI-oriented `README.md` spec, in
+  `02_Design/design_handoff_conjoyn/`. Dark charcoal / orange (`#F0622A`) Final-Cut look. **Spec only —
+  not yet implemented;** the SwiftUI port is the next (design) session. The engine already drives every
+  flow the UI shows, so the port is a reskin + region restructure of `ContentView.swift`, not new logic.
+- **2026-06-10 — Signed + notarized the app (task 6.2 done).** Drove the full Developer ID pipeline
+  end-to-end: Release build signed with **Developer ID Application** (Team `FDMSRXXN73`), hardened
+  runtime + secure timestamp on the app wrapper *and* both bundled helpers (ffmpeg/ffprobe), then
+  notarized via Apple's service (**App Store Connect API key**, keychain profile `conjoyn-notary`) and
+  **stapled**. First submission **Accepted**; `spctl -a` now reports `source=Notarized Developer ID`
+  (launches on any Mac, no "unidentified developer" block, works offline). Codified one-command in
+  `01_Project/scripts/notarize.sh` (build → verify → zip → submit --wait → staple → spctl). Caught +
+  fixed a `grep -q`/`pipefail` SIGPIPE bug in the helper-hardening check (signing was always fine).
+  Distribution artifact: stapled zip in `04_Exports/`. DMG wrapper deferred to the design session.
+- **2026-06-09 — Executed the Conjoyn rebrand (app/project/module/bundle).** Renamed the placeholder
+  "DJIjoiner" → **Conjoyn**: project + targets, bundle ids `com.lucesumbrarum.conjoyn(.tests)`, source
+  folders (`git mv`, history kept), `ConjoynApp`, entitlements, 19 test imports, runtime storage paths,
+  build scripts; regenerated `Conjoyn.xcodeproj` via xcodegen. Visible brand is lowercase **conjoyn**
+  (`CFBundleDisplayName`); binary/module/.app stay PascalCase `Conjoyn` (keeps `TEST_HOST` +
+  `import Conjoyn` clean). **Repo root folder + git intentionally left `DJIjoiner`** (tooling/memory
+  path stability). Clean build + full suite green (195/195); built bundle verified (id, display name,
+  signed helpers). Merged to `main`.
 
-| Funnel | Status | Gate |
-|--------|--------|------|
-| **Define** | done | Spec written, edge cases enumerated, decisions logged |
-| **Plan** | done | IMPLEMENTATION_PLAN.md: waves, atomic tasks, backpressure |
-| **Build** | ready | Start Wave 0 / vertical slice |
-
-## Phase Progress
-```
-[##############......] 70% - Wave 2 footage-free + Wave 3.1/3.2 SRT + Wave 1.5/model layer/1.8 SpeedTracker done
-```
-
-| Phase | Status | Tasks |
-|-------|--------|-------|
-| Discovery | done | ✓ interview, spec, decisions |
-| Planning | done | ✓ IMPLEMENTATION_PLAN.md (7 waves) |
-| Implementation | **in progress** | ✓ Wave 0 (scaffold+toolchain) · Wave 1 next (port) |
-| Polish | pending | — |
-
-## Readiness
-- Directions installed in `docs/`
-- Spec: `specs/dji-auto-stitcher.md`
-- Reference codebase cloned: `_reference/P2toMXF/` (Swift 6/SwiftUI, port source)
-- Tech stack: macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation + bundled FFmpeg +
-  exiftool; direct distribution + notarized (sandbox off, hardened runtime on)
-- No app code yet (`01_Project/` empty)
-
-## Blockers
-- _none_
-
-## Flags (load when relevant)
-- `22_macos-platform.md` — sandbox/notarization/bookmarks/FSEvents
-- `20_swiftui-gotchas.md` — GUI build
-- `21_coordinate-systems.md` — not expected (no image cropping)
-- `32_git-workflow.md` — repo initialized 2026-06-09 (`011bf19` on `main`); branch before next port
+## Progress
+- **Funnel:** Define ✓ · Plan ✓ · Build — in progress (~97%).
+- **Waves:** Wave 0 ✓ · Wave 1 queue ports ✓ · Wave 2 footage-free (2.1/2.5/2.6) ✓ · **2.4 real
+  grouping ✓ (footage-validated)** · **2.8 date/TC stamp ✓ (footage-validated)** · Wave 3 SRT ✓ ·
+  UI wired + per-group selection ✓ · **full GUI pipeline ✓ (footage-validated end-to-end: scan→join→
+  date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
+  Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
+  size-changing Apple `Keys` creationdate atom (6.3).
+- **Tests:** 195 (all pass). Incl. real ffmpeg/ffprobe integration.
+- **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
+  cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
+  bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
 
 ## Risks
-- **SRT offset-correction stitching** = highest-uncertainty v1 item ("known unsolved pain
-  point" per brief). Scope-creep flagged but user-chosen.
+- **SRT offset-correction stitching** = highest-uncertainty v1 item ("known unsolved pain point"
+  per brief). Scope-creep flagged but user-chosen. (Engine implemented; needs footage to validate.)
+- ~~Interim FFmpeg is GPL~~ **RESOLVED 2026-06-09 (task 6.1):** swapped to a reproducible static
+  arm64 **LGPL** build (FFmpeg 8.1 from source, no `--enable-gpl`/`--enable-nonfree`, no external
+  libs; 20 MB each, self-contained, validated lossless on real footage). Binaries gitignored; run
+  `01_Project/scripts/build-ffmpeg-lgpl.sh` (the GPL `fetch-ffmpeg.sh` is now a dev-only fallback).
 
-## Next Action
-- **Now ~all footage-free Wave 2 work is done (2.1/2.5/2.6/2.8).** Remaining engine tasks need
-  real DJI input or a stubborn set:
-  - **2.2 `DJIMetadataReader`, 2.3 `DJIFolderReader`, 2.4 grouping** — **blocked on real footage**
-    (legacy + timestamped split sets with `.SRT`/`.LRF`, plus one multi-camera set).
-  - **2.7 TS-remux fallback** — needs a set that fails the direct concat (`Non-monotonous DTS`).
-- **In progress — Wave 1 queue ports (unblocked).** Model layer (1.2/1.3) + **1.8 SpeedTracker
-  done** (121 tests). Remaining order: **1.9 VerificationService → 1.10 ThumbnailManager →
-  1.7 QueueManager** (core + Operations + persistence; Processing/Verification adapts to drive the
-  ported `mergeClips`, not BMX). These unblock 3.3 wire-into-join + the whole queue path.
-- **Next up — 1.9 VerificationService:** port from P2toMXF (`Services/VerificationService.swift`);
-  the `VerificationModels` types (`VerificationStatus`/`VerificationResult`/`VerificationMode`) already
-  exist. Quick (container + head/tail decode) + Full (full decode via VideoToolbox) modes over the
-  joined MP4/MOV; cancellation + progress. Then 1.10 ThumbnailManager, then 1.7 QueueManager.
-- **Design calls now locked in code** (see `docs/sessions/2026-06-08.md`): `Int64`+`Int32` duration
-  backing → exact `CMTime`; `SegmentStreamInfo?` embedded on `DJIClip`; lean `ConversionSettings`;
-  one `ConversionJob` = one record-group.
-- Vertical slice can join end-to-end once 2.2/2.3 land; `mergeClips` (2.5) + guard (2.6) ready.
-- **2.8 follow-up:** add the Apple `Keys` `com.apple.quicktime.creationdate` atom (size-changing,
-  offset fixups) — defer until real footage so it's validated in Finder/QuickTime Inspector.
-- **Wave 0 carryover:** interim FFmpeg is **GPL** (osxexperts 8.1) — must swap to LGPL static
-  before release (task 6.1). FFmpeg binaries are gitignored; run `01_Project/scripts/fetch-ffmpeg.sh`.
-- **Build gotcha:** incremental builds skip re-signing the app wrapper, leaving a stale seal
-  when the post-build phase adds helpers → always **clean build** (already house rule).
-- **Blocking input (Wave 2+ validation):** real DJI split-recording test sets (legacy +
-  timestamped naming, with `.SRT`/`.LRF`), plus one multi-camera set for the variant guard.
+## Detail (read only if needed)
+- `docs/decisions.md` — the why behind every technical/design choice.
+- `docs/sessions/_index.md` — full per-session logs.
+- `specs/dji-auto-stitcher.md` — spec + acceptance criteria.
+- `IMPLEMENTATION_PLAN.md` — the 7-wave plan and atomic tasks.

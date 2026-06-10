@@ -12,7 +12,7 @@ FFMPEG_URL="https://www.osxexperts.net/ffmpeg81arm.zip"
 FFPROBE_URL="https://www.osxexperts.net/ffprobe81arm.zip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEST="$SCRIPT_DIR/../DJIjoiner/Resources/Helpers"
+DEST="$SCRIPT_DIR/../Conjoyn/Resources/Helpers"
 mkdir -p "$DEST"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

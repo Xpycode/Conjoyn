@@ -1,5 +1,11 @@
-# DJIjoiner — Project AI Context
+# Conjoyn — Project AI Context
 
+> **Naming:** the product is **Conjoyn** (visible brand lowercased as **conjoyn**; bundle id
+> `com.lucesumbrarum.conjoyn`). The Xcode project/target/module/.app are `Conjoyn`; the source
+> folders are `01_Project/Conjoyn` + `ConjoynTests`. The **repo root folder is still `DJIjoiner`**
+> (deliberately not renamed, to keep tooling/memory paths stable) — so on-disk paths read
+> `…/DJIjoiner/01_Project/Conjoyn/…`. "DJIjoiner" was the working placeholder.
+>
 > Read `docs/00_base.md` for the Directions workflow. Read `specs/dji-auto-stitcher.md` for
 > the full spec and `docs/decisions.md` for the why behind every choice.
 

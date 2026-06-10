@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Conjoyn — Final Icon Export</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:#0b0e14;color:#eef1f6;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh;
+    display:flex;align-items:center;justify-content:center;padding:60px 24px;
+  }
+  .card{max-width:760px;width:100%}
+  .kicker{font-size:12px;font-weight:650;letter-spacing:.14em;text-transform:uppercase;color:#828a98}
+  h1{font-size:26px;letter-spacing:-.02em;margin:12px 0 0;font-weight:700}
+  p.lede{margin:12px 0 0;color:#9aa2b1;font-size:14px;line-height:1.6}
+  .hero{display:flex;align-items:center;gap:38px;margin:40px 0 0;flex-wrap:wrap}
+  .hero img{width:240px;height:240px;display:block;filter:drop-shadow(0 30px 50px rgba(0,0,0,.5))}
+  .ramp{display:flex;align-items:flex-end;gap:26px}
+  .ramp .u{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .ramp img{display:block;image-rendering:auto}
+  .ramp span{font-size:11px;color:#828a98;font-variant-numeric:tabular-nums}
+  .files{margin:42px 0 0;border-top:1px solid rgba(255,255,255,.08);padding-top:22px}
+  .files h2{font-size:12px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:#828a98;margin:0 0 14px}
+  .files code{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:12px;color:#cfd5df;background:rgba(255,255,255,.05);padding:2px 7px;border-radius:6px;display:inline-block;margin:0 6px 8px 0}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="kicker">Conjoyn · final app icon</div>
+    <h1>Molten bridge + sparks — Orange → Amber</h1>
+    <p class="lede">The approved finalist, exported as a 1024 vector master plus the full macOS PNG size set,
+       packaged as a drop-in Xcode asset catalog and an <code style="background:none;padding:0">iconutil</code>-ready
+       <code style="background:none;padding:0">.iconset</code>. See <b>README.md</b> in the export folder for install steps.</p>
+
+    <div class="hero">
+      <img src="Conjoyn-Icon-Master.svg" alt="Conjoyn app icon, 1024" />
+      <div class="ramp">
+        <div class="u"><img src="AppIcon.appiconset/icon_128x128.png" width="128" height="128" alt="128" /><span>128</span></div>
+        <div class="u"><img src="AppIcon.appiconset/icon_32x32.png" width="64" height="64" alt="64" /><span>64</span></div>
+        <div class="u"><img src="AppIcon.appiconset/icon_32x32.png" width="32" height="32" alt="32" /><span>32</span></div>
+        <div class="u"><img src="AppIcon.appiconset/icon_16x16.png" width="16" height="16" alt="16" /><span>16</span></div>
+      </div>
+    </div>
+
+    <div class="files">
+      <h2>In this export</h2>
+      <code>Conjoyn-Icon-Master.svg</code>
+      <code>AppIcon.appiconset/ (+ Contents.json)</code>
+      <code>Conjoyn.iconset/</code>
+      <code>README.md</code>
+    </div>
+  </div>
+</body>
+</html>

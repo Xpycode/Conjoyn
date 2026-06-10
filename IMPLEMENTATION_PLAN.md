@@ -79,7 +79,7 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 | 2.5 | Simplify `FFmpegWrapper+Conversion` | `Services/FFmpegWrapper+Conversion.swift` | Drop BMX Phase-1; `mergeClips` writes concat list + runs `-f concat -safe 0 -i list -map 0:v -map 0:a? -map -0:d -c copy -fflags +genpts -movflags +faststart -metadata creation_time=… -timecode …` | unit: builds correct arg array + list.txt for a group |
 | 2.6 | Pre-join param guard | in 2.5 path | ffprobe each segment; refuse `-c copy` if codec/res/fps/timebase/pix_fmt differ, with clear message | unit: mismatched fixtures → refusal |
 | 2.7 | TS-remux fallback | `Services/FFmpegWrapper+Conversion.swift` | On `Non-monotonous DTS` failure, remux each to mpegts (`h264/hevc_mp4toannexb`) → concat protocol → `aac_adtstoasc` back to mp4 | integration: stubborn set joins via fallback |
-| 2.8 | Native metadata atom writer | `Services/QuickTimeAtomWriter.swift` | Patch `mvhd`/`tkhd`/`mdhd` create+modify (**1904 epoch**) + insert/update `Keys:com.apple.quicktime.creationdate`; read authoritative date/TC from segment 1 | unit: write→re-read date via ffprobe & AVFoundation matches |
+| 2.8 | ✅ **DONE (2026-06-09)** Date + start-TC stamp on join | `Services/RecordingStartResolver.swift`, `QueueManager+Processing.swift` | Resolve one recording-start wall-clock (manual override → SRT first-cue → filename → sane `creation_time` → filesystem) → derive **both** `creation_time` (ISO-8601Z) and the `tmcd` start TC during the `-c copy` mux; toggle-gated + `dateOverride`. `mvhd`/`tkhd`/`mdhd` 1904-epoch writer (`QuickTimeAtomWriter`) stays the existing-file corrector; the size-changing Apple `Keys:com.apple.quicktime.creationdate` atom is deferred to **6.3**. | 16 unit + 2 real-ffmpeg integration; footage-validated on `DJI_001` (`0008+0009`) |
 
 ---
 
@@ -118,8 +118,8 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
-| 6.1 | Verify LGPL FFmpeg (swap if interim GPL) | Resources/Helpers | LGPL static confirmed, or GPL text + same-server source offer shipped | `ffmpeg -L` license check |
-| 6.2 | Signing inside-out + notarize | `sign-bundled-binaries.sh`, CI/script | helpers → app signed; `notarytool submit --wait` accepted; `stapler staple`; `spctl -a -vvv` passes | gatekeeper accepts |
+| 6.1 | ✅ **DONE (2026-06-09)** Verify LGPL FFmpeg (swap if interim GPL) | Resources/Helpers | LGPL static confirmed — built from source via `build-ffmpeg-lgpl.sh`, `ffmpeg -L` = LGPL, no `--enable-gpl`/`--enable-nonfree`, no homebrew/x264/x265 links | `ffmpeg -L` license check |
+| 6.2 | ✅ **DONE (2026-06-10)** Signing inside-out + notarize | `sign-bundled-binaries.sh`, `scripts/notarize.sh` | helpers → app signed (Developer ID, hardened runtime + timestamp); `notarytool submit --wait` **Accepted**; `stapler staple` worked; `spctl -a -vvv` = `Notarized Developer ID`. One-command `notarize.sh`; API-key keychain profile `conjoyn-notary` | gatekeeper accepts ✅ |
 | 6.3 | End-to-end real-footage test | — | Legacy + timestamped sets join losslessly; output verified (ffprobe + decode-to-null); A/V sync at every seam; metadata correct in Finder + QuickTime Inspector | all green on real footage |
 | 6.4 | SRT alignment validation | — | Stitched `.SRT` cues align with joined video across all seams; telemetry continuous; multi-segment drift < 1 cue | manual review in player |
 | 6.5 | Variant-guard + edge cases | — | `_W/_Z/_T` never merged; missing-middle splits; mixed-codec refused; trailing tiny segment included; VFR fallback | matrix of fixtures passes |

@@ -2,14 +2,14 @@
 # sign-bundled-binaries.sh — copy bundled FFmpeg helpers into the app and code-sign them.
 #
 # Run as a post-build (last) build phase so it executes BEFORE Xcode's final code-sign of the
-# .app wrapper (inside-out signing). Trimmed for DJIjoiner: ffmpeg + ffprobe only (no BMX).
+# .app wrapper (inside-out signing). Trimmed for Conjoyn: ffmpeg + ffprobe only (no BMX).
 #
 # Reads standard Xcode build-phase env vars: SRCROOT, BUILT_PRODUCTS_DIR, CONTENTS_FOLDER_PATH,
 # CONFIGURATION, EXPANDED_CODE_SIGN_IDENTITY / CODE_SIGN_IDENTITY.
 set -euo pipefail
 
 HELPERS=(ffmpeg ffprobe)
-SRC_DIR="${SRCROOT}/DJIjoiner/Resources/Helpers"
+SRC_DIR="${SRCROOT}/Conjoyn/Resources/Helpers"
 DEST_DIR="${BUILT_PRODUCTS_DIR}/${CONTENTS_FOLDER_PATH}/Resources/Helpers"
 
 IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:-${CODE_SIGN_IDENTITY:--}}"
