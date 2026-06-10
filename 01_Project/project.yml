@@ -43,6 +43,11 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         CODE_SIGN_ENTITLEMENTS: Conjoyn/Conjoyn.entitlements
         GENERATE_INFOPLIST_FILE: YES
+        # Base plist holds the one key the INFOPLIST_KEY_* mechanism can't inject:
+        # UIDesignRequiresCompatibility (opts the whole app out of macOS 26 Tahoe Liquid Glass so the
+        # native toolbar renders flat — no glass "bubbles" — matching the bespoke dark theme and the
+        # sibling apps Penumbra/CropBatch). Xcode merges the generated INFOPLIST_KEY_* values on top.
+        INFOPLIST_FILE: Conjoyn/Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: conjoyn
         INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.video"
         INFOPLIST_KEY_NSHumanReadableCopyright: "Bundles FFmpeg (LGPL static build). See ACKNOWLEDGEMENTS."

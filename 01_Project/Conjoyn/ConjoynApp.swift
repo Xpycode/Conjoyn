@@ -13,8 +13,8 @@ struct ConjoynApp: App {
                 .environmentObject(viewModel.queue)
                 .preferredColorScheme(.dark)
         }
-        // Unified custom titlebar per the design handoff — the 52 pt source bar IS the titlebar,
-        // with the system traffic lights overlaying its leading inset (Penumbra app-shell pattern).
+        // Native titlebar toolbar (App Shell Standard): `.hiddenTitleBar` + the `.toolbar` /
+        // `.toolbarRole(.editor)` in ContentView put the source well + Scan in the system titlebar.
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1240, height: 800)

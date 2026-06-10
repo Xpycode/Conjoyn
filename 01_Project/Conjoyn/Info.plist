@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Base Info.plist. Only holds keys the INFOPLIST_KEY_* build settings can't inject;
+	     Xcode (GENERATE_INFOPLIST_FILE=YES) merges the generated/standard keys on top at build time.
+	     UIDesignRequiresCompatibility opts the app out of macOS 26 (Tahoe) Liquid Glass so native
+	     toolbar items render flat instead of in glass capsules. -->
+	<key>UIDesignRequiresCompatibility</key>
+	<true/>
+</dict>
+</plist>

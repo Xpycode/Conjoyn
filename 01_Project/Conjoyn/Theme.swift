@@ -18,8 +18,6 @@ struct Theme {
     static let panel = Color(hex: 0x232323)
     /// `--panel-2` — raised panel surface.
     static let panel2 = Color(hex: 0x2A2A2A)
-    /// `--titlebar` — unified titlebar/toolbar.
-    static let titlebar = Color(hex: 0x282828)
     /// Console well background.
     static let consoleBG = Color(hex: 0x151515)
 

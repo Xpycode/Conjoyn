@@ -15,8 +15,6 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TitleBar()
-
             // Recordings and the queue share a draggable boundary: the hero + output bar form the
             // top pane (selection/setup), the queue + its console the bottom pane. The divider sits
             // just above the queue, so the user can grow the queue when many jobs are running.
@@ -50,73 +48,30 @@ struct ContentView: View {
         }
         .frame(minWidth: 1000, minHeight: 640)
         .background(Theme.bg)
-        .background(WindowConfigurator())
-    }
-}
-
-// MARK: - Titlebar / source bar
-
-/// Unified custom titlebar (Final Cut-style): traffic lights · app title + tagline · (flex) ·
-/// source well · Scan. The window uses `.hiddenTitleBar`, so the system buttons overlay our
-/// leading inset.
-private struct TitleBar: View {
-    @EnvironmentObject private var vm: ConversionViewModel
-
-    var body: some View {
-        HStack(spacing: 14) {
-            // Traffic-light inset (the system buttons render on top of this gap).
-            Spacer().frame(width: 64)
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("conjoyn")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.txt)
-                Text("Split recordings, made whole")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Theme.txt3)
+        // Native titlebar toolbar (App Shell Standard, matching Penumbra/CropBatch): the source path
+        // well sits centered, Scan trailing. Replaces the old custom 52 pt TitleBar HStack — the
+        // system traffic lights and the window drag region come for free with `.toolbarRole(.editor)`
+        // + `.hiddenTitleBar`, so no NSWindow configurator is needed. App name/tagline dropped (the
+        // window itself identifies the app).
+        .toolbar {
+            ToolbarItemGroup(placement: .principal) {
+                CJPathWell(
+                    icon: "sdcard",
+                    path: vm.sourceFolderURL?.path,
+                    placeholder: "No source selected",
+                    choose: vm.chooseSourceFolder
+                )
             }
-            .fixedSize()
-
-            Spacer()
-
-            CJPathWell(
-                icon: "sdcard",
-                path: vm.sourceFolderURL?.path,
-                placeholder: "No source selected",
-                choose: vm.chooseSourceFolder
-            )
-
-            Button {
-                Task { await vm.scan() }
-            } label: {
-                Label(vm.isScanning ? "Scanning…" : "Scan", systemImage: "viewfinder")
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    Task { await vm.scan() }
+                } label: {
+                    Label(vm.isScanning ? "Scanning…" : "Scan", systemImage: "viewfinder")
+                }
+                .buttonStyle(.cjStandard)
+                .disabled(vm.sourceFolderURL == nil || vm.isScanning)
             }
-            .buttonStyle(.cjStandard)
-            .disabled(vm.sourceFolderURL == nil || vm.isScanning)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 52)
-        .background(Theme.titlebar)
-        .overlay(alignment: .bottom) { Color.black.opacity(0.5).frame(height: 1) }
+        .toolbarRole(.editor)
     }
-}
-
-// MARK: - Window configuration
-
-/// Applies NSWindow settings SwiftUI can't express: background dragging (the custom titlebar
-/// area has no system drag region below the top strip) and a transparent system titlebar so
-/// only the traffic lights show over our chrome.
-private struct WindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            guard let window = view.window else { return }
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.isMovableByWindowBackground = true
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {}
 }
