@@ -443,7 +443,8 @@ private struct TimecodeDisclosurePanel: View {
             HStack(spacing: 8) {
                 label("Output")
                 Text(destination.deletingLastPathComponent().path)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: 11))
+                    .monospacedDigit()
                     .foregroundStyle(Theme.txt2)
                     .lineLimit(1)
                     .truncationMode(.middle)
