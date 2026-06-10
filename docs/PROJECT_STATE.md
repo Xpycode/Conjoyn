@@ -67,8 +67,12 @@
   card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
   neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
   `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. **(10) Output-folder ↔
-  queue clarity — IMPLEMENTED 2026-06-10m on `feature/output-folder-clarity` (`2eb0143`), 238/238,
-  built+launched, but UNMERGED: live A+B GUI verify still owed, then merge `--no-ff` → `main`.**
+  queue clarity — DONE + LIVE-VERIFIED + MERGED → `main` (`37aca3f`, 2026-06-10n); branch deleted,
+  pushed.** Implemented 2026-06-10m (`2eb0143`); **live A+B GUI verify 2026-06-10n** on a real 60-job
+  queue: per-row "Output" disclosure row showed each job's destination; changing the Output folder
+  fired the "Apply new output folder to 60 pending jobs?" popover; **Keep** lit the orange ⚠ badge +
+  `⚠ → …/DJI_001 (≠ current output)` sub-line on every pending row; **Apply** re-pointed all 60 +
+  cleared the badges reactively. 238/238.
   (plan in repo: `docs/plans/output-folder-clarity.md`). User picked
   **A = Hybrid** (per-job destination always in the row's TC disclosure panel + an inline ⚠ badge/
   sub-line only when a job's folder ≠ the current Output-bar folder) and **B = themed popover**
@@ -89,16 +93,29 @@
   model change — defer. **DONE this session:** "Singles" added to the selection filter
   (All·None·Splits·Singles, `cee27e3`). Smaller polish: Apple `Keys` creationdate atom (6.3), doubled
   camera-variant suffix (`…_0009_D_D.mp4`).
-  **(11) Minimum window size mangles the Output bar — NEW 2026-06-10m.** At the root
-  `.frame(minWidth: 1000 …)` floor (`ContentView.swift:49`, with `.windowResizability(.contentMinSize)`),
-  the Output bar middle row breaks: "Output" clips to "utput", "Add to Queue" is cut off, "Timecode
-  from recording time" wraps. The bar's intrinsic width exceeds 1000 but its elements
-  truncate/wrap instead of forcing the window min, so `.contentMinSize` never sees the true floor.
-  **Fix:** raise `minWidth` to ≈ the "Choose-button-stops-moving" width (measure live), or make the
-  Output bar non-compressible so `.contentMinSize` derives it. 3 reference screenshots in
-  `03_Screenshots/min-window-size_2026-06-10m/` (1=broken, 2=comfortable, 3=Choose-button-stops-moving).
+  **(11) Minimum window size mangled the Output bar — FIXED + MERGED → `main` (`3928f47`/`37aca3f`,
+  2026-06-10n).** At the old `minWidth: 1000` floor the Output bar overflowed ("Output"→"utput",
+  "Timecode from recording time" wrapped, "Add to Queue" clipped). `.windowResizability(.contentMinSize)`
+  does **not** derive the bar's true floor through the `VSplitView`, so the window could shrink below
+  it. **Fix:** measured the bar's intrinsic width via AppKit font metrics (~1160 pt worst-case: well +
+  4 switch labels + gear + "Add N to Queue"), set root `minWidth: 1220` (`ContentView.swift`), and
+  `.fixedSize()`-ed the "Output" + switch labels as a backstop. Drag-verified live: labels intact, no
+  clipping, window stops at the comfortable width. 3 reference screenshots in
+  `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-10n — Fixed the min-window Output-bar bug, live-verified output-folder A+B, merged + pushed.**
+  (1) **Window fix:** the `minWidth: 1000` floor let the Output bar overflow (truncate/wrap/clip);
+  `.windowResizability(.contentMinSize)` doesn't derive the bar's floor through the `VSplitView`.
+  Measured the bar's intrinsic width via AppKit font metrics (~1160 pt worst-case), set root
+  `minWidth: 1220` + `.fixedSize()`-ed the labels as a backstop (`3928f47`). Drag-verified live; 238/238.
+  (2) **Output-folder A+B live-verified** on a real 60-job queue: per-row "Output" disclosure row,
+  the "Apply to 60 pending jobs?" popover, **Keep** → orange ⚠ badge + `(≠ current output)` sub-line on
+  every row, **Apply** → all 60 re-pointed + badges cleared reactively. (3) Merged `feature/output-folder-clarity`
+  `--no-ff` → `main` (`37aca3f`), branch deleted, **pushed** (origin `e6a2fb1..37aca3f`). (4) Diagnosed a
+  false-alarm "crash": the app never died (10-min uptime, no crash report) — a file-dialog beachball on the
+  USB `2CULL-IN/DJI_001` folder (349 items, thumbnail storm; boot disk 96 % full), then the window slipped
+  behind another app.
 - **2026-06-10m — Reconciled git after the Mac switch, then implemented output-folder ↔ queue clarity
   (A+B); found a min-window-size bug.** (1) **Git:** no `origin` on this Mac + `main` stale at
   `3e27526` — later work showed "uncommitted" only because Syncthing excludes `.git`. Wired
@@ -259,7 +276,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 229 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 238 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
