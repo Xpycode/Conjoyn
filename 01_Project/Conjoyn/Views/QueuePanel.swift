@@ -18,6 +18,7 @@ struct OutputBar: View {
                 Text("Output")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.txt3)
+                    .fixedSize()
                 CJPathWell(
                     icon: "folder",
                     path: vm.outputFolderURL?.path,
@@ -84,6 +85,11 @@ private struct OptionSwitch: View {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.txt2)
+                // Refuse to wrap/truncate: each switch label must report its full intrinsic width so
+                // the Output bar's true minimum drives `.windowResizability(.contentMinSize)` (the
+                // window floor = the point where the Spacer hits zero), instead of silently
+                // compressing ("Output"→"utput", "Timecode…" wrapping) at too-narrow widths.
+                .fixedSize()
         }
         .toggleStyle(.switch)
         .controlSize(.mini)
