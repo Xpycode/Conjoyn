@@ -23,18 +23,28 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** (1) **`feature/rename-tc-disclosure`** — branch live off `830b8fa`, **approved 2-commit
-  plan, implementation deferred to next session** (see `docs/sessions/2026-06-10c.md`): Commit 1 =
-  Rename Joined Files popover + pure `RenamePatternEngine`; Commit 2 = per-queue-row TC disclosure +
-  `SourceTimecodeReader`. Part 2's **relabel is already done** ("Timecode from recording time") — only
-  the disclosure remains. (2) **UI polish pass** over the finished UI — user flagged sizing/position
-  deviations vs the prototype (to be enumerated against a live build; deliberately *after* the feature,
-  since both touch the output bar + queue rows). (3) **single-file export** (user request 2026-06-10):
+- **Next:** (1) **`feature/rename-tc-disclosure`** — **Commit 1 DONE + pushed** (`cfbc5a1`, 2026-06-10d):
+  Rename Joined Files popover + pure `RenamePatternEngine` (211/211 tests). **Commit 2 remains** =
+  per-queue-row TC disclosure + port `SourceTimecodeReader`; Part 2's relabel already done. Branch is
+  on `origin` w/ upstream. (2) **UI polish pass** — **3 items done this session** (popover width 348→430,
+  draggable list/queue `VSplitView` divider, "Clear Queue" button); more sizing/position deviations vs
+  the prototype remain to enumerate against a live build. (3) **single-file export** (user request 2026-06-10):
   let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
   carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10d — Implemented Commit 1 (Rename Joined Files popover) + 3 live-review UI fixes.** Built
+  the patterned-output-name feature from the 2026-06-10c plan: new pure **`RenamePatternEngine`** (1:1
+  `cjApplyPattern` port + `uniqueStem` collision-suffixer), **ViewModel** rename state (session-only,
+  memoised start-date cache) + batch enqueue that de-dups vs *batch ∪ unfinished-queue ∪ dest-folder*
+  (rename-OFF path untouched), new **`RenamePopover`** + a **`CaretTextField`** `NSViewRepresentable`
+  for caret token-insertion, 4th "Rename files" switch. `{date}`/`{time}` share the same
+  `RecordingStartResolver` instant as the date/TC stamp. **16 new tests → 211/211.** Merged into
+  Commit 1: popover **widened 348→430** (native controls bulkier than the CSS mockup). Two more
+  review fixes as their own commits: draggable list/queue **`VSplitView` divider** (`18d617a`) and a
+  **"Clear Queue" button** (`8579210`, keeps a mid-write job). Branch **pushed** to `origin`. Next:
+  Commit 2 (per-row TC disclosure + `SourceTimecodeReader`).
 - **2026-06-10c — Reconciled this Mac's git, then scoped (and deferred) the next feature.** A routine
   `/status` exposed a git/reality split: docs describe many merges to `main`, but this Mac's `.git`
   held only 2 commits with the whole Conjoyn source uncommitted. Root cause: the repo syncs via
