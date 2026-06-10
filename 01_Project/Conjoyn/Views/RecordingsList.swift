@@ -82,6 +82,9 @@ private struct RecordingRow: View {
     let isOpen: Bool
     let toggleOpen: () -> Void
     @State private var hovered = false
+    /// Per-row metadata-integrity readout — built lazily (`.task`), session-only, "pops in" like the
+    /// thumbnail. `nil` until the first build completes.
+    @State private var integrity: RecordingIntegrity?
 
     private var isSplit: Bool { group.groupType == .split }
 
@@ -95,6 +98,13 @@ private struct RecordingRow: View {
         let fps = CJFormat.fps(v.framesPerSecond)
         if !fps.isEmpty { parts.append(fps) }
         return parts.joined(separator: " · ")
+    }
+
+    /// The date shown on the row: the resolver's corrected start once integrity has loaded, else the
+    /// raw embedded date as a pre-load placeholder.
+    private var displayDate: Date? {
+        if let integrity { return integrity.resolvedDate }
+        return group.displayStartDate
     }
 
     var body: some View {
@@ -125,13 +135,20 @@ private struct RecordingRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 HStack(spacing: 10) {
-                    if let start = group.displayStartDate {
-                        Text(CJFormat.date(start))
+                    // Prefer the resolver's corrected start once integrity loads, so the row stops
+                    // showing a wrong/garbage embedded date as authoritative. Pre-load, fall back to
+                    // the embedded date as a placeholder.
+                    if let displayDate {
+                        Text(CJFormat.date(displayDate))
                             .foregroundStyle(Theme.txt2)
-                        Text(CJFormat.time(start))
+                        Text(CJFormat.time(displayDate))
                             .foregroundStyle(Theme.txt3)
+                        if let tag = integrity?.originTag {
+                            Text(tag)
+                                .foregroundStyle(Theme.txt3)
+                        }
                     } else {
-                        Text("no embedded date")
+                        Text(integrity == nil ? "no embedded date" : "—")
                             .foregroundStyle(Theme.txt3)
                     }
                     if isSplit, group.srtCount > 0 {
@@ -142,6 +159,17 @@ private struct RecordingRow: View {
                 .font(.system(size: 11))
                 .monospacedDigit()
                 .lineLimit(1)
+
+                // Inline integrity flags — only when there's something to say, so clean rows stay
+                // clean and keep their original single-meta-line height.
+                if let integrity, integrity.hasIssues {
+                    HStack(spacing: 6) {
+                        ForEach(Array(integrity.flags.enumerated()), id: \.offset) { _, flag in
+                            IntegrityChip(flag: flag)
+                        }
+                    }
+                    .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -156,7 +184,11 @@ private struct RecordingRow: View {
                     .lineLimit(1)
             }
 
-            CJBadge(isSplit: isSplit, count: group.clipCount)
+            CJBadge(
+                isSplit: isSplit,
+                count: group.clipCount,
+                isFlagged: !isSplit && (integrity?.hasWarning ?? false)
+            )
 
             // Fixed right-aligned meta columns, tabular numerals.
             HStack(spacing: 18) {
@@ -180,12 +212,47 @@ private struct RecordingRow: View {
         .contentShape(Rectangle())
         .onTapGesture { vm.toggleSelection(group) }
         .onHover { hovered = $0 }
+        .task(id: group.id) {
+            integrity = await RecordingIntegrity.build(group: group, settings: vm.settings)
+        }
     }
 
     private func rowBackground(checked: Bool) -> Color {
         if checked { return Theme.acc2.opacity(0.12) }
         if hovered { return .white.opacity(0.025) }
         return .clear
+    }
+}
+
+// MARK: Integrity chip
+
+/// One inline metadata-integrity flag. Warnings borrow the established orange ⚠ treatment (matches
+/// the queue's folder-mismatch badge); info flags are a quiet grey pill. Detail is in the tooltip.
+private struct IntegrityChip: View {
+    let flag: RecordingIntegrity.Flag
+
+    private var isWarning: Bool { flag.severity == .warning }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if isWarning {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9))
+            }
+            Text(flag.label)
+                .font(.system(size: 10, weight: .medium))
+        }
+        .foregroundStyle(isWarning ? Theme.acc1 : Theme.txt3)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule().fill(isWarning ? Theme.acc1.opacity(0.12) : Color.white.opacity(0.04))
+        )
+        .overlay(
+            Capsule().strokeBorder(isWarning ? Theme.acc1.opacity(0.28) : Theme.line, lineWidth: 1)
+        )
+        .fixedSize()
+        .help(flag.detail)
     }
 }
 
@@ -260,15 +327,8 @@ struct ClipThumbnailView: View {
 
     private var placeholder: some View {
         ZStack {
-            LinearGradient(
-                stops: [
-                    .init(color: Color(hex: 0x383838), location: 0),
-                    .init(color: Color(hex: 0x2A2A2A), location: 0.55),
-                    .init(color: Color(hex: 0x1F1F1F), location: 0.55),
-                    .init(color: Color(hex: 0x181818), location: 1),
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
+            // Flat dark fill (no gradient seam) — reads as a neutral "loading" tile, not a 3D card.
+            Color(hex: 0x222222)
             Image(systemName: "play.fill")
                 .font(.system(size: 10))
                 .foregroundStyle(.white.opacity(0.35))
