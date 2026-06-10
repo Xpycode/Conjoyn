@@ -29,6 +29,18 @@ final class ConversionViewModel: ObservableObject {
     @Published var outputFolderURL: URL?
     @Published var settings = ConversionSettings()
 
+    /// Output-renaming state. Session-only (not in `ConversionSettings`, which is `Codable` and
+    /// frozen onto every job) — only the *resolved* output name needs to ride on the job, and that
+    /// already does via `destinationURL`. Toggling `renameEnabled` opens/closes the rename popover;
+    /// `renameOptions` is the live pattern the popover edits and the enqueue path applies.
+    @Published var renameEnabled = false
+    @Published var renameOptions = RenamePatternEngine.Options.default
+
+    /// Memoised recording-start date per group (`group.id` → resolved `Date?`). Resolving reads the
+    /// `.SRT` + filesystem, so the rename preview — which re-renders on every keystroke — must not
+    /// re-resolve each time. Cleared on every `scan()`.
+    private var resolvedStartCache: [UUID: Date?] = [:]
+
     @Published private(set) var groups: [RecordGroup] = []
     /// Which groups will be enqueued by `addToQueue`. Defaults after a scan to the **split**
     /// recordings only (the ones that actually need joining), so pointing at a whole SD card doesn't
@@ -113,6 +125,7 @@ final class ConversionViewModel: ObservableObject {
         groups = []
         parseErrors = []
         skippedFiles = []
+        resolvedStartCache = [:]
 
         let discovery = await DJIFolderReader.read(folder: source, using: ffmpeg)
 
@@ -152,13 +165,22 @@ final class ConversionViewModel: ObservableObject {
         }
         let skipped = selectedGroups.count - toAdd.count
 
-        for group in toAdd {
+        // When renaming is on, resolve the whole batch's patterned + collision-free stems up front
+        // (the counter and de-dup are batch-relative). Otherwise keep the unchanged default namer,
+        // which leaves on-disk collisions to the queue's `resolveFilenameConflict`.
+        let ext = settings.outputContainer.fileExtension
+        let renamedStems = renameEnabled ? resolveRenamedStems(for: toAdd, in: outDir) : nil
+
+        for (i, group) in toAdd.enumerated() {
+            let destination = renamedStems
+                .map { outDir.appendingPathComponent("\($0[i]).\(ext)") }
+                ?? destinationURL(for: group, in: outDir, disambiguate: toAdd.count > 1)
             queue.addJob(
                 folderName: source.lastPathComponent,
                 sourceFolderURL: source,
                 clips: group.clips,
                 settings: settings,
-                destinationURL: destinationURL(for: group, in: outDir, disambiguate: toAdd.count > 1)
+                destinationURL: destination
             )
         }
         selectedGroupIDs = []
@@ -190,5 +212,79 @@ final class ConversionViewModel: ObservableObject {
         }
 
         return outDir.appendingPathComponent("\(base).\(ext)")
+    }
+
+    // MARK: - Rename (output-name templating)
+
+    /// One before→after line in the rename popover's live preview.
+    struct RenamePreviewRow: Identifiable {
+        let id: UUID
+        let original: String   // the first segment's real filename, e.g. `DJI_…_0009_D.MP4`
+        let result: String     // the patterned output, e.g. `DJI_…_0009_D_2026-05-21_joined.mp4`
+    }
+
+    /// Resolved recording-start wall-clock for a group's first segment, memoised. Both the rename
+    /// `{date}`/`{time}` tokens and the engine's date/timecode stamp derive from this one instant
+    /// (via the same `RecordingStartResolver`), so the filename and the embedded metadata agree.
+    func resolvedStartDate(for group: RecordGroup) -> Date? {
+        if let cached = resolvedStartCache[group.id] { return cached }
+        let date = group.clips.first.flatMap {
+            RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: settings.dateOverride).date
+        }
+        resolvedStartCache[group.id] = date
+        return date
+    }
+
+    /// Up to `limit` of the currently-selected recordings rendered through the active pattern, for
+    /// the popover's live preview. De-dups within the previewed set so the user sees realistic
+    /// `_2` suffixes; the enqueue path additionally seeds the queue + destination folder.
+    func renamePreview(limit: Int = 3) -> [RenamePreviewRow] {
+        let ext = settings.outputContainer.fileExtension
+        var taken = Set<String>()
+        return Array(selectedGroups.prefix(limit)).enumerated().map { i, group in
+            let name = group.clips.first?.stem ?? "joined"
+            let stem = RenamePatternEngine.uniqueStem(
+                RenamePatternEngine.applyStem(
+                    name: name, date: resolvedStartDate(for: group), options: renameOptions, index: i
+                ),
+                taken: taken
+            )
+            taken.insert(stem)
+            let original = group.clips.first?.videoURL.lastPathComponent ?? "\(name).MP4"
+            return RenamePreviewRow(id: group.id, original: original, result: "\(stem).\(ext)")
+        }
+    }
+
+    /// Patterned, collision-free output stems for one Add-to-Queue batch. The `{###}` counter is
+    /// batch-relative (0-based index) and de-dup runs against the running batch ∪ unfinished-queue ∪
+    /// destination-folder listing, so no two outputs — or an existing file — collide.
+    private func resolveRenamedStems(for groups: [RecordGroup], in outDir: URL) -> [String] {
+        var taken = existingOutputStems(in: outDir)
+        return groups.enumerated().map { i, group in
+            let name = group.clips.first?.stem ?? "joined"
+            let stem = RenamePatternEngine.uniqueStem(
+                RenamePatternEngine.applyStem(
+                    name: name, date: resolvedStartDate(for: group), options: renameOptions, index: i
+                ),
+                taken: taken
+            )
+            taken.insert(stem)
+            return stem
+        }
+    }
+
+    /// Stems already spoken for: every unfinished queue job's output + every file in the destination
+    /// folder. (A finished job's output is on disk, so the folder listing already covers it.)
+    private func existingOutputStems(in outDir: URL) -> Set<String> {
+        var set = Set<String>()
+        for job in queue.jobs where !job.status.isFinished {
+            set.insert(job.destinationURL.deletingPathExtension().lastPathComponent)
+        }
+        if let contents = try? FileManager.default.contentsOfDirectory(
+            at: outDir, includingPropertiesForKeys: nil
+        ) {
+            for url in contents { set.insert(url.deletingPathExtension().lastPathComponent) }
+        }
+        return set
     }
 }

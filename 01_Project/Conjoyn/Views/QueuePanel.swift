@@ -10,6 +10,7 @@ import AppKit
 struct OutputBar: View {
     @EnvironmentObject private var vm: ConversionViewModel
     @State private var showMoreOptions = false
+    @State private var showRename = false
 
     var body: some View {
         HStack(spacing: 16) {
@@ -32,6 +33,16 @@ struct OutputBar: View {
             OptionSwitch(label: "Fix recording date", isOn: $vm.settings.fixCreationDate)
             OptionSwitch(label: "Timecode from recording time", isOn: $vm.settings.preserveTimecode)
             OptionSwitch(label: "Stitch telemetry", isOn: $vm.settings.stitchSRT)
+
+            // Fourth switch: turning it ON opens the rename popover; the popover's ✕ turns it OFF
+            // (which closes the popover via the onChange below). Clicking away just dismisses the
+            // panel — renaming stays on with the last pattern intact (re-toggle to edit again).
+            OptionSwitch(label: "Rename files", isOn: $vm.renameEnabled)
+                .popover(isPresented: $showRename, arrowEdge: .top) {
+                    RenamePopover { vm.renameEnabled = false }
+                        .environmentObject(vm)
+                }
+                .onChange(of: vm.renameEnabled) { _, on in showRename = on }
 
             // The handoff bar carries only the three core switches; the engine's remaining knobs
             // (container, filename, re-encode, delete-after-verify) live behind this gear.
