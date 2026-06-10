@@ -11,6 +11,11 @@
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
 - **Tags:** macOS, video, DJI, metadata, ffmpeg
 - **Started:** 2026-06-07
+- **Repo/git:** canonical history at `github.com/Xpycode/Conjoyn` (private), baseline `830b8fa`
+  (created 2026-06-10c). Code syncs across Macs via **Syncthing, which excludes `.git`** — so git
+  history travels **only via `origin`**. Any other Mac must `git remote add origin … && git fetch
+  && git reset --hard origin/main` **before committing**, or history forks (see memory
+  `git-remote-reconciliation`).
 
 ## Now
 - **Phase:** implementation, ~97%. Engine validated end-to-end on real footage (14/14 batch,
@@ -18,15 +23,30 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** (1) **UI polish pass** — user flagged sizing/position deviations vs the prototype;
-  (2) **single-file export** (new user request 2026-06-10): let a lone 1-segment recording be
-  exported via copy/remux so its date/timecode get stamped + `.SRT` carried over — today the
-  engine refuses with "need at least two segments"; (3) **`feature/rename-tc-disclosure`** —
-  Rename Joined Files popover + per-job TC disclosure (`specs/rename-and-tc-disclosure.md`;
-  relabel already done, research done, implementation pending); (4) DMG wrapper. Smaller polish:
-  Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
+- **Next:** (1) **`feature/rename-tc-disclosure`** — branch live off `830b8fa`, **approved 2-commit
+  plan, implementation deferred to next session** (see `docs/sessions/2026-06-10c.md`): Commit 1 =
+  Rename Joined Files popover + pure `RenamePatternEngine`; Commit 2 = per-queue-row TC disclosure +
+  `SourceTimecodeReader`. Part 2's **relabel is already done** ("Timecode from recording time") — only
+  the disclosure remains. (2) **UI polish pass** over the finished UI — user flagged sizing/position
+  deviations vs the prototype (to be enumerated against a live build; deliberately *after* the feature,
+  since both touch the output bar + queue rows). (3) **single-file export** (user request 2026-06-10):
+  let a lone 1-segment recording be exported via copy/remux so its date/timecode get stamped + `.SRT`
+  carried over — today the engine refuses with "need at least two segments". (4) DMG wrapper. Smaller
+  polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10c — Reconciled this Mac's git, then scoped (and deferred) the next feature.** A routine
+  `/status` exposed a git/reality split: docs describe many merges to `main`, but this Mac's `.git`
+  held only 2 commits with the whole Conjoyn source uncommitted. Root cause: the repo syncs via
+  **Syncthing, whose `.stignore` excludes `.git`** ("code travels via GitHub remotes"), and this Mac
+  was **never wired to a GitHub origin** (none existed). On-disk source confirmed authoritative/current.
+  **Re-baselined from this Mac:** committed the tree as `830b8fa` on `main` (renames auto-detected),
+  fixed a rebrand leftover (`.gitignore` `DJIjoiner.xcodeproj`→`Conjoyn.xcodeproj`), created **private
+  `github.com/Xpycode/Conjoyn`**, pushed + set upstream, deleted stale `feature/wave1-verification`.
+  Then scoped `feature/rename-tc-disclosure` (specced, 0 code): read the full code+design surface,
+  produced an **approved 2-commit plan**, branched off `830b8fa` — **implementation deferred to next
+  session**. Decided rename state lives on the ViewModel (session-only, not `ConversionSettings`) and
+  **feature-then-polish** ordering.
 - **2026-06-10b — Ported the design handoff to SwiftUI; live-validated on the real card.** The
   main window is now the designed vertical flow (titlebar/source bar → recordings hero → output
   bar → queue → collapsible console → footer) with the full token set, real row thumbnails,
