@@ -36,6 +36,7 @@ extension QueueManager {
         let jobId = job.id
 
         currentJobId = jobId
+        activeMetrics = nil
         updateJob(jobId) { j in
             j.status = .preparing
             j.progress = 0
@@ -167,6 +168,7 @@ extension QueueManager {
         currentJobId = nil
         currentJobEstimate = nil
         slowSpeedWarning = nil
+        activeMetrics = nil
     }
 
     /// Runs the concat join for a job (multiple segments → one file).
@@ -199,6 +201,9 @@ extension QueueManager {
             },
             metricsHandler: { [weak self] metrics in
                 Task { @MainActor in
+                    // Surface ffmpeg's live metrics (speed=) to the active queue row, then run the
+                    // slow-speed check off the same sample.
+                    self?.activeMetrics = metrics
                     self?.checkForSlowSpeed(
                         metrics: metrics,
                         totalBytes: totalBytes,
@@ -316,6 +321,35 @@ extension QueueManager {
             clips: pendingJobs.flatMap(\.clips),
             outputFormat: firstJob.settings.outputContainer
         )
+    }
+
+    /// Estimated seconds remaining for the **whole queue** at the given reference date: the active
+    /// job's live time-remaining plus the historical estimate for every still-pending job. Returns
+    /// `nil` when nothing is running so the footer readout stays hidden between batches.
+    ///
+    /// The active job uses the live `elapsed / progress` extrapolation (`ProgressMetrics`) once it's
+    /// past 5%; before that it falls back to the historical `currentJobEstimate`. Pending jobs always
+    /// use `getTotalQueueEstimate()` (SpeedTracker history). The split keeps the live countdown
+    /// history-independent while still giving a whole-batch number on a fresh install.
+    func remainingQueueSeconds(at referenceDate: Date) -> TimeInterval? {
+        guard isProcessing else { return nil }
+
+        var total: TimeInterval = 0
+
+        if let active = jobs.first(where: { $0.id == currentJobId }) {
+            let metrics = ProgressMetrics(progress: active.progress, startTime: active.startedAt)
+            if let live = metrics.estimatedRemainingSeconds(at: referenceDate) {
+                total += live
+            } else if let estimate = currentJobEstimate {
+                total += estimate.estimatedSeconds
+            }
+        }
+
+        if let pending = getTotalQueueEstimate() {
+            total += pending.estimatedSeconds
+        }
+
+        return total > 0 ? total : nil
     }
 
     /// Dismisses the slow-speed warning.

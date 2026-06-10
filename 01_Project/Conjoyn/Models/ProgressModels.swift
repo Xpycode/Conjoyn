@@ -108,6 +108,21 @@ enum ConversionStatus: Equatable {
     }
 }
 
+/// Coarse "~N min" / "~Nh Nm" / "< 1 min" formatting for an estimated duration. Shared by the
+/// pre-job `ConversionEstimate.formattedEstimate` and the live queue-total ETA in the footer, so
+/// both read identically. Sub-minute collapses to "< 1 min" (a precise countdown is the row's job).
+func formattedCoarseDuration(_ seconds: TimeInterval) -> String {
+    if seconds < 60 {
+        return "< 1 min"
+    } else if seconds < 3600 {
+        return "~\(Int(seconds / 60)) min"
+    } else {
+        let hours = Int(seconds / 3600)
+        let mins = Int((seconds.truncatingRemainder(dividingBy: 3600)) / 60)
+        return "~\(hours)h \(mins)m"
+    }
+}
+
 // MARK: - Time Estimation Models (Wave 1, task 1.2)
 
 // Appended for the SpeedTracker port (task 1.8). Ported from P2toMXF (`Models/ProgressModels.swift`)
@@ -135,16 +150,7 @@ struct ConversionEstimate {
 
     /// Formatted estimated time (e.g., "~3 min").
     var formattedEstimate: String {
-        if estimatedSeconds < 60 {
-            return "< 1 min"
-        } else if estimatedSeconds < 3600 {
-            let mins = Int(estimatedSeconds / 60)
-            return "~\(mins) min"
-        } else {
-            let hours = Int(estimatedSeconds / 3600)
-            let mins = Int((estimatedSeconds.truncatingRemainder(dividingBy: 3600)) / 60)
-            return "~\(hours)h \(mins)m"
-        }
+        formattedCoarseDuration(estimatedSeconds)
     }
 
     /// Formatted speed (e.g., "30x realtime").
