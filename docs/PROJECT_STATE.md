@@ -35,6 +35,16 @@
   polish: Apple `Keys` creationdate atom (6.3), doubled camera-variant suffix (`…_0009_D_D.mp4`).
 
 ## Recent (newest first)
+- **2026-06-10g — Migrated the custom titlebar to a native macOS toolbar (UI polish).** From the
+  user's "could the toolbar be in the title bar?" Replaced the custom 52 pt `TitleBar` HStack +
+  `WindowConfigurator` with a native `.toolbar` + `.toolbarRole(.editor)` (App Shell Standard, like
+  Penumbra/CropBatch): source path well centered (`.principal`), Scan trailing (`.primaryAction`),
+  app name/tagline dropped. **Hit + fixed macOS 26 Tahoe Liquid Glass "bubbles"** — native toolbar
+  items get auto-enrolled into Liquid Glass on the 26 SDK (siblings look flat only because they're
+  pre-Tahoe-SDK builds). Opted the app out app-wide via **`UIDesignRequiresCompatibility`**, after the
+  `INFOPLIST_KEY_*` route silently failed → minimal base `Info.plist` + `GENERATE_INFOPLIST_FILE`
+  merge. Removed orphaned `Theme.titlebar`. 220/220. `feature/native-toolbar` → `main` (`b6c7418`),
+  pushed. Captured as **cookbook #89**. Next: continue the UI polish pass.
 - **2026-06-10f — Eyeballed the TC disclosure live, then merged `feature/rename-tc-disclosure` to `main`.**
   Cleared the last two owed items on the branch. **Live eyeball** on a real SRT-bearing card
   (`/Volumes/M4P-1/DCIM/DJI_001`, the 2026-05-21 footage): queued the split `0006–0009`, opened the
