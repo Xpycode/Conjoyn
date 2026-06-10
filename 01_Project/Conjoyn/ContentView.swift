@@ -17,26 +17,34 @@ struct ContentView: View {
         VStack(spacing: 0) {
             TitleBar()
 
-            // Hero region: empty / scanning / loaded recordings, ~5:3 versus the queue.
-            Group {
-                if vm.isScanning {
-                    ScanningStateView()
-                } else if vm.groups.isEmpty {
-                    EmptyStateView()
-                } else {
-                    RecordingsList()
+            // Recordings and the queue share a draggable boundary: the hero + output bar form the
+            // top pane (selection/setup), the queue + its console the bottom pane. The divider sits
+            // just above the queue, so the user can grow the queue when many jobs are running.
+            VSplitView {
+                VStack(spacing: 0) {
+                    // Hero region: empty / scanning / loaded recordings.
+                    Group {
+                        if vm.isScanning {
+                            ScanningStateView()
+                        } else if vm.groups.isEmpty {
+                            EmptyStateView()
+                        } else {
+                            RecordingsList()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    OutputBar()
                 }
+                .frame(minHeight: 220)
+
+                VStack(spacing: 0) {
+                    QueueSection()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ConsoleSection()
+                }
+                .frame(minHeight: 150)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .layoutPriority(5)
-
-            OutputBar()
-
-            QueueSection()
-                .frame(maxWidth: .infinity, minHeight: 120, maxHeight: .infinity)
-                .layoutPriority(3)
-
-            ConsoleSection()
 
             FooterBar()
         }
