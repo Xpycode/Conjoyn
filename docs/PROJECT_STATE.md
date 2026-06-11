@@ -80,14 +80,14 @@
   + tampered-source fail). **Owed:** live GUI eyeball of the seal on a real card.
   (7) **Help window** (2026-06-10i) —
   vendor the standalone `/1-macOS/AppHelp/` package; cost is topic content, not wiring (**no Settings
-  scene** — decided unnecessary). (8) DMG wrapper. (9) **Per-recording manual TC entry — PLANNED,
-  ready to `/execute`** (user asked 2026-06-10k; plan written 2026-06-11c). `HH:MM:SS:FF` field in the
-  queue-row disclosure panel overriding only the `-timecode` ffmpeg arg (not `creation_time`). Library:
-  `orchetect/swift-timecode` v3.1.2 (`TimecodeField` SwiftUI-native, macOS 14+, Swift 6 ✓). Storage:
-  `var timecodeStringOverride: String?` on `ConversionJob`, excluded from `CodingKeys` (session-only).
-  Engine: `resolveJoinMetadata()` checks override before `TimecodeFormatter.wallClockTimecode()`.
-  **4-commit plan in `docs/sessions/2026-06-11c.md`**: (1) model+engine+tests, (2) `TimecodeDisclosure.build()`
-  reflects override, (3) TimecodeKit dep + xcodegen, (4) UI in `TimecodeDisclosurePanel`. ~305→314 tests. **(10) Output-folder ↔
+  scene** — decided unnecessary). (8) DMG wrapper. ~~(9) **Per-recording manual TC entry**~~ **DONE +
+  MERGED → `main` (2026-06-11d); branch deleted.** `HH:MM:SS:FF` `TimecodeField`
+  (orchetect/swift-timecode v3.1.2) in the queue-row TC disclosure panel. Override replaces only
+  the `-timecode` ffmpeg arg; `creation_time` unaffected. Session-only (`timecodeStringOverride`
+  excluded from `CodingKeys`). `TimecodeDisclosure.build()` reflects override with `.manualOverride`
+  provenance; `QueueRow .task` keyed reactively. 4 commits: model+engine, disclosure reactivity,
+  TimecodeKit dep, UI. **+10 tests → 315/315.** **Owed:** live GUI eyeball (expand queue-row caret →
+  Override TC field → Set → join). **(10) Output-folder ↔
   queue clarity — DONE + LIVE-VERIFIED + MERGED → `main` (`37aca3f`, 2026-06-10n); branch deleted,
   pushed.** Implemented 2026-06-10m (`2eb0143`); **live A+B GUI verify 2026-06-10n** on a real 60-job
   queue: per-row "Output" disclosure row showed each job's destination; changing the Output folder
@@ -125,6 +125,12 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11d — Shipped per-recording manual TC override (backlog 9).** `TimecodeField`
+  (orchetect/swift-timecode v3.1.2) in each queue-row TC disclosure panel; "Set" stamps the override
+  as the `-timecode` arg; xmark clears it. `ConversionJob.timecodeStringOverride` session-only.
+  `TimecodeDisclosure.build()` gains `tcOverride:` param + `.manualOverride` provenance. 4 commits,
+  `/execute` wave-based. **+10 tests → 315/315.** Merged `--no-ff` → `main`, pushed (pending push
+  confirmation). **Owed:** live GUI eyeball.
 - **2026-06-11c — Researched + planned backlog (9): per-recording manual TC override.**
   Multi-agent research across three reference projects + TimecodeKit library. Decided on
   `orchetect/swift-timecode` v3.1.2 (SwiftUI-native `TimecodeField`, macOS 14+, Swift 6
@@ -363,7 +369,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 305 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration
+- **Tests:** 315 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration
   (source↔target byte-identical pass + tampered-source negative case).
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
