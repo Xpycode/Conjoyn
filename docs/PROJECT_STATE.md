@@ -23,7 +23,11 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
+- **Next:** Execute `docs/plans/eyeball-fixes-2026-06-11e.md` — 6 tasks, 2 waves. Wave 1: 4 bug
+  fixes (single-file label, chip filter, mapStatus thorough pass → green, seal animation stop).
+  Wave 2: queue restore banner + queue row type/duration/size. ETA-includes-verification deferred.
+- **Owed eyeball:** slow-mo + SRT-mismatch chips (no such footage on the 2CULL card).
+- **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
   exactly). 220/220 tests. (2) **UI polish pass** — **3 items
@@ -125,6 +129,15 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11e — Live eyeball session; 6 issues found; plan written.**
+  First full live test on real card (2 jobs: single 0004_D + split-4 0009–0012). All 4 owed
+  eyeball items passed. Found: "Joining…" wrong for singles; ⚠ Duration chip fires on every
+  clean join (`.info`-severity delta leaking through `severity > .pass` filter — should be
+  `>= .warning`); `mapStatus` keeps orange seal after Tier 2 hash pass (fix: hash pass → `.verified`
+  regardless of Tier 1 warnings); seal animation may not stop cleanly; silent queue restore
+  confuses users; queue row loses SINGLE/JOIN badge/duration/size info. ETA underestimates by
+  Tier 2 verification time (deferred). Plan at `docs/plans/eyeball-fixes-2026-06-11e.md`.
+  Backlog noted: keyboard shortcuts, console window, Settings reconsidering.
 - **2026-06-11d — Shipped per-recording manual TC override (backlog 9); refined UX.**
   `TimecodeField` (orchetect/swift-timecode v3.1.2); `ConversionJob.timecodeStringOverride`
   session-only; `TimecodeDisclosure.build()` gains `tcOverride:` + `.manualOverride` provenance.
