@@ -51,6 +51,20 @@ final class ConversionViewModel: ObservableObject {
     /// recordings only (the ones that actually need joining), so pointing at a whole SD card doesn't
     /// silently queue ~60 lone single clips. The user ticks/unticks individual rows.
     @Published private(set) var selectedGroupIDs: Set<UUID> = []
+
+    /// Controls which recordings are visible in the list. Selection is independent — changing the
+    /// filter does not clear existing selections, but `setFilter(_:)` auto-selects all matching rows.
+    enum RecordingFilter { case all, splits, singles }
+    @Published private(set) var recordingFilter: RecordingFilter = .all
+
+    /// The subset of `groups` currently visible given `recordingFilter`.
+    var filteredGroups: [RecordGroup] {
+        switch recordingFilter {
+        case .all:     return groups
+        case .splits:  return groups.filter { $0.groupType == .split }
+        case .singles: return groups.filter { $0.groupType == .single }
+        }
+    }
     @Published private(set) var parseErrors: [ClipParseError] = []
     @Published private(set) var skippedFiles: [String] = []
     @Published private(set) var isScanning = false
@@ -92,6 +106,19 @@ final class ConversionViewModel: ObservableObject {
     func selectSingleGroupsOnly() {
         selectedGroupIDs = Set(groups.filter { $0.groupType == .single }.map(\.id))
     }
+
+    /// Sets the visibility filter and auto-selects all matching rows.
+    func setFilter(_ filter: RecordingFilter) {
+        recordingFilter = filter
+        switch filter {
+        case .all:     selectAllGroups()
+        case .splits:  selectSplitGroupsOnly()
+        case .singles: selectSingleGroupsOnly()
+        }
+    }
+
+    /// Resets the filter to `.all` without changing selection. Called on rescan.
+    func resetFilter() { recordingFilter = .all }
 
     // MARK: - Folder selection
 
@@ -153,6 +180,7 @@ final class ConversionViewModel: ObservableObject {
         parseErrors = []
         skippedFiles = []
         resolvedStartCache = [:]
+        resetFilter()
 
         let discovery = await DJIFolderReader.read(folder: source, using: ffmpeg)
 
