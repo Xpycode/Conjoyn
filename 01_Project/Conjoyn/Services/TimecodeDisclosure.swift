@@ -59,9 +59,16 @@ extension TimecodeDisclosure {
     /// `tmcd` uses `AVAssetReader`; the resolver / formatter / slow-mo work is synchronous. Safe to
     /// call off the main actor, and never throws — a missing tmcd or unparseable SRT degrades to
     /// `nil` / `false` rather than failing.
+    ///
+    /// - Parameter tcOverride: A manually-entered `HH:MM:SS:FF` string (from
+    ///   `ConversionJob.timecodeStringOverride`). When non-nil it wins over all resolver signals and
+    ///   is shown verbatim as the applied timecode with `origin: .manualOverride`. The existing
+    ///   `settings.dateOverride` path (which flows through `RecordingStartResolver`) is left
+    ///   unchanged for cases where the override is a `Date` rather than a pre-formatted string.
     static func build(
         clips: [DJIClip],
         settings: ConversionSettings,
+        tcOverride: String? = nil,
         calendar: Calendar = .current
     ) async -> TimecodeDisclosure {
         guard let first = clips.first else {
@@ -74,12 +81,27 @@ extension TimecodeDisclosure {
         // Source tmcd — almost always absent for DJI; a missing track is the normal "—" case.
         let sourceTimecode = try? await SourceTimecodeReader().read(from: first.videoURL).formatted
 
+        let fps = first.streamInfo?.video.framesPerSecond ?? 30.0
+        let isSlowMo = detectSlowMotion(clip: first, calendar: calendar)
+
+        // A pre-formatted string override wins over all resolver logic. The UI passes this when the
+        // user has typed a timecode directly in the queue row — it skips date resolution entirely.
+        if let override = tcOverride {
+            return TimecodeDisclosure(
+                sourceTimecode: sourceTimecode,
+                appliedTimecode: override,
+                origin: .manualOverride,
+                frameRate: fps,
+                timecodeEnabled: settings.preserveTimecode,
+                isSlowMotion: isSlowMo
+            )
+        }
+
         // Resolve the recording start exactly as the engine does (same resolver, same fallback fps),
         // so the applied TC the row shows is identical to what `resolveJoinMetadata` stamps.
         let resolution = RecordingStartResolver.resolve(
             forFirstSegment: first, manualOverride: settings.dateOverride, calendar: calendar
         )
-        let fps = first.streamInfo?.video.framesPerSecond ?? 30.0
 
         var appliedTimecode: String?
         if settings.preserveTimecode, let date = resolution.date {
@@ -95,7 +117,7 @@ extension TimecodeDisclosure {
             origin: resolution.provenance,
             frameRate: fps,
             timecodeEnabled: settings.preserveTimecode,
-            isSlowMotion: detectSlowMotion(clip: first, calendar: calendar)
+            isSlowMotion: isSlowMo
         )
     }
 

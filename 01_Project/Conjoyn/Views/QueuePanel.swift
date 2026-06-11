@@ -335,10 +335,13 @@ private struct QueueRow: View {
         }
         .padding(.horizontal, 16)
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
-        // Recompute only when the row is bound to a different job. The build reads the job's frozen
-        // clips + settings, so the values shown always match what the engine stamps for this job.
-        .task(id: job.id) {
-            disclosure = await TimecodeDisclosure.build(clips: job.clips, settings: job.settings)
+        // Recompute whenever the job identity or its manual TC override changes. The compound key
+        // fires a new task when the user types a timecode override into the row, so the disclosure
+        // rebuilds reactively without requiring a full job replacement.
+        .task(id: "\(job.id)-\(job.timecodeStringOverride ?? "")") {
+            disclosure = await TimecodeDisclosure.build(
+                clips: job.clips, settings: job.settings, tcOverride: job.timecodeStringOverride
+            )
         }
     }
 
