@@ -177,6 +177,7 @@ private struct ApplyFolderPopover: View {
 
 struct QueueSection: View {
     @EnvironmentObject private var queue: QueueManager
+    @State private var bannerDismissed = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -209,6 +210,14 @@ struct QueueSection: View {
                     .padding(.vertical, 18)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
+                if queue.restoredJobCount > 0 && !bannerDismissed {
+                    RestoreBanner(count: queue.restoredJobCount,
+                                  onDismiss: { bannerDismissed = true },
+                                  onClearPending: {
+                                      queue.clearPendingJobs()
+                                      bannerDismissed = true
+                                  })
+                }
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(queue.jobs) { job in
@@ -406,7 +415,8 @@ private struct QueueRow: View {
     /// smoothly between ffmpeg progress callbacks. Speed comes from ffmpeg's `speed=` (`activeMetrics`);
     /// the ETA is the history-independent `elapsed / progress` extrapolation off the job's own
     /// `progress`/`startedAt`, falling back to the pre-job historical estimate before 5% progress so
-    /// the row never shows a blank while preparing. Renders nothing for inactive rows.
+    /// the row never shows a blank while preparing. For inactive rows, shows a static summary of
+    /// clip count, duration, and source size.
     @ViewBuilder
     private var liveMetrics: some View {
         if isActive, job.id == queue.currentJobId {
@@ -427,6 +437,18 @@ private struct QueueRow: View {
                 .foregroundStyle(Theme.txt2)
                 .lineLimit(1)
             }
+        } else if !isActive {
+            HStack(spacing: 6) {
+                Text(job.clips.count == 1 ? "SINGLE" : "\(job.clips.count) files")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("·")
+                Text(CJFormat.duration(job.totalContentDurationSeconds))
+                Text("·")
+                Text(CJFormat.size(job.totalSourceBytes))
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(Theme.txt3)
+            .lineLimit(1)
         }
     }
 }
@@ -720,6 +742,39 @@ private struct VerificationChip: View {
         .overlay(Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 1))
         .fixedSize()
         .help(check.detail)
+    }
+}
+
+private struct RestoreBanner: View {
+    let count: Int
+    let onDismiss: () -> Void
+    let onClearPending: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.txt3)
+            Text("Restored \(count) job\(count == 1 ? "" : "s") from last session")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.txt2)
+            Spacer()
+            Button("Clear pending") {
+                onClearPending()
+            }
+            .font(.system(size: 11))
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.acc1)
+            Button("Dismiss") {
+                onDismiss()
+            }
+            .font(.system(size: 11))
+            .buttonStyle(.plain)
+            .foregroundStyle(Theme.txt3)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Theme.panel2)
     }
 }
 

@@ -81,6 +81,13 @@ extension QueueManager {
         saveQueue()
     }
 
+    /// Removes all pending jobs. Used by the restore banner to discard jobs the user doesn't want
+    /// to resume from the previous session. In-flight jobs are untouched.
+    func clearPendingJobs() {
+        jobs.removeAll { $0.status == .pending }
+        saveQueue()
+    }
+
     /// Clears all completed and failed jobs.
     func clearFinishedJobs() {
         jobs.removeAll { $0.status.isFinished }

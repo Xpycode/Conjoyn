@@ -221,6 +221,13 @@ struct ConversionJob: Identifiable, Codable, Sendable {
         clips.reduce(0) { $0 + $1.durationInSeconds }
     }
 
+    /// Total on-disk size of all source segments in bytes (sum of `DJIClip.totalFileSize`).
+    /// Used for the static queue-row sub-line so the user can see how large the source material is
+    /// without opening the recording list.
+    var totalSourceBytes: Int64 {
+        clips.reduce(0) { $0 + $1.totalFileSize }
+    }
+
     /// Best-effort total frame count across all segments, for progress display and verification's
     /// expected-frame check. `nil` if any segment lacks a probed frame rate — callers treat a `nil`
     /// expected-frame count as "no estimate" rather than a failure.

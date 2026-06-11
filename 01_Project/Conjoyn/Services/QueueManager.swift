@@ -37,6 +37,7 @@ final class QueueManager: ObservableObject {
     // MARK: - Published State
     @Published var jobs: [ConversionJob] = []
     @Published var isProcessing = false
+    @Published var restoredJobCount: Int = 0
 
     /// Console log lines — stored as an array to enable efficient trimming.
     /// Use `consoleLog` for display (joins lines).
@@ -259,6 +260,7 @@ final class QueueManager: ObservableObject {
             }
 
             jobs = loadedJobs
+            restoredJobCount = jobs.filter { $0.status == .pending }.count
 
             if !jobs.isEmpty {
                 let pending = jobs.filter { $0.status == .pending }.count
