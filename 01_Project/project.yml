@@ -18,6 +18,8 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
 
 packages:
+  HelpMenu:
+    path: HelpMenu
   swift-timecode:
     url: https://github.com/orchetect/swift-timecode
     from: "3.1.2"
@@ -28,6 +30,8 @@ targets:
     platform: macOS
     deploymentTarget: "14.0"
     dependencies:
+      - package: HelpMenu
+        product: HelpMenu
       - package: swift-timecode
         product: SwiftTimecodeCore
       - package: swift-timecode

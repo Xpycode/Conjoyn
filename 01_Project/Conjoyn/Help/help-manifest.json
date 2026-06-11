@@ -1,0 +1,14 @@
+{
+  "windowTitle": "Conjoyn Help",
+  "topics": [
+    { "id": "what-conjoyn-does",  "title": "What Conjoyn Does",       "markdownFile": "help-what-conjoyn-does.md",  "group": "Getting Started" },
+    { "id": "quick-start",        "title": "Quick Start",              "markdownFile": "help-quick-start.md",        "group": "Getting Started" },
+    { "id": "scanning",           "title": "Scanning a Card",          "markdownFile": "help-scanning.md",           "group": "Recordings" },
+    { "id": "singles-and-splits", "title": "Singles and Splits",       "markdownFile": "help-singles-and-splits.md", "group": "Recordings" },
+    { "id": "dates-and-timecode", "title": "Dates and Timecode",       "markdownFile": "help-dates-and-timecode.md", "group": "Recordings" },
+    { "id": "the-queue",          "title": "The Queue",                "markdownFile": "help-queue.md",              "group": "Joining" },
+    { "id": "joining",            "title": "Joining and Verification", "markdownFile": "help-joining.md",            "group": "Joining" },
+    { "id": "shortcuts",          "title": "Keyboard Shortcuts",       "markdownFile": "help-shortcuts.md",          "group": "Reference" },
+    { "id": "troubleshooting",    "title": "Troubleshooting",          "markdownFile": "help-troubleshooting.md",    "group": "Reference" }
+  ]
+}
