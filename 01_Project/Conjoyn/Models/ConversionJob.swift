@@ -106,6 +106,7 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     // Verification state.
     var verificationStatus: VerificationStatus = .unverified
     var verificationResult: VerificationResult?
+    var sourceTargetResult: SourceTargetResult?
     var verificationProgress: Double = 0.0  // 0.0 to 1.0
 
     // Actual output files created (may differ from expected due to conflict resolution).
@@ -287,7 +288,7 @@ struct ConversionJob: Identifiable, Codable, Sendable {
         case id, folderName, sourceFolderPathString, clips, settings
         case destinationPathString, createdAt, status, progress, startedAt
         case sourceBookmarkData, outputBookmarkData
-        case verificationStatus, verificationResult, verificationProgress
+        case verificationStatus, verificationResult, sourceTargetResult, verificationProgress
         case actualOutputPathStrings
     }
 }

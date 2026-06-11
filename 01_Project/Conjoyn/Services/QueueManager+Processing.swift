@@ -138,6 +138,15 @@ extension QueueManager {
                 j.progress = 1.0
             }
 
+            // Auto source↔target verification (fast tier). This MUST run here — before the
+            // enclosing scope exits — because the source security-scoped access opened above is
+            // released by the `defer` at the top of `processJob` only once this function returns.
+            // `await` suspends without unwinding the scope, so the `defer` has NOT fired yet and the
+            // verifier inherits live source access (no re-resolve needed on the auto path). The fast
+            // tier's ffprobe work runs inside the verifier's own off-main `Process`, so the main
+            // actor isn't blocked; the `await` simply preserves strict job ordering.
+            await autoVerifyJoin(jobId: jobId)
+
             // Record the join speed for future estimates.
             let elapsed = Date().timeIntervalSince(startTime)
             if elapsed > 0 {
