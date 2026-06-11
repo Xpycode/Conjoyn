@@ -17,11 +17,21 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_STRICT_CONCURRENCY: complete
 
+packages:
+  swift-timecode:
+    url: https://github.com/orchetect/swift-timecode
+    from: "3.1.2"
+
 targets:
   Conjoyn:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
+    dependencies:
+      - package: swift-timecode
+        product: SwiftTimecodeCore
+      - package: swift-timecode
+        product: SwiftTimecodeUI
     sources:
       - path: Conjoyn
         excludes:
