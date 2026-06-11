@@ -103,6 +103,9 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     var sourceBookmarkData: Data?
     var outputBookmarkData: Data?
 
+    // Manual timecode override — session-only, intentionally excluded from CodingKeys.
+    var timecodeStringOverride: String? = nil
+
     // Verification state.
     var verificationStatus: VerificationStatus = .unverified
     var verificationResult: VerificationResult?

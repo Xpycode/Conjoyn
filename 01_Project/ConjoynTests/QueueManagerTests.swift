@@ -545,6 +545,99 @@ final class QueueManagerTests: XCTestCase {
         return job
     }
 
+    // MARK: - Manual timecode override (Commit 1)
+
+    /// Override set → `resolveJoinMetadata` returns the override string, not the resolver TC.
+    func testResolveJoinMetadataUsesOverrideWhenSet() {
+        let manager = makeManager()
+        var job = makeJob(outputName: "Override.mp4")
+        job.timecodeStringOverride = "01:00:00:00"
+        manager.addJob(job)
+
+        let metadata = manager.resolveJoinMetadata(for: manager.jobs.last!)
+        XCTAssertEqual(metadata.timecode, "01:00:00:00",
+                       "override string must be passed through verbatim")
+    }
+
+    /// Nil override + no date → timecode is nil (nothing stamped).
+    func testResolveJoinMetadataNilTimecodeWhenNoOverrideAndNoDate() {
+        let manager = makeManager()
+        // Clips with no creation_time / SRT / filename date → resolver returns nil date.
+        var job = makeJob(outputName: "NoDate.mp4")
+        XCTAssertNil(job.timecodeStringOverride, "precondition: override starts nil")
+        manager.addJob(job)
+
+        let metadata = manager.resolveJoinMetadata(for: manager.jobs.last!)
+        // Default ConversionSettings has preserveTimecode=true, fixCreationDate=true; no date
+        // signal → both fields nil.
+        XCTAssertNil(metadata.timecode)
+        XCTAssertNil(metadata.creationTime)
+    }
+
+    /// Invalid override string (e.g. "99:99:99:99") is passed through as-is — no silent correction.
+    func testResolveJoinMetadataPassesInvalidOverrideThrough() {
+        let manager = makeManager()
+        var job = makeJob(outputName: "Invalid.mp4")
+        job.timecodeStringOverride = "99:99:99:99"
+        manager.addJob(job)
+
+        let metadata = manager.resolveJoinMetadata(for: manager.jobs.last!)
+        XCTAssertEqual(metadata.timecode, "99:99:99:99",
+                       "invalid override must not be silently corrected")
+    }
+
+    /// `updateTimecodeOverride` sets the property on the correct job.
+    func testUpdateTimecodeOverrideSetsProperty() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let jobID = manager.jobs[0].id
+
+        manager.updateTimecodeOverride(for: jobID, timecode: "02:30:00:00")
+        XCTAssertEqual(manager.jobs[0].timecodeStringOverride, "02:30:00:00")
+    }
+
+    /// `updateTimecodeOverride` with nil clears the override.
+    func testUpdateTimecodeOverrideClearsWithNil() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let jobID = manager.jobs[0].id
+
+        manager.updateTimecodeOverride(for: jobID, timecode: "02:30:00:00")
+        manager.updateTimecodeOverride(for: jobID, timecode: nil)
+        XCTAssertNil(manager.jobs[0].timecodeStringOverride)
+    }
+
+    /// `updateTimecodeOverride` with an unknown UUID does not crash and leaves jobs unchanged.
+    func testUpdateTimecodeOverrideUnknownUUIDNoCrash() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let original = manager.jobs.map(\.timecodeStringOverride)
+
+        // Unknown UUID — must be a no-op.
+        manager.updateTimecodeOverride(for: UUID(), timecode: "12:00:00:00")
+
+        XCTAssertEqual(manager.jobs.count, 1, "jobs array length unchanged")
+        XCTAssertEqual(manager.jobs[0].timecodeStringOverride, original[0],
+                       "existing job's override unmodified")
+    }
+
+    /// Override is NOT persisted to queue.json — a reloaded manager must NOT restore it.
+    func testTimecodeOverrideIsNotPersisted() throws {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "A.mp4"))
+        let jobID = manager.jobs[0].id
+        manager.updateTimecodeOverride(for: jobID, timecode: "03:00:00:00")
+        XCTAssertEqual(manager.jobs[0].timecodeStringOverride, "03:00:00:00", "precondition")
+
+        // Explicitly save (mimics what happens on status change, etc.) and reload.
+        manager.saveQueue()
+        let reloaded = makeManager()
+
+        XCTAssertEqual(reloaded.jobs.count, 1)
+        XCTAssertNil(reloaded.jobs[0].timecodeStringOverride,
+                     "timecodeStringOverride must never survive a queue.json round-trip")
+    }
+
     private func generateClip(ffmpeg: URL, seconds: Int, to url: URL) throws {
         let p = Process()
         p.executableURL = ffmpeg
