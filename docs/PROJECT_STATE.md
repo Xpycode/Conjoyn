@@ -125,11 +125,15 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
-- **2026-06-11d — Shipped per-recording manual TC override (backlog 9).** `TimecodeField`
-  (orchetect/swift-timecode v3.1.2) in each queue-row TC disclosure panel; "Set" stamps the override
-  as the `-timecode` arg; xmark clears it. `ConversionJob.timecodeStringOverride` session-only.
-  `TimecodeDisclosure.build()` gains `tcOverride:` param + `.manualOverride` provenance. 4 commits,
-  `/execute` wave-based. **+10 tests → 315/315.** Merged `--no-ff` → `main`, pushed. **Owed:** live GUI eyeball.
+- **2026-06-11d — Shipped per-recording manual TC override (backlog 9); refined UX.**
+  `TimecodeField` (orchetect/swift-timecode v3.1.2); `ConversionJob.timecodeStringOverride`
+  session-only; `TimecodeDisclosure.build()` gains `tcOverride:` + `.manualOverride` provenance.
+  4 commits, `/execute` wave-based. **+10 tests → 315/315.** Live-tested: popover opens, auto-advance
+  HH→MM→SS→FF works, Set updates Applied TC to `manual`, orange pencil.circle.fill confirms active
+  state. **UX iteration same session:** replaced inline Override TC row with a `pencil.circle` button
+  inline on the Applied TC row → popover with `.autoAdvance` `TimecodeField` + Set (Enter) + Revert
+  (Esc). One fewer disclosure row. Icon bumped to default scale + `txt2` (was `.small` + `txt3` —
+  too dim). Merged + pushed.
 - **2026-06-11c — Researched + planned backlog (9): per-recording manual TC override.**
   Multi-agent research across three reference projects + TimecodeKit library. Decided on
   `orchetect/swift-timecode` v3.1.2 (SwiftUI-native `TimecodeField`, macOS 14+, Swift 6
