@@ -18,11 +18,17 @@
   `git-remote-reconciliation`).
 
 ## Now
-- **Phase:** implementation, ~99%. All features shipped and eyeballed. **Ready to ship pending DMG.**
+- **Phase:** implementation, 100% feature-complete. All features shipped + eyeballed. **DMG built,
+  notarized + stapled — SHIPPABLE (2026-06-12).**
 - **Blockers:** none.
-- **Next:** (1) DMG wrapper — last remaining task before release. (2) QL thumbnail fix — switch from
-  FFmpeg to `QLThumbnailGenerator` (eager 74-item load is noticeable). (3) Website copy + download
-  link once DMG exists.
+- **Next:** (1) Website copy + download link (point it at `04_Exports/Conjoyn.dmg`). (2) QL thumbnail
+  fix — switch from FFmpeg to `QLThumbnailGenerator` (eager 74-item load is noticeable). (3) Optional
+  DMG polish: custom background image (current window is the clean default layout).
+- **Ship artifact:** `04_Exports/Conjoyn.dmg` (27 MB, `source=Notarized Developer ID`). Rebuild any
+  time with `01_Project/scripts/make-dmg.sh` (delegates to `notarize.sh` for the app, then wraps +
+  signs + notarizes + staples the DMG; `SKIP_APP=1` reuses an already-stapled app). **Note:** the
+  `conjoyn-notary` keychain profile is per-Mac — recreate it from `99-AUTH/` secrets if missing
+  (see memory `notary-credentials-recreation`).
 - **All eyeballs cleared (2026-06-11g):** green seal ✓, manual TC override ✓, single-file export ✓,
   ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`), filter
   All/Singles/Splits ✓, SRT-mismatch chip ✓ (test fixture, "differ by 20 min"), help window ✓.
@@ -129,6 +135,20 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-12 — Shipped the DMG wrapper (last release task). Conjoyn is now distributable.**
+  Reconciled this Mac's git first (no `.git` — Syncthing excludes it; wired `origin`, spot-checked 3
+  files byte-identical, `reset --hard origin/main` `1c47bfe`). Found the `conjoyn-notary` keychain
+  profile missing on this Mac (keychain doesn't sync) — recreated it from `99-AUTH/` secrets
+  (`.p8` key-id `6HTCUZ9L7L` + issuer from `IssuerID.rtf`), validated against Apple. Wrote
+  `01_Project/scripts/make-dmg.sh` (mirrors `notarize.sh` conventions; **delegates** the app
+  build+notarize+staple to `notarize.sh`, then `create-dmg` → styled window with volume icon +
+  `/Applications` drop-link → `codesign --timestamp` the DMG → notarize + staple the DMG;
+  `SKIP_APP=1` reuses a stapled app; one create-dmg retry for transient `hdiutil busy`). Installed
+  `create-dmg` 1.2.3. **Both notary round-trips Accepted**; verified end-to-end: DMG
+  `source=Notarized Developer ID`, mounted it, app inside is stapled + Gatekeeper-`exec`-accepted,
+  drop-link present. **`04_Exports/Conjoyn.dmg` (27 MB) installs offline with no Gatekeeper prompt.**
+  On `feature/dmg-wrapper`. (The `spctl … -t open` "Insufficient Context" without `--context
+  context:primary-signature` is a known DMG quirk, not a failure.)
 - **2026-06-11h — Added screenshots to all help topics.** 5 images captured from the live app
   (loaded list, expanded split group, TC disclosure, queue running, all done + green seals), placed
   in `Help/` alongside the markdown, xcodegen regenerated so they bundle. Image placement refined
@@ -392,7 +412,7 @@
   signed helpers). Merged to `main`.
 
 ## Progress
-- **Funnel:** Define ✓ · Plan ✓ · Build — in progress (~97%).
+- **Funnel:** Define ✓ · Plan ✓ · Build ✓ · **Ship ✓ (notarized DMG built 2026-06-12).**
 - **Waves:** Wave 0 ✓ · Wave 1 queue ports ✓ · Wave 2 footage-free (2.1/2.5/2.6) ✓ · **2.4 real
   grouping ✓ (footage-validated)** · **2.8 date/TC stamp ✓ (footage-validated)** · Wave 3 SRT ✓ ·
   UI wired + per-group selection ✓ · **full GUI pipeline ✓ (footage-validated end-to-end: scan→join→
