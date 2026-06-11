@@ -23,10 +23,9 @@
   now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
-- **Next:** Execute `docs/plans/eyeball-fixes-2026-06-11e.md` — 6 tasks, 2 waves. Wave 1: 4 bug
-  fixes (single-file label, chip filter, mapStatus thorough pass → green, seal animation stop).
-  Wave 2: queue restore banner + queue row type/duration/size. ETA-includes-verification deferred.
-- **Owed eyeball:** slow-mo + SRT-mismatch chips (no such footage on the 2CULL card).
+- **Next:** Remaining backlog — Help window (vendor AppHelp package; cost = content), DMG
+  wrapper. Owed live eyeballs: "Processing…" label on a longer single-file job; restore banner
+  on cold launch; slow-mo + SRT-mismatch chips (no such footage seen yet).
 - **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
@@ -129,6 +128,13 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11f — Executed eyeball-fix plan (6 tasks); Start button to bottom-right.**
+  Wave 1 (parallel): "Processing…" label for singles; chip filter `>= .warning` kills false ⚠
+  Duration chip; mapStatus thorough hash pass → `.verified` (green seal); seal animation stops
+  immediately via `withAnimation(nil)`. Wave 2: queue restore banner (`restoredJobCount` +
+  `clearPendingJobs()`); queue row static summary (`SINGLE · 5:14 · 1.4 GB` / `2 files · …`).
+  +2 tests → 317/317. Live-verified: 2 jobs, green seals, no false chips. Start/Stop moved to
+  bottom-right (HIG primary action placement). All pushed.
 - **2026-06-11e — Live eyeball session; 6 issues found; plan written.**
   First full live test on real card (2 jobs: single 0004_D + split-4 0009–0012). All 4 owed
   eyeball items passed. Found: "Joining…" wrong for singles; ⚠ Duration chip fires on every
