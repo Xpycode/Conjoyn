@@ -12,6 +12,8 @@ Each row is one recording. Split recordings — groups of segments that came fro
 
 Use **All · Splits · Singles** in the top-right to filter the list and auto-select matching rows.
 
+![Recordings list showing SPLIT and SINGLE badges](main-loaded.png)
+
 ## 3. Choose an output folder
 
 Click **Choose…** next to **Output** and pick where finished files should land. Conjoyn never writes into your source folder.
@@ -25,3 +27,5 @@ When a join finishes a seal appears beside the row:
 - **Green ✓** — verified. No issues found.
 - **Orange ⚠** — completed with a minor discrepancy; check the row details.
 - **Red ✗** — verification failed; do not use this output.
+
+![Queue with all jobs done and green seals](verification-seal.png)

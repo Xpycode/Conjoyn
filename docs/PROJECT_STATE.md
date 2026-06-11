@@ -20,8 +20,9 @@
 ## Now
 - **Phase:** implementation, ~99%. All features shipped and eyeballed. **Ready to ship pending DMG.**
 - **Blockers:** none.
-- **Next:** (1) DMG wrapper — last remaining task before release. (2) Screenshots for release
-  docs, website, and help content (next session). (3) Website copy + download link once DMG exists.
+- **Next:** (1) DMG wrapper — last remaining task before release. (2) QL thumbnail fix — switch from
+  FFmpeg to `QLThumbnailGenerator` (eager 74-item load is noticeable). (3) Website copy + download
+  link once DMG exists.
 - **All eyeballs cleared (2026-06-11g):** green seal ✓, manual TC override ✓, single-file export ✓,
   ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`), filter
   All/Singles/Splits ✓, SRT-mismatch chip ✓ (test fixture, "differ by 20 min"), help window ✓.
@@ -128,6 +129,13 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11h — Added screenshots to all help topics.** 5 images captured from the live app
+  (loaded list, expanded split group, TC disclosure, queue running, all done + green seals), placed
+  in `Help/` alongside the markdown, xcodegen regenerated so they bundle. Image placement refined
+  after first check — removed `main-loaded.png` from two topics to avoid repetition.
+- **2026-06-11g — Help window shipped; all eyeballs cleared; fps display fixed.**
+  fps detection switched to `r_frame_rate`; Splits/Singles filter now hides/shows rows; HelpMenu
+  package vendored with 9 markdown topics; `?` toolbar button added; all eyeball items ✓.
 - **2026-06-11f — Executed eyeball-fix plan (6 tasks); Start button to bottom-right.**
   Wave 1 (parallel): "Processing…" label for singles; chip filter `>= .warning` kills false ⚠
   Duration chip; mapStatus thorough hash pass → `.verified` (green seal); seal animation stops

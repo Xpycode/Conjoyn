@@ -15,6 +15,8 @@ After the join, Conjoyn stamps:
 
 Each active row shows the current processing speed (e.g. `80×`) and estimated time remaining. The footer shows the total remaining time for the whole queue.
 
+![Queue during a join showing speed, ETA, and the Verifying state](queue-running.png)
+
 ## Verification
 
 After each join, Conjoyn automatically runs a two-tier check:
@@ -30,3 +32,5 @@ Each finished job shows a seal icon:
 - **Green ✓** — all checks passed. Output is verified.
 - **Orange ⚠** — completed with a minor warning (e.g. duration rounded to the nearest frame). Expand the row for details.
 - **Red ✗** — verification failed. Do not use this output; re-join and check the Console log.
+
+![All four jobs done with green verification seals](verification-seal.png)

@@ -14,6 +14,8 @@ Expand a row's **▶** caret to see:
 - **Applied TC** — the timecode Conjoyn will stamp, with its origin tag.
 - **Output** — the full destination path for this job.
 
+![Queue rows with disclosure panels expanded and a job in progress](queue-running.png)
+
 ## Settings
 
 The settings bar controls what happens during a join:

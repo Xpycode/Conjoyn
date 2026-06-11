@@ -20,6 +20,8 @@ The output file receives a `tmcd` (timecode) track seeded from the recording sta
 
 The **Applied TC** shown in a queue row's disclosure panel is exactly the timecode that will be stamped — what you see is what gets written. The origin tag (`from filename`, `from SRT cue`, `manual`) tells you where it came from.
 
+![Queue row disclosure panel showing Source TC, Applied TC, and Output path](tc-disclosure.png)
+
 ## Manual TC override
 
 Expand any queue row's caret and click the pencil icon on the **Applied TC** line to enter a custom timecode. Type `HH:MM:SS:FF`, press **Enter** to confirm or **Esc** to revert. A manual override is session-only and doesn't affect the `creation_time` fix.

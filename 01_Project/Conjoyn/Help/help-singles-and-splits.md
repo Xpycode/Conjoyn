@@ -6,6 +6,8 @@ A split recording is two or more segments that came from one continuous press of
 
 These are the files Conjoyn was built for. Joining them produces a single lossless file with accurate metadata. The orange **SPLIT · N** badge shows how many segments are in the group.
 
+![A SPLIT·4 group expanded showing its four segment files](recordings-expanded.png)
+
 ## Single recordings
 
 A single recording is a lone clip that never hit the 4 GB limit. No joining is necessary, but you can still queue a single to apply the recording-date fix, stamp a timecode track, and carry over its `.SRT` sidecar.
