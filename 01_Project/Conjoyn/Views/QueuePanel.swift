@@ -889,20 +889,6 @@ struct FooterBar: View {
             }
 
             HStack(spacing: 16) {
-                if queue.isProcessing {
-                    Button("Stop") { queue.stopAllProcessing() }
-                        .buttonStyle(.cjStopLarge)
-                } else {
-                    Button("Start") { queue.startQueue() }
-                        .buttonStyle(.cjPrimaryLarge)
-                        .disabled(!queue.hasPendingJobs)
-                }
-
-                CJProgressBar(
-                    fraction: queue.overallProgress,
-                    fill: allFinished && failed == 0 ? .done : .running
-                )
-
                 Group {
                     if total == 0 {
                         Text("Queue empty")
@@ -932,6 +918,20 @@ struct FooterBar: View {
                                 .foregroundStyle(Theme.txt2)
                         }
                     }
+                }
+
+                CJProgressBar(
+                    fraction: queue.overallProgress,
+                    fill: allFinished && failed == 0 ? .done : .running
+                )
+
+                if queue.isProcessing {
+                    Button("Stop") { queue.stopAllProcessing() }
+                        .buttonStyle(.cjStopLarge)
+                } else {
+                    Button("Start") { queue.startQueue() }
+                        .buttonStyle(.cjPrimaryLarge)
+                        .disabled(!queue.hasPendingJobs)
                 }
             }
         }
