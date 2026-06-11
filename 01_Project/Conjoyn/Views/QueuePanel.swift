@@ -442,6 +442,7 @@ private struct TimecodeDisclosurePanel: View {
 
     @State private var tcComponents: SwiftTimecodeCore.Timecode.Components = .zero
     @State private var overrideActive: Bool = false
+    @State private var showOverridePopover: Bool = false
 
     /// The job's frozen output path — its parent folder is shown as the always-on "Output" row
     /// (the transparency half of the Hybrid: every expanded row reveals where the file will land).
@@ -459,45 +460,32 @@ private struct TimecodeDisclosurePanel: View {
                 }
 
                 if d.timecodeEnabled {
-                    if let applied = d.appliedTimecode {
-                        HStack(spacing: 8) {
-                            label("Applied TC")
+                    // Applied TC row — pencil button at the end opens the override popover.
+                    HStack(spacing: 8) {
+                        label("Applied TC")
+                        if let applied = d.appliedTimecode {
                             Text(applied)
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Theme.acc1)
                             Text("· \(d.originTag) · \(d.frameRateLabel) fps")
                                 .font(.system(size: 11))
                                 .foregroundStyle(Theme.txt2)
+                        } else {
+                            Text("no signal")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.txt3)
                         }
-                    } else {
-                        Text("No recording-start signal — timecode not stamped.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.txt3)
-                    }
-
-                    // Manual override field — lets the user pin the start TC for this job.
-                    HStack(spacing: 8) {
-                        label("Override TC")
-                        TimecodeField(components: $tcComponents,
-                                      at: tcFrameRate(from: d.frameRate))
-                            .timecodeValidationStyle(.orange)
-                            .timecodeFieldInputStyle(.continuousWithinComponent)
-                        Button("Set") { applyOverride() }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(Theme.acc2)
-                            .keyboardShortcut(.defaultAction)
-                            .font(.system(size: 11, weight: .medium))
-                        if overrideActive {
-                            Button { clearOverride() } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(Theme.txt3)
-                            }.buttonStyle(.plain)
+                        Button {
+                            showOverridePopover.toggle()
+                        } label: {
+                            Image(systemName: overrideActive ? "pencil.circle.fill" : "pencil.circle")
+                                .foregroundStyle(overrideActive ? Theme.acc2 : Theme.txt2)
                         }
-                    }
-                    if overrideActive {
-                        Text("Overrides the resolved TC above")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.txt3.opacity(0.7))
+                        .buttonStyle(.plain)
+                        .help(overrideActive ? "Edit or revert TC override" : "Override timecode")
+                        .popover(isPresented: $showOverridePopover, arrowEdge: .trailing) {
+                            overridePopover(rate: tcFrameRate(from: d.frameRate))
+                        }
                     }
                 } else {
                     Text("Timecode from recording time is off — source timecode passed through.")
@@ -543,6 +531,39 @@ private struct TimecodeDisclosurePanel: View {
 
     private func tcFrameRate(from fps: Double) -> TimecodeFrameRate {
         TimecodeFrameRate(stringValue: String(format: "%.3g", fps)) ?? .fps25
+    }
+
+    @ViewBuilder
+    private func overridePopover(rate: TimecodeFrameRate) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Override timecode")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+            TimecodeField(components: $tcComponents, at: rate)
+                .timecodeValidationStyle(.orange)
+                .timecodeFieldInputStyle(.autoAdvance)
+            HStack(spacing: 12) {
+                Button("Set") {
+                    applyOverride()
+                    showOverridePopover = false
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.acc2)
+                .font(.system(size: 11, weight: .medium))
+                .keyboardShortcut(.defaultAction)
+                if overrideActive {
+                    Button("Revert") {
+                        clearOverride()
+                        showOverridePopover = false
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Theme.txt3)
+                    .font(.system(size: 11))
+                    .keyboardShortcut(.cancelAction)
+                }
+            }
+        }
+        .padding(14)
     }
 
     private func applyOverride() {
