@@ -25,8 +25,10 @@ struct ConjoynApp: App {
     @StateObject private var viewModel = ConversionViewModel()
 
     private let helpContent: HelpContent = {
-        (try? HelpContent(manifest: "help-manifest", in: .main))
+        let content = (try? HelpContent(manifest: "help-manifest", in: .main))
             ?? HelpContent(topics: [], windowTitle: "Conjoyn Help")
+        HelpWindowController.register(content: content)
+        return content
     }()
 
     var body: some Scene {

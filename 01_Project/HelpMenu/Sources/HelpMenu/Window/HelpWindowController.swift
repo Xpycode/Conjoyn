@@ -12,11 +12,26 @@ public final class HelpWindowController: NSObject, NSWindowDelegate {
     public static let shared = HelpWindowController()
 
     private var window: NSWindow?
+    private static var registeredContent: HelpContent?
 
     private override init() { super.init() }
 
+    /// Register content once at startup so call-sites without a direct
+    /// reference to `HelpContent` can call the no-argument `showHelp()`.
+    public static func register(content: HelpContent) {
+        registeredContent = content
+    }
+
     /// Show the help window, creating it or focusing the existing instance.
     public static func showHelp(content: HelpContent) {
+        registeredContent = content
+        shared.present(content: content)
+    }
+
+    /// Show the help window using previously registered content.
+    /// No-ops silently if `register(content:)` has not been called.
+    public static func showHelp() {
+        guard let content = registeredContent else { return }
         shared.present(content: content)
     }
 

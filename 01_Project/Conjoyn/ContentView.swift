@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import HelpMenu
 
 // MARK: - Main window
 
@@ -78,6 +79,13 @@ struct ContentView: View {
                 }
                 .buttonStyle(.cjStandard)
                 .disabled(vm.sourceFolderURL == nil || vm.isScanning)
+
+                Button {
+                    HelpWindowController.showHelp()
+                } label: {
+                    Image(systemName: "questionmark.circle")
+                }
+                .help("Open Conjoyn Help")
             }
         }
         .toolbarRole(.editor)
