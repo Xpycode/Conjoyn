@@ -280,6 +280,9 @@ private struct QueueRow: View {
                     .frame(width: 140, alignment: .leading)
 
                 HStack(spacing: 4) {
+                    if job.status == .completed {
+                        VerificationSeal(status: job.verificationStatus)
+                    }
                     if isFailedOrCancelled {
                         Button { queue.retryJob(job.id) } label: {
                             Image(systemName: "arrow.clockwise")
@@ -325,7 +328,7 @@ private struct QueueRow: View {
             }
 
             if expanded {
-                TimecodeDisclosurePanel(disclosure: disclosure, destination: job.destinationURL)
+                TimecodeDisclosurePanel(disclosure: disclosure, job: job)
                     .padding(.leading, 26)   // align under the name, clear of the caret
                     .padding(.bottom, 8)
             }
@@ -372,7 +375,8 @@ private struct QueueRow: View {
         case .preparing: return "Preparing…"
         case .active:
             return job.verificationStatus == .verifying ? "Verifying…" : "Joining…"
-        case .completed: return "Done"
+        case .completed:
+            return job.verificationStatus == .verifying ? "Verifying…" : "Done"
         case .failed:    return "Failed"
         case .cancelled: return "Stopped"
         }
@@ -426,9 +430,14 @@ private struct QueueRow: View {
 /// component), plus the slow-mo caption when relevant. `nil` while the async build is in flight.
 private struct TimecodeDisclosurePanel: View {
     let disclosure: TimecodeDisclosure?
+    /// The whole job — drives the always-on "Output" row plus the source↔target verification detail
+    /// (chip row of non-pass checks, the thorough-verify button, and its progress).
+    let job: ConversionJob
+    @EnvironmentObject private var queue: QueueManager
+
     /// The job's frozen output path — its parent folder is shown as the always-on "Output" row
     /// (the transparency half of the Hybrid: every expanded row reveals where the file will land).
-    let destination: URL
+    private var destination: URL { job.destinationURL }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -486,8 +495,63 @@ private struct TimecodeDisclosurePanel: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
+
+            // Source↔target verification — only meaningful once the join has finished.
+            if job.status == .completed {
+                verificationSection
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The verify detail: non-pass check chips (a green seal = nothing to show), the manual
+    /// byte-exact button + its caption, and the hash progress bar while a thorough pass runs.
+    @ViewBuilder
+    private var verificationSection: some View {
+        // Only the checks worth flagging — an all-pass result correctly renders an empty row,
+        // because the green seal already says everything matched.
+        let flagged = (job.sourceTargetResult?.checks ?? []).filter { $0.severity > .pass }
+
+        Divider()
+            .overlay(Theme.line)
+            .padding(.vertical, 4)
+
+        HStack(spacing: 8) {
+            label("Verify")
+            if flagged.isEmpty {
+                Text(job.verificationStatus == .verifying
+                     ? "Checking output against sources…"
+                     : "No issues flagged.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.txt3)
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(flagged, id: \.kind) { check in
+                        VerificationChip(check: check)
+                    }
+                }
+            }
+        }
+
+        if job.verificationStatus == .verifying {
+            CJProgressBar(fraction: job.verificationProgress)
+                .frame(maxWidth: 220)
+                .padding(.leading, 80)
+        }
+
+        VStack(alignment: .leading, spacing: 2) {
+            Button("Thorough verify (byte-exact)") {
+                queue.verifyJobThorough(jobId: job.id)
+            }
+            .buttonStyle(.cjGhost)
+            .font(.system(size: 11))
+            .disabled(job.verificationStatus == .verifying)
+
+            Text("Hashes kept streams (v:0/a:0) end-to-end.")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.txt3)
+        }
+        .padding(.leading, 80)
     }
 
     private func label(_ text: String) -> some View {
@@ -495,6 +559,76 @@ private struct TimecodeDisclosurePanel: View {
             .font(.system(size: 11))
             .foregroundStyle(Theme.txt3)
             .frame(width: 72, alignment: .leading)
+    }
+}
+
+// MARK: - Verification seal + chip
+
+/// The green/orange/red/spinner seal shown on a completed queue row — the cheap visual proof that
+/// the joined output matched (or didn't match) its sources. Mirrors the `IntegrityChip`/folder-mismatch
+/// language: a single SF Symbol in a Theme tint, with the reason in its `.help()` tooltip.
+private struct VerificationSeal: View {
+    let status: VerificationStatus
+
+    @State private var spin = false
+
+    var body: some View {
+        let s = style
+        Image(systemName: s.icon)
+            .font(.system(size: 13))
+            .foregroundStyle(s.color)
+            .rotationEffect(.degrees(status == .verifying && spin ? 360 : 0))
+            .animation(
+                status == .verifying
+                    ? .linear(duration: 1).repeatForever(autoreverses: false)
+                    : .default,
+                value: spin
+            )
+            .help(s.help)
+            .onAppear { if status == .verifying { spin = true } }
+            .onChange(of: status) { _, new in spin = (new == .verifying) }
+    }
+
+    /// One place that turns the status enum (with its associated reasons) into icon + tint + tooltip,
+    /// so the view stays a flat declaration.
+    private var style: (icon: String, color: Color, help: String) {
+        switch status {
+        case .verified:
+            return ("checkmark.seal.fill", Theme.ok, "Verified — output matches its sources.")
+        case .warning(let reason):
+            return ("exclamationmark.seal.fill", Theme.acc1, reason)
+        case .failed(let reason):
+            return ("xmark.seal.fill", Theme.bad, reason)
+        case .verifying:
+            return ("arrow.triangle.2.circlepath", Theme.acc1, "Verifying output against sources…")
+        case .unverified:
+            return ("questionmark.circle", Theme.txt3, "Not yet verified.")
+        }
+    }
+}
+
+/// One inline source↔target check flag — a near-sibling of `IntegrityChip`. Warnings borrow the
+/// established orange ⚠ treatment; failures escalate to red. The full explanation is in the tooltip.
+private struct VerificationChip: View {
+    let check: VerificationCheck
+
+    private var isFail: Bool { check.severity == .fail }
+    private var tint: Color { isFail ? Theme.bad : Theme.acc1 }
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: isFail ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 9))
+            Text(check.label)
+                .font(.system(size: 10, weight: .medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(tint.opacity(0.12)))
+        .overlay(Capsule().strokeBorder(tint.opacity(0.28), lineWidth: 1))
+        .fixedSize()
+        .help(check.detail)
     }
 }
 
