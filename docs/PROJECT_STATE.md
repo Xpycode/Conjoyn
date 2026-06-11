@@ -18,21 +18,14 @@
   `git-remote-reconciliation`).
 
 ## Now
-- **Phase:** implementation, ~97%. Engine validated end-to-end on real footage (14/14 batch,
-  date/TC/SRT all `ffprobe`-verified), **signed + notarized + stapled**, and the **designed UI is
-  now live** — the design handoff is ported to SwiftUI and a real join ran through the new window
-  on the real card (user-driven, 1/1 joined).
+- **Phase:** implementation, ~99%. All features shipped and eyeballed. **Ready to ship pending DMG.**
 - **Blockers:** none.
-- **Next:** Remaining backlog — Help window (vendor AppHelp package; cost = content), DMG
-  wrapper. Owed live eyeballs: restore banner on cold launch (still untested); slow-mo +
-  SRT-mismatch chips (no such footage seen yet).
-  **New backlog (2026-06-11g):** (12) Sortable columns in the recordings list (click header to sort
-  by date/duration/size/fps/type). ~~(13) All/None/Splits/Singles as a visibility filter~~ **DONE
-  2026-06-11g** — filter mode shipped (visibility + auto-select + orange active state). 319/319.
-  **Eyeball session 2026-06-11g confirmed:** green seal ✓, manual TC override ✓, single-file export
-  via Start ✓, ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`
-  all show `slow-mo` badge + queue-row disclosure note), filter All/Singles/Splits ✓ (orange active
-  button, visibility + auto-select, correct counts: 60 singles / 14 splits of 74 total).
+- **Next:** (1) DMG wrapper — last remaining task before release. (2) Screenshots for release
+  docs, website, and help content (next session). (3) Website copy + download link once DMG exists.
+- **All eyeballs cleared (2026-06-11g):** green seal ✓, manual TC override ✓, single-file export ✓,
+  ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`), filter
+  All/Singles/Splits ✓, SRT-mismatch chip ✓ (test fixture, "differ by 20 min"), help window ✓.
+- **Backlog (post-ship):** (12) Sortable columns in recordings list.
 - **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
