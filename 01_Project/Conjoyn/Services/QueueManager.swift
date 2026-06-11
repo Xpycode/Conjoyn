@@ -53,6 +53,7 @@ final class QueueManager: ObservableObject {
     // MARK: - Services
     let ffmpeg = FFmpegWrapper()
     let verificationService = VerificationService()
+    let sourceTargetVerifier = SourceTargetVerifier()
     let speedTracker = SpeedTracker.shared
     var currentJobId: UUID?
     var currentVerificationJobId: UUID?
