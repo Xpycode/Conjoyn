@@ -5,8 +5,8 @@
 ## Identity
 - **Project:** Conjoyn (visible brand `conjoyn`; bundle id `com.lucesumbrarum.conjoyn`). Xcode
   project/target/module/.app = `Conjoyn`; source folders `01_Project/Conjoyn` + `ConjoynTests`.
-  **Repo root folder is still `DJIjoiner`** (intentionally not renamed — keeps tooling/memory paths
-  stable). "DJIjoiner" was the working placeholder.
+  **Repo root folder is now `Conjoyn`** (renamed from the `DJIjoiner` placeholder 2026-06-11;
+  tooling/memory paths already point at `…-1-macOS-Conjoyn`). "DJIjoiner" was the working placeholder.
 - **One-liner:** macOS app that auto-stitches split DJI drone MP4 segments back into one lossless
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
 - **Tags:** macOS, video, DJI, metadata, ffmpeg

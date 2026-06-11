@@ -1,7 +1,7 @@
-# DJIjoiner — Auto-Stitcher Spec
+# Conjoyn — Auto-Stitcher Spec
 
 ## Overview
-DJIjoiner is a native macOS app (SwiftUI / Swift 6, Apple Silicon, macOS 14+) that
+Conjoyn is a native macOS app (SwiftUI / Swift 6, Apple Silicon, macOS 14+) that
 automatically re-joins the split video segments DJI drones produce at the FAT32/exFAT
 4 GB boundary (and ~16.8 GB on newer models) back into a single lossless file. It groups
 segments by **embedded-metadata continuity** rather than filenames, joins them with

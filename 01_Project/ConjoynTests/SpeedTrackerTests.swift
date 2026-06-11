@@ -6,7 +6,7 @@ import CoreMedia
 ///
 /// Every test runs against a fresh, throwaway storage directory injected via
 /// `SpeedTracker(storageDirectory:)`, so the suite never reads or mutates the user's real
-/// `~/Library/Application Support/DJIjoiner/speed_records.json`.
+/// `~/Library/Application Support/Conjoyn/speed_records.json`.
 @MainActor
 final class SpeedTrackerTests: XCTestCase {
 

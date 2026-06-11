@@ -212,7 +212,7 @@ final class SRTStitcherTests: XCTestCase {
 
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-srt-\(UUID().uuidString)")
+            .appendingPathComponent("conjoyn-srt-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

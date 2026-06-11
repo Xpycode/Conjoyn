@@ -162,7 +162,7 @@ final class StreamParameterGuardTests: XCTestCase {
     }
 
     private func makeTempDir() throws -> URL {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("djijoiner-guard-\(UUID().uuidString)")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("conjoyn-guard-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

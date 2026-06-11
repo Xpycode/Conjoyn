@@ -21,7 +21,7 @@ final class DateStampIntegrationTests: XCTestCase {
 
     private func makeTempDir() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-stamp-\(UUID().uuidString)")
+            .appendingPathComponent("conjoyn-stamp-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

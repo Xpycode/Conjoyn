@@ -86,7 +86,7 @@ final class QuickTimeAtomWriterTests: XCTestCase {
         bytes += box("mdat", [UInt8](repeating: 0x11, count: 64))
 
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-atom-\(UUID().uuidString).mp4")
+            .appendingPathComponent("conjoyn-atom-\(UUID().uuidString).mp4")
         try Data(bytes).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -110,7 +110,7 @@ final class QuickTimeAtomWriterTests: XCTestCase {
             throw XCTSkip("No ffmpeg available (bundled or Homebrew)")
         }
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-real-\(UUID().uuidString).mp4")
+            .appendingPathComponent("conjoyn-real-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: url) }
 
         let p = Process()

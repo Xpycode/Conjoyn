@@ -153,7 +153,7 @@ final class ThumbnailManagerTests: XCTestCase {
 
         // 2 s @ 30 fps test pattern.
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-thumb-\(UUID().uuidString).mp4")
+            .appendingPathComponent("conjoyn-thumb-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: url) }
 
         let gen = Process()
