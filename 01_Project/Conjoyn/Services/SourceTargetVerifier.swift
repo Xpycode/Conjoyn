@@ -491,20 +491,35 @@ final class SourceTargetVerifier: @unchecked Sendable {
         if isCancelling {
             return ("", -1)
         }
+
+        // Capture stdout to a temp FILE, not a pipe. ffprobe's per-packet output
+        // (`-show_entries packet=size`) is one line per packet — hundreds of KB for a real
+        // multi-segment join, far past the ~64 KB OS pipe buffer. A pipe would deadlock the child
+        // (it blocks writing once the buffer fills) unless drained concurrently, and concurrent
+        // draining off Foundation's own run-loop machinery proved unreliable (the read never saw
+        // EOF). Writing to a file, the child never blocks, so reading it after the process exits —
+        // in terminationHandler, the mechanism `VerificationService.runProcess` already relies on —
+        // is simple and correct regardless of output size.
+        let stdoutURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("conjoyn-verify-stdout-\(UUID().uuidString)")
+        guard FileManager.default.createFile(atPath: stdoutURL.path, contents: nil),
+              let writeHandle = try? FileHandle(forWritingTo: stdoutURL) else {
+            return ("", -1)
+        }
+
         return await withCheckedContinuation { (continuation: CheckedContinuation<(String, Int32), Never>) in
             let process = Process()
             process.executableURL = toolURL
             process.arguments = arguments
-
-            let outputPipe = Pipe()
-            process.standardOutput = outputPipe
+            process.standardOutput = writeHandle
             process.standardError = FileHandle.nullDevice
 
             process.terminationHandler = { [weak self] proc in
-                let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
+                try? writeHandle.close()
+                let data = (try? Data(contentsOf: stdoutURL)) ?? Data()
+                try? FileManager.default.removeItem(at: stdoutURL)
                 self?.currentProcess = nil
-                continuation.resume(returning: (output, proc.terminationStatus))
+                continuation.resume(returning: (String(data: data, encoding: .utf8) ?? "", proc.terminationStatus))
             }
 
             currentProcess = process
@@ -512,6 +527,8 @@ final class SourceTargetVerifier: @unchecked Sendable {
             do {
                 try process.run()
             } catch {
+                try? writeHandle.close()
+                try? FileManager.default.removeItem(at: stdoutURL)
                 currentProcess = nil
                 continuation.resume(returning: ("", -1))
             }
