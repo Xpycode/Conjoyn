@@ -379,7 +379,8 @@ private struct QueueRow: View {
         case .pending:   return "Queued"
         case .preparing: return "Preparing…"
         case .active:
-            return job.verificationStatus == .verifying ? "Verifying…" : "Joining…"
+            if job.verificationStatus == .verifying { return "Verifying…" }
+            return job.clips.count == 1 ? "Processing…" : "Joining…"
         case .completed:
             return job.verificationStatus == .verifying ? "Verifying…" : "Done"
         case .failed:    return "Failed"
@@ -598,7 +599,7 @@ private struct TimecodeDisclosurePanel: View {
     private var verificationSection: some View {
         // Only the checks worth flagging — an all-pass result correctly renders an empty row,
         // because the green seal already says everything matched.
-        let flagged = (job.sourceTargetResult?.checks ?? []).filter { $0.severity > .pass }
+        let flagged = (job.sourceTargetResult?.checks ?? []).filter { $0.severity >= .warning }
 
         Divider()
             .overlay(Theme.line)
@@ -665,16 +666,18 @@ private struct VerificationSeal: View {
         Image(systemName: s.icon)
             .font(.system(size: 13))
             .foregroundStyle(s.color)
-            .rotationEffect(.degrees(status == .verifying && spin ? 360 : 0))
-            .animation(
-                status == .verifying
-                    ? .linear(duration: 1).repeatForever(autoreverses: false)
-                    : .default,
-                value: spin
-            )
+            .rotationEffect(.degrees(spin ? 360 : 0))
             .help(s.help)
-            .onAppear { if status == .verifying { spin = true } }
-            .onChange(of: status) { _, new in spin = (new == .verifying) }
+            .onAppear {
+                spin = (status == .verifying)
+            }
+            .onChange(of: status) { _, new in
+                if new == .verifying {
+                    withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) { spin = true }
+                } else {
+                    withAnimation(nil) { spin = false }
+                }
+            }
     }
 
     /// One place that turns the status enum (with its associated reasons) into icon + tint + tooltip,

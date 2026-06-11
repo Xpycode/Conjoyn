@@ -155,6 +155,23 @@ final class QueueManagerTests: XCTestCase {
 
     // MARK: - Output-folder ↔ queue clarity
 
+    // MARK: - mapStatus
+
+    func testMapStatusThoroughHashPassOverridesWarning() {
+        // Tier 2 byte-exact hash pass must promote the seal to .verified even when Tier 1 flagged a warning.
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .duration, severity: .warning, label: "Duration", detail: "Δ 80ms (> 1 frame)"),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        let status = makeManager().mapStatus(r)
+        XCTAssertEqual(status, VerificationStatus.verified)
+    }
+
     func testDirectoriesDifferNilSafety() {
         XCTAssertFalse(QueueManager.directoriesDiffer(nil, tmpDir))
         XCTAssertFalse(QueueManager.directoriesDiffer(tmpDir, nil))

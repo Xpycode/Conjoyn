@@ -165,6 +165,17 @@ final class SourceTargetModelsTests: XCTestCase {
 
     // MARK: - SourceTargetResult Codable
 
+    // MARK: - Chip filter: info excluded
+
+    func testInfoSeverityExcludedFromWarningFilter() {
+        let checks = [
+            VerificationCheck(kind: .duration, severity: .info, label: "Duration", detail: "Δ 12ms"),
+            VerificationCheck(kind: .packetCount, severity: .pass, label: "Packets", detail: "")
+        ]
+        let flagged = checks.filter { $0.severity >= .warning }
+        XCTAssertTrue(flagged.isEmpty, "Info-level duration delta should not appear as a chip")
+    }
+
     func testSourceTargetResultRoundTrip() throws {
         let r = SourceTargetResult(
             tier: .thorough,

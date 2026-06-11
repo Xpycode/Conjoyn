@@ -266,12 +266,14 @@ extension QueueManager {
     /// Maps a `SourceTargetResult` onto the queue row's `VerificationStatus` seal.
     /// `.passed` → `.verified`; passed-but-flagged → `.warning`; otherwise → `.failed`.
     func mapStatus(_ result: SourceTargetResult) -> VerificationStatus {
-        if result.passed {
-            return .verified
+        // Tier 2 byte-exact hash: if the hash check exists and passed,
+        // the join is lossless regardless of Tier 1 container-metadata discrepancies.
+        if result.tier == .thorough {
+            let hashPassed = result.checks.first { $0.kind == .hashMatch }?.severity == .pass
+            if hashPassed { return .verified }
         }
-        if result.hasWarning {
-            return .warning(result.summary)
-        }
+        if result.passed { return .verified }
+        if result.hasWarning { return .warning(result.summary) }
         return .failed(result.firstFailureReason ?? result.summary)
     }
 
