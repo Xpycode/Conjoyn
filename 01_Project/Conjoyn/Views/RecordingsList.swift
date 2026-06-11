@@ -38,17 +38,20 @@ struct RecordingsList: View {
                 title: "Discovered recordings",
                 count: countText
             ) {
-                CJSegGroup(actions: [
-                    ("All", { vm.selectAllGroups() }),
-                    ("None", { vm.selectNoGroups() }),
-                    ("Splits", { vm.selectSplitGroupsOnly() }),
-                    ("Singles", { vm.selectSingleGroupsOnly() }),
-                ])
+                CJSegGroup(
+                    actions: [
+                        ("All",     { vm.setFilter(.all) }),
+                        ("None",    { vm.selectNoGroups() }),
+                        ("Splits",  { vm.setFilter(.splits) }),
+                        ("Singles", { vm.setFilter(.singles) }),
+                    ],
+                    activeLabel: activeFilterLabel
+                )
             }
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(vm.groups) { group in
+                    ForEach(vm.filteredGroups) { group in
                         RecordingRow(
                             group: group,
                             isOpen: openRows.contains(group.id),
@@ -71,6 +74,14 @@ struct RecordingsList: View {
         if !vm.skippedFiles.isEmpty { text += " · \(vm.skippedFiles.count) skipped" }
         if !vm.parseErrors.isEmpty { text += " · \(vm.parseErrors.count) unreadable" }
         return text
+    }
+
+    private var activeFilterLabel: String {
+        switch vm.recordingFilter {
+        case .all:     return "All"
+        case .splits:  return "Splits"
+        case .singles: return "Singles"
+        }
     }
 }
 

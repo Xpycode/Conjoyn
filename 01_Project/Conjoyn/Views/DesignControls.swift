@@ -100,11 +100,17 @@ extension ButtonStyle where Self == CJIconButtonStyle {
 /// These are one-shot actions, not a persistent selection, so it's a button row in a dark well.
 struct CJSegGroup: View {
     let actions: [(label: String, action: () -> Void)]
+    /// The label of the currently-active filter button. `nil` = no active state shown (e.g. "None").
+    var activeLabel: String? = nil
 
     var body: some View {
         HStack(spacing: 1) {
             ForEach(actions.indices, id: \.self) { i in
-                SegButton(label: actions[i].label, action: actions[i].action)
+                SegButton(
+                    label: actions[i].label,
+                    action: actions[i].action,
+                    isActive: actions[i].label == activeLabel
+                )
             }
         }
         .padding(1)
@@ -114,18 +120,21 @@ struct CJSegGroup: View {
     private struct SegButton: View {
         let label: String
         let action: () -> Void
+        let isActive: Bool
         @State private var hovered = false
 
         var body: some View {
             Button(action: action) {
                 Text(label)
                     .font(.system(size: 12))
-                    .foregroundStyle(hovered ? Theme.txt : Theme.txt2)
+                    .foregroundStyle(isActive ? Theme.acc2 : (hovered ? Theme.txt : Theme.txt2))
                     .padding(.horizontal, 10)
                     .frame(height: 20)
                     .background(
                         RoundedRectangle(cornerRadius: 5)
-                            .fill(hovered ? Color.white.opacity(0.16) : .clear)
+                            .fill(isActive
+                                  ? Theme.acc2.opacity(0.15)
+                                  : (hovered ? Color.white.opacity(0.16) : .clear))
                     )
             }
             .buttonStyle(.plain)
