@@ -67,9 +67,18 @@
   Each row now shows `HEVC · 3840×2160 · 25 fps` in the gap before the SINGLE/SPLIT badge (new
   `CJFormat.codec`/`resolution`/`fps` + `RecordingRow.streamSummary` off the first segment's
   `streamInfo`). Pure display add as predicted; +7 tests. Live-confirmed on the `2CULL` card.
-  (6) **Wire up source↔target verification** (user asked 2026-06-10j) — `VerificationService` +
-  `QueueManager+Verification` (`verifyJob`/`verifyAllCompleted`) are **ported from Penumbra but have
-  zero callers**; add a post-join result check + log/UI surface. (7) **Help window** (2026-06-10i) —
+  (6) ~~**Wire up source↔target verification**~~ **DONE + MERGED → `main` (`bca191c`, 2026-06-11b);
+  branch deleted, pushed.** Replaced the dead decode-only check with **true source↔target
+  verification** (new `SourceTargetVerifier`: Tier 0 readability / Tier 1 fast container-index compare
+  — exact packet count+bytes, ±1-frame duration, codec-param identity, A/V drift / Tier 2 opt-in
+  byte-exact per-stream packet-MD5). Auto fast-verify after each join (live source scope),
+  auto-escalating to the hash on any anomaly; per-row green/orange/red **seal** + non-pass chips + a
+  manual "Thorough verify (byte-exact)" button. New `VerificationStatus.warning`; old decode-only
+  `VerificationService` left unwired. **Caught + fixed a pipe-buffer deadlock** (`cf3de85`) that would
+  have hung the queue after every real join (ffprobe per-packet stdout > 64 KB pipe buffer → stdout
+  now captured to a temp file). **+42 tests → 305/305**; real-ffmpeg integration (byte-identical pass
+  + tampered-source fail). **Owed:** live GUI eyeball of the seal on a real card.
+  (7) **Help window** (2026-06-10i) —
   vendor the standalone `/1-macOS/AppHelp/` package; cost is topic content, not wiring (**no Settings
   scene** — decided unnecessary). (8) DMG wrapper. (9) **Per-recording manual TC entry** (user asked
   2026-06-10k) — a `HH:MM:SS:FF` field (in the queue-row disclosure panel) that overrides the stamped
@@ -117,6 +126,25 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11b — Shipped true source↔target verification (backlog 6); caught + fixed a deadlock.**
+  Executed wave-based (`/execute`) against an in-repo plan, fresh-context agent per wave. New
+  `SourceTargetVerifier` exploits the lossless join (output kept-streams == Σ sources): **Tier 0**
+  readability gate, **Tier 1** fast container-index compare (exact packet count+bytes, ±1-frame
+  duration with "missing trailing segment" detection, codec-param identity via `StreamParameterGuard`,
+  A/V drift), **Tier 2** opt-in byte-exact per-stream packet-MD5 (sources via the join's own
+  `buildConcatList`). `autoVerifyJoin` runs after `.completed` while source scope is live (before the
+  fn-level `defer`), auto-escalating to the hash on `hasWarning || !passed`; `runThoroughVerify`
+  re-resolves the bookmark for the manual button. `QueueRow` seal (checkmark/exclamationmark/xmark
+  `.seal`) + `VerificationChip` row + `.cjGhost` "Thorough verify" button + progress. New
+  `VerificationStatus.warning`; old decode-only `VerificationService` left **unwired** (zero callers).
+  All `-map` restricted to kept streams (`v:0`/`a:0`). **Deadlock caught in review** (`cf3de85`): the
+  process runner read ffprobe stdout from a `Pipe` in the termination handler — per-packet
+  `packet=size` output (>64 KB on a real join) overflows the pipe buffer, blocking the child forever →
+  queue hangs after every real join (test clips too small to hit it). Two concurrent-drain attempts
+  hung even tiny output (`readDataToEndOfFile` never saw EOF); diagnosed by `sample`-ing the stuck
+  process, fixed by capturing stdout to a **temp file**. **+42 tests → 305/305.** Merged `--no-ff` →
+  `main` (`bca191c`), pushed, branch deleted; 11 files, +1689 lines. **Owed:** live GUI eyeball of the
+  seal on a real card (engine covered by the byte-identical + tampered-source integration test).
 - **2026-06-11 — Shipped the per-recording metadata-integrity flags (backlog 5) + two eyeball fixes.**
   Planned with Explore + Plan agents and a web/HIG check, then live-iterated on real cards. New pure
   `RecordingIntegrity` service (lazy `.task` per row, reuses `RecordingStartResolver` +
@@ -330,7 +358,8 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 263 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration.
+- **Tests:** 305 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration
+  (source↔target byte-identical pass + tampered-source negative case).
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
   bundled FFmpeg + exiftool; direct distribution + notarized, sandbox off / hardened runtime on).
