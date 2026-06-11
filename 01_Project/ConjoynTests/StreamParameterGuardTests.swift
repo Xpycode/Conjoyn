@@ -50,6 +50,18 @@ final class StreamParameterGuardTests: XCTestCase {
         assertIncompatible(result, mentioning: "frame rate")
     }
 
+    func testCompatibleWhenRFrameRateMatchesDespiteDifferentAvgFrameRate() {
+        // DJI clips at 25 fps can have slightly differing avg_frame_rate due to timestamp rounding,
+        // but share the same r_frame_rate (codec-signalled). They should not be rejected.
+        let v1 = Guard.VideoStreamParams(codecName: "hevc", width: 3840, height: 2160,
+                                        pixelFormat: "yuv420p", avgFrameRate: "30000/1001",
+                                        timeBase: "1/30000", rFrameRate: "25/1")
+        let v2 = Guard.VideoStreamParams(codecName: "hevc", width: 3840, height: 2160,
+                                        pixelFormat: "yuv420p", avgFrameRate: "25/1",
+                                        timeBase: "1/30000", rFrameRate: "25/1")
+        XCTAssertEqual(Guard.check([segment(v1), segment(v2)]), .compatible)
+    }
+
     func testPixelFormatMismatchRefused() {
         let result = Guard.check([segment(video(pix: "yuv420p")), segment(video(pix: "yuv422p10le"))])
         assertIncompatible(result, mentioning: "pixel format")
@@ -88,7 +100,7 @@ final class StreamParameterGuardTests: XCTestCase {
         { "streams": [
             { "index": 0, "codec_type": "video", "codec_name": "hevc", "width": 3840,
               "height": 2160, "pix_fmt": "yuv420p10le", "avg_frame_rate": "30000/1001",
-              "time_base": "1/30000" },
+              "r_frame_rate": "25/1", "time_base": "1/30000" },
             { "index": 1, "codec_type": "audio", "codec_name": "aac", "sample_rate": "48000",
               "channels": 2, "channel_layout": "stereo" }
         ] }
@@ -100,6 +112,8 @@ final class StreamParameterGuardTests: XCTestCase {
         XCTAssertEqual(info.video.height, 2160)
         XCTAssertEqual(info.video.pixelFormat, "yuv420p10le")
         XCTAssertEqual(info.video.avgFrameRate, "30000/1001")
+        XCTAssertEqual(info.video.rFrameRate, "25/1")
+        XCTAssertEqual(info.video.framesPerSecond ?? 0, 25.0, accuracy: 0.001)
         XCTAssertEqual(info.audio?.codecName, "aac")
         XCTAssertEqual(info.audio?.sampleRate, "48000")
         XCTAssertEqual(info.audio?.channels, 2)
