@@ -24,8 +24,8 @@
   on the real card (user-driven, 1/1 joined).
 - **Blockers:** none.
 - **Next:** Remaining backlog — Help window (vendor AppHelp package; cost = content), DMG
-  wrapper. Owed live eyeballs: "Processing…" label on a longer single-file job; restore banner
-  on cold launch; slow-mo + SRT-mismatch chips (no such footage seen yet).
+  wrapper. Owed live eyeballs: restore banner on cold launch (still untested); slow-mo +
+  SRT-mismatch chips (no such footage seen yet).
 - **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
