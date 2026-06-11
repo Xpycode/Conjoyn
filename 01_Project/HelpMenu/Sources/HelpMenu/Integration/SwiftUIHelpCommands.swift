@@ -38,7 +38,9 @@ public struct HelpMenuCommands: Commands {
             Button(title) {
                 HelpWindowController.showHelp(content: content)
             }
-            .keyboardShortcut("?", modifiers: .command)
+            // "?" = Shift+/ on US keyboards; SwiftUI's "?" literal is unreliable.
+            // Registering "/" with .command + .shift is the robust equivalent.
+            .keyboardShortcut("/", modifiers: [.command, .shift])
         }
     }
 }
