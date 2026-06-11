@@ -139,6 +139,45 @@ final class TimecodeDisclosureTests: XCTestCase {
         XCTAssertEqual(d.appliedTimecode, "03:04:05:00")
     }
 
+    // MARK: - tcOverride parameter (manual TC string override)
+
+    /// A non-nil `tcOverride` wins over all resolver logic and stamps `origin: .manualOverride`.
+    func testTCOverrideWinsOverResolverAndTagsManual() async {
+        let overrideString = "10:20:30:05"
+        // Clip has a filename timestamp that would normally resolve to origin .filename.
+        // The tcOverride must take precedence.
+        let d = await TimecodeDisclosure.build(
+            clips: [clip()], settings: ConversionSettings(), tcOverride: overrideString, calendar: utc
+        )
+        XCTAssertEqual(d.appliedTimecode, overrideString)
+        XCTAssertEqual(d.origin, .manualOverride)
+        XCTAssertEqual(d.originTag, "manual")
+    }
+
+    /// Passing `tcOverride: nil` leaves the normal resolver path untouched — regression guard.
+    func testNilTCOverrideFallsThroughToResolver() async {
+        // No SRT → resolver falls to filename datetime; 17:39:05 at 25 fps → frame 00.
+        let d = await TimecodeDisclosure.build(
+            clips: [clip()], settings: ConversionSettings(), tcOverride: nil, calendar: utc
+        )
+        XCTAssertEqual(d.origin, .filename)
+        XCTAssertEqual(d.appliedTimecode, "17:39:05:00")
+        XCTAssertNotEqual(d.origin, .manualOverride)
+    }
+
+    /// `originTag` for `.manualOverride` is "manual" — guards the constant stays in sync.
+    func testManualOverrideOriginTagIsManual() {
+        let d = TimecodeDisclosure(
+            sourceTimecode: nil,
+            appliedTimecode: "01:02:03:04",
+            origin: .manualOverride,
+            frameRate: 25,
+            timecodeEnabled: true,
+            isSlowMotion: false
+        )
+        XCTAssertEqual(d.originTag, "manual")
+    }
+
     func testEmptyClipsResolvesToUnavailable() async {
         let d = await TimecodeDisclosure.build(clips: [], settings: ConversionSettings(), calendar: utc)
         XCTAssertEqual(d.origin, .unavailable)

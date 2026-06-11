@@ -249,32 +249,44 @@ extension QueueManager {
             manualOverride: job.settings.dateOverride
         )
 
-        guard let date = resolution.date else {
-            log("Date/timecode: no usable signal (SRT/filename/creation_time/filesystem all absent) — stamping nothing")
-            return FFmpegWrapper.JoinMetadata()
-        }
-
         if let mismatch = resolution.mismatch {
             log(String(format: "Date/timecode: ⚠︎ SRT and filename disagree by %.0f s — using %@",
                        mismatch.deltaSeconds, resolution.provenance.label))
         }
 
         var creationTime: String?
-        if wantsDate {
+        if wantsDate, let date = resolution.date {
             creationTime = ISO8601Z.format(date)
         }
 
-        var timecode: String?
+        // Manual override takes precedence over the auto-resolved timecode. When an override is
+        // present it is passed through as-is (no validation — the caller owns correctness). When
+        // no override and no date resolved, the timecode argument is omitted entirely.
+        let timecode: String?
         if wantsTimecode {
-            // DJI records non-drop-frame; the param guard already proved every segment shares one
-            // rate, so segment 1's probed fps is the group's. Fall back to 30 when unprobed.
-            let fps = firstClip.streamInfo?.video.framesPerSecond ?? 30.0
-            timecode = try? TimecodeFormatter.wallClockTimecode(
-                for: date, frameRate: fps, isDropFrame: false
-            )
+            if let override = job.timecodeStringOverride {
+                timecode = override
+            } else if let date = resolution.date {
+                // DJI records non-drop-frame; the param guard already proved every segment shares one
+                // rate, so segment 1's probed fps is the group's. Fall back to 30 when unprobed.
+                let fps = firstClip.streamInfo?.video.framesPerSecond ?? 30.0
+                timecode = try? TimecodeFormatter.wallClockTimecode(
+                    for: date, frameRate: fps, isDropFrame: false
+                )
+            } else {
+                timecode = nil
+            }
+        } else {
+            timecode = nil
         }
 
-        log("Date/timecode resolved from \(resolution.provenance.label): "
+        guard creationTime != nil || timecode != nil else {
+            log("Date/timecode: no usable signal (SRT/filename/creation_time/filesystem all absent) — stamping nothing")
+            return FFmpegWrapper.JoinMetadata()
+        }
+
+        let tcSource = job.timecodeStringOverride != nil ? "manual override" : resolution.provenance.label
+        log("Date/timecode resolved from \(tcSource): "
             + "creation_time=\(creationTime ?? "—"), timecode=\(timecode ?? "—")")
         return FFmpegWrapper.JoinMetadata(creationTime: creationTime, timecode: timecode)
     }

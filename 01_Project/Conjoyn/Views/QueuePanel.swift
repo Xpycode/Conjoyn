@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import SwiftTimecodeCore
+import SwiftTimecodeUI
 
 // MARK: - Output bar, job queue, console, footer
 
@@ -335,10 +337,13 @@ private struct QueueRow: View {
         }
         .padding(.horizontal, 16)
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
-        // Recompute only when the row is bound to a different job. The build reads the job's frozen
-        // clips + settings, so the values shown always match what the engine stamps for this job.
-        .task(id: job.id) {
-            disclosure = await TimecodeDisclosure.build(clips: job.clips, settings: job.settings)
+        // Recompute whenever the job identity or its manual TC override changes. The compound key
+        // fires a new task when the user types a timecode override into the row, so the disclosure
+        // rebuilds reactively without requiring a full job replacement.
+        .task(id: "\(job.id)-\(job.timecodeStringOverride ?? "")") {
+            disclosure = await TimecodeDisclosure.build(
+                clips: job.clips, settings: job.settings, tcOverride: job.timecodeStringOverride
+            )
         }
     }
 
@@ -435,6 +440,9 @@ private struct TimecodeDisclosurePanel: View {
     let job: ConversionJob
     @EnvironmentObject private var queue: QueueManager
 
+    @State private var tcComponents: SwiftTimecodeCore.Timecode.Components = .zero
+    @State private var overrideActive: Bool = false
+
     /// The job's frozen output path — its parent folder is shown as the always-on "Output" row
     /// (the transparency half of the Hybrid: every expanded row reveals where the file will land).
     private var destination: URL { job.destinationURL }
@@ -465,6 +473,31 @@ private struct TimecodeDisclosurePanel: View {
                         Text("No recording-start signal — timecode not stamped.")
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.txt3)
+                    }
+
+                    // Manual override field — lets the user pin the start TC for this job.
+                    HStack(spacing: 8) {
+                        label("Override TC")
+                        TimecodeField(components: $tcComponents,
+                                      at: tcFrameRate(from: d.frameRate))
+                            .timecodeValidationStyle(.orange)
+                            .timecodeFieldInputStyle(.continuousWithinComponent)
+                        Button("Set") { applyOverride() }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Theme.acc2)
+                            .keyboardShortcut(.defaultAction)
+                            .font(.system(size: 11, weight: .medium))
+                        if overrideActive {
+                            Button { clearOverride() } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(Theme.txt3)
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    if overrideActive {
+                        Text("Overrides the resolved TC above")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Theme.txt3.opacity(0.7))
                     }
                 } else {
                     Text("Timecode from recording time is off — source timecode passed through.")
@@ -502,6 +535,40 @@ private struct TimecodeDisclosurePanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { loadOverrideFromJob() }
+        .onChange(of: job.timecodeStringOverride) { _, _ in loadOverrideFromJob() }
+    }
+
+    // MARK: - TC override helpers
+
+    private func tcFrameRate(from fps: Double) -> TimecodeFrameRate {
+        TimecodeFrameRate(stringValue: String(format: "%.3g", fps)) ?? .fps25
+    }
+
+    private func applyOverride() {
+        let s = String(format: "%02d:%02d:%02d:%02d",
+                       tcComponents.hours, tcComponents.minutes,
+                       tcComponents.seconds, tcComponents.frames)
+        queue.updateTimecodeOverride(for: job.id, timecode: s)
+        overrideActive = true
+    }
+
+    private func clearOverride() {
+        queue.updateTimecodeOverride(for: job.id, timecode: nil)
+        tcComponents = .zero
+        overrideActive = false
+    }
+
+    private func loadOverrideFromJob() {
+        let rate = tcFrameRate(from: disclosure?.frameRate ?? 30)
+        if let s = job.timecodeStringOverride,
+           let tc = try? SwiftTimecodeCore.Timecode(.string(s), at: rate, by: .allowingInvalid) {
+            tcComponents = tc.components
+            overrideActive = true
+        } else {
+            tcComponents = .zero
+            overrideActive = false
+        }
     }
 
     /// The verify detail: non-pass check chips (a green seal = nothing to show), the manual

@@ -175,4 +175,12 @@ extension QueueManager {
             await processQueue()
         }
     }
+
+    /// Sets (or clears) the manual timecode override for a queued job.
+    /// Session-only — intentionally does NOT call `saveQueue()` so the override is never
+    /// persisted to `queue.json` and is lost when the app restarts (matching the model intent).
+    func updateTimecodeOverride(for jobID: UUID, timecode: String?) {
+        guard let idx = jobs.firstIndex(where: { $0.id == jobID }) else { return }
+        jobs[idx].timecodeStringOverride = timecode
+    }
 }
