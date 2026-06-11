@@ -24,14 +24,34 @@ enum StreamParameterGuard {
         var width: Int
         var height: Int
         var pixelFormat: String      // e.g. "yuv420p"
-        var avgFrameRate: String     // raw rational, e.g. "30000/1001"
+        var avgFrameRate: String     // raw rational, e.g. "30000/1001" (computed from timestamps)
         var timeBase: String         // raw rational, e.g. "1/30000"
+        /// Codec-signalled frame rate (ffprobe `r_frame_rate`). Preferred over `avgFrameRate` for
+        /// display and timecode computation; `avg_frame_rate` drifts on clips whose timestamp
+        /// spacing doesn't divide evenly into the container duration (e.g. DJI 25 fps files that
+        /// ffprobe computes as 29.97). Optional so old persisted queue.json decodes without it.
+        var rFrameRate: String?
 
-        /// `avgFrameRate` decoded from its `"num/den"` rational to frames-per-second.
-        /// Returns `nil` for a malformed or zero-denominator/zero-numerator value (e.g. `"0/0"`,
-        /// which ffprobe emits when it can't determine a rate). Callers supply their own fallback.
+        init(codecName: String, width: Int, height: Int, pixelFormat: String,
+             avgFrameRate: String, timeBase: String, rFrameRate: String? = nil) {
+            self.codecName = codecName
+            self.width = width
+            self.height = height
+            self.pixelFormat = pixelFormat
+            self.avgFrameRate = avgFrameRate
+            self.timeBase = timeBase
+            self.rFrameRate = rFrameRate
+        }
+
+        /// The nominal frame rate as a Double: prefers `rFrameRate` (codec-signalled) over
+        /// `avgFrameRate` (timestamp-computed). Returns `nil` for malformed or zero values.
         var framesPerSecond: Double? {
-            let parts = avgFrameRate.split(separator: "/", maxSplits: 1)
+            rationalToDouble(rFrameRate) ?? rationalToDouble(avgFrameRate)
+        }
+
+        private func rationalToDouble(_ rational: String?) -> Double? {
+            guard let rational else { return nil }
+            let parts = rational.split(separator: "/", maxSplits: 1)
             guard parts.count == 2,
                   let num = Double(parts[0]), let den = Double(parts[1]),
                   den != 0, num != 0 else { return nil }
@@ -96,8 +116,10 @@ enum StreamParameterGuard {
             if v.pixelFormat != rv.pixelFormat {
                 return mismatch("pixel format", rv.pixelFormat, v.pixelFormat, n)
             }
-            if v.avgFrameRate != rv.avgFrameRate {
-                return mismatch("frame rate", rv.avgFrameRate, v.avgFrameRate, n)
+            let vRate = v.rFrameRate ?? v.avgFrameRate
+            let rvRate = rv.rFrameRate ?? rv.avgFrameRate
+            if vRate != rvRate {
+                return mismatch("frame rate", rvRate, vRate, n)
             }
             if v.timeBase != rv.timeBase {
                 return mismatch("time base", rv.timeBase, v.timeBase, n)
@@ -155,7 +177,8 @@ enum StreamParameterGuard {
             height: v.height ?? 0,
             pixelFormat: v.pix_fmt ?? "unknown",
             avgFrameRate: v.avg_frame_rate ?? "0/0",
-            timeBase: v.time_base ?? "0/0"
+            timeBase: v.time_base ?? "0/0",
+            rFrameRate: v.r_frame_rate
         )
 
         let audio = probe.streams.first(where: { $0.codec_type == "audio" }).map {
@@ -179,6 +202,7 @@ enum StreamParameterGuard {
             let height: Int?
             let pix_fmt: String?
             let avg_frame_rate: String?
+            let r_frame_rate: String?
             let time_base: String?
             let sample_rate: String?
             let channels: Int?

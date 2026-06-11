@@ -70,6 +70,17 @@ final class ThumbnailManagerTests: XCTestCase {
         XCTAssertNil(garbage.framesPerSecond)
     }
 
+    func testFramesPerSecondPrefersRFrameRate() {
+        // DJI clips can have avg_frame_rate that computes to 29.97 while r_frame_rate is 25/1.
+        // framesPerSecond must return the codec-signalled value, not the computed average.
+        let v = StreamParameterGuard.VideoStreamParams(
+            codecName: "hevc", width: 3840, height: 2160,
+            pixelFormat: "yuv420p10le", avgFrameRate: "30000/1001", timeBase: "1/30000",
+            rFrameRate: "25/1"
+        )
+        XCTAssertEqual(v.framesPerSecond ?? 0, 25.0, accuracy: 0.001)
+    }
+
     // MARK: - lastFrameSeekSeconds
 
     func testLastFrameSeekUsesProbedFrameRate() {
