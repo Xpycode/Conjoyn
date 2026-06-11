@@ -6,7 +6,7 @@ import CoreMedia
 ///
 /// Every test runs against a fresh, throwaway storage directory injected via
 /// `QueueManager(storageDirectory:)`, so the suite never reads or mutates the user's real
-/// `~/Library/Application Support/DJIjoiner/queue.json`. The keystone is the enqueue→persist→reload
+/// `~/Library/Application Support/Conjoyn/queue.json`. The keystone is the enqueue→persist→reload
 /// round-trip (the task's backpressure): a second manager pointed at the same directory must restore
 /// the jobs a first manager saved.
 @MainActor

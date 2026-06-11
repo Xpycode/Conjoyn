@@ -86,7 +86,7 @@ final class VerificationServiceTests: XCTestCase {
 
     func testVerifyMissingFileThrows() async {
         let missing = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-does-not-exist-\(UUID().uuidString).mp4")
+            .appendingPathComponent("conjoyn-does-not-exist-\(UUID().uuidString).mp4")
         do {
             _ = try await service.verify(
                 fileURL: missing,
@@ -110,7 +110,7 @@ final class VerificationServiceTests: XCTestCase {
 
         // 2 s @ 30 fps = 60 frames; a complete, non-truncated file → must pass full verification.
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-verify-\(UUID().uuidString).mp4")
+            .appendingPathComponent("conjoyn-verify-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: url) }
 
         let gen = Process()

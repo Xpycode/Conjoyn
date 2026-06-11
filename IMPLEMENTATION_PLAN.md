@@ -1,4 +1,4 @@
-# DJIjoiner — Implementation Plan
+# Conjoyn — Implementation Plan
 
 > Generated 2026-06-07 from `specs/dji-auto-stitcher.md`, the two briefs in `docs/`, the
 > P2toMXF port inventory, and four research sweeps (DJI domain, Apple APIs, FFmpeg/exiftool/
@@ -18,7 +18,7 @@ Reference source: `_reference/P2toMXF/01_Project/P2toMXF/`. Keep `DJIFolderReade
 `validate/discover/parse` interface identical to `P2CardParser` so the ViewModel ports by rename.
 
 ## Backpressure (every task)
-- **Compiles:** `xcodebuild -scheme DJIjoiner -destination 'platform=macOS' build` is green.
+- **Compiles:** `xcodebuild -scheme Conjoyn -destination 'platform=macOS' build` is green.
 - **Engine tasks:** a focused unit test (XCTest) passes against fixture data.
 - **Lint:** `swiftlint` clean (if adopted).
 - Never mark a task done on "build succeeded" alone where a behavioral test is specified.
@@ -34,10 +34,10 @@ multi-camera set (`_W`/`_Z` or `_T`/`_V`) to prove the variant guard. **Action: 
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
-| 0.1 | Create Xcode macOS app project | `01_Project/DJIjoiner.xcodeproj` | SwiftUI lifecycle, Swift 6 language mode, deploy target macOS 14.0, arm64, bundle id `com.<you>.djijoiner`, team set | builds & runs empty window |
+| 0.1 | Create Xcode macOS app project | `01_Project/Conjoyn.xcodeproj` | SwiftUI lifecycle, Swift 6 language mode, deploy target macOS 14.0, arm64, bundle id `com.<you>.conjoyn`, team set | builds & runs empty window |
 | 0.2 | Build settings for subprocess + notarization | project/target build settings | App Sandbox **OFF**, Hardened Runtime **ON**, `ENABLE_USER_SCRIPT_SANDBOXING=NO`, single deploy target (no 14/15.6 split) | builds |
-| 0.3 | Entitlements file | `01_Project/DJIjoiner/DJIjoiner.entitlements` | 3 keys: `cs.disable-library-validation`, `cs.allow-unsigned-executable-memory`, `cs.allow-jit` | builds signed |
-| 0.4 | Acquire/build static arm64 **LGPL** FFmpeg + ffprobe | `01_Project/DJIjoiner/Resources/Helpers/{ffmpeg,ffprobe}` | `file ffmpeg` = arm64 Mach-O; `ffmpeg -version` runs; LGPL (no `--enable-gpl`). Interim: OSXExperts 8.1 + GPL notice if needed | `./ffmpeg -version`, `./ffprobe -version` exit 0 |
+| 0.3 | Entitlements file | `01_Project/Conjoyn/Conjoyn.entitlements` | 3 keys: `cs.disable-library-validation`, `cs.allow-unsigned-executable-memory`, `cs.allow-jit` | builds signed |
+| 0.4 | Acquire/build static arm64 **LGPL** FFmpeg + ffprobe | `01_Project/Conjoyn/Resources/Helpers/{ffmpeg,ffprobe}` | `file ffmpeg` = arm64 Mach-O; `ffmpeg -version` runs; LGPL (no `--enable-gpl`). Interim: OSXExperts 8.1 + GPL notice if needed | `./ffmpeg -version`, `./ffprobe -version` exit 0 |
 | 0.5 | Bundle helpers into app + sign script | Copy Files build phase; `sign-bundled-binaries.sh` (trimmed to ffmpeg/ffprobe) | helpers land in `…app/Contents/Resources/Helpers/`, signed `--options runtime --timestamp` | `codesign -dv` on helper OK |
 | 0.6 | Git branch | — | `feature/wave0-scaffold` off `main`; first commit of scaffold | `git status` clean on branch |
 
@@ -48,7 +48,7 @@ multi-camera set (`_W`/`_Z` or `_T`/`_V`) to prove the variant guard. **Action: 
 
 ## Wave 1 — Port the format-agnostic scaffold (depends on W0; tasks parallelizable)
 
-Mechanical copy + rename from `_reference/P2toMXF`. Rename app-support dir `"P2toMXF"`→`"DJIjoiner"`.
+Mechanical copy + rename from `_reference/P2toMXF`. Rename app-support dir `"P2toMXF"`→`"Conjoyn"`.
 
 | # | Task | Source → Target | Changes | Backpressure |
 |---|------|-----------------|---------|--------------|
@@ -97,7 +97,7 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
-| 4.1 | App entry + ViewModel port | `DJIjoinerApp.swift`, `ConversionViewModel*.swift` | `@MainActor` VM ported; File menu (Open Folder), watch-folder menu stub; security-scope tracking | builds & launches |
+| 4.1 | App entry + ViewModel port | `ConjoynApp.swift`, `ConversionViewModel*.swift` | `@MainActor` VM ported; File menu (Open Folder), watch-folder menu stub; security-scope tracking | builds & launches |
 | 4.2 | `ContentView` 3-pane | `ContentView.swift` | Folders │ Clips/Groups │ Queue + console drawer; `.fileImporter` + drag-drop feed `DJIFolderReader` | manual: drop a folder → groups appear |
 | 4.3 | Port generic views | `Views/{Console,Estimate,Footer,ProgressControlPanel,QueueList,JobRow}.swift` | relabel P2 wording | builds |
 | 4.4 | Group/clip views + continuity report | `Views/{GroupListView,ClipRowView,HeaderView}.swift` | show per-boundary gap report, TC/creation-date diff, **confirm-before-fix** (default TC authoritative); preserve thumbnail/status subview split (perf) | manual: discontinuity shown; fix confirm works |

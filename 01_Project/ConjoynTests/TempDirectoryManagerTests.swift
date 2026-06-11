@@ -19,16 +19,17 @@ final class TempDirectoryManagerTests: XCTestCase {
     }
 
     func testRejectsNonexistentCustomDirectory() {
+        manager.setCustomTempDirectory(nil) // clean baseline: no stale value from a real app run
         let bogus = URL(fileURLWithPath: "/no/such/dir/\(UUID().uuidString)")
         XCTAssertFalse(manager.setCustomTempDirectory(bogus))
         XCTAssertFalse(manager.hasCustomDirectory)
         // A rejected directory must not be persisted.
-        XCTAssertNil(UserDefaults.standard.string(forKey: "DJIjoiner.customTempDirectoryPath"))
+        XCTAssertNil(UserDefaults.standard.string(forKey: "Conjoyn.customTempDirectoryPath"))
     }
 
     func testRejectsAFileAsCustomDirectory() throws {
         let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-not-a-dir-\(UUID().uuidString).txt")
+            .appendingPathComponent("conjoyn-not-a-dir-\(UUID().uuidString).txt")
         try "x".write(to: file, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: file) }
 
@@ -38,7 +39,7 @@ final class TempDirectoryManagerTests: XCTestCase {
 
     func testAcceptsAndResolvesAValidCustomDirectory() throws {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-temp-\(UUID().uuidString)")
+            .appendingPathComponent("conjoyn-temp-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 

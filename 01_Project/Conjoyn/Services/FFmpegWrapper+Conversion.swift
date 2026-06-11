@@ -141,7 +141,7 @@ extension FFmpegWrapper {
 
         // Write the concat list to a temp file (TempDirectoryManager lands in Wave 1.5).
         let listFileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("djijoiner-concat-\(UUID().uuidString).txt")
+            .appendingPathComponent("conjoyn-concat-\(UUID().uuidString).txt")
         let listBody = Self.buildConcatList(for: segments)
         try listBody.write(to: listFileURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: listFileURL) }
