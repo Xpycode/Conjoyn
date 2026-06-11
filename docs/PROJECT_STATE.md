@@ -26,6 +26,13 @@
 - **Next:** Remaining backlog — Help window (vendor AppHelp package; cost = content), DMG
   wrapper. Owed live eyeballs: restore banner on cold launch (still untested); slow-mo +
   SRT-mismatch chips (no such footage seen yet).
+  **New backlog (2026-06-11g):** (12) Sortable columns in the recordings list (click header to sort
+  by date/duration/size/fps/type). ~~(13) All/None/Splits/Singles as a visibility filter~~ **DONE
+  2026-06-11g** — filter mode shipped (visibility + auto-select + orange active state). 319/319.
+  **Eyeball session 2026-06-11g confirmed:** green seal ✓, manual TC override ✓, single-file export
+  via Start ✓, ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`
+  all show `slow-mo` badge + queue-row disclosure note), filter All/Singles/Splits ✓ (orange active
+  button, visibility + auto-select, correct counts: 60 singles / 14 splits of 74 total).
 - **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
