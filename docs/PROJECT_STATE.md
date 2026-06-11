@@ -80,15 +80,14 @@
   + tampered-source fail). **Owed:** live GUI eyeball of the seal on a real card.
   (7) **Help window** (2026-06-10i) —
   vendor the standalone `/1-macOS/AppHelp/` package; cost is topic content, not wiring (**no Settings
-  scene** — decided unnecessary). (8) DMG wrapper. (9) **Per-recording manual TC entry** (user asked
-  2026-06-10k) — a `HH:MM:SS:FF` field (in the queue-row disclosure panel) that overrides the stamped
-  `tmcd` frame-accurately. **Engine hook already exists** (`ConversionSettings.dateOverride`, top of the
-  resolver chain) but is **date-only + unsurfaced in the UI**; manual TC needs a real frame field. The
-  `Timecode` model already parses/formats `HH:MM:SS:FF`. **Reaffirmed same session:** filename stays
-  ranked **above** creation_time in `RecordingStartResolver` — filename is camera-local + survives a
-  card→disk copy; the `creation_time` atom is UTC/often-skewed and filesystem dates reset on copy, and
-  neither beats filename's second-resolution `:00` frames (only the SRT first cue is sub-second). The
-  `:00`-frame "imprecision" is inherent to no-SRT cards, not a resolver bug. **(10) Output-folder ↔
+  scene** — decided unnecessary). (8) DMG wrapper. (9) **Per-recording manual TC entry — PLANNED,
+  ready to `/execute`** (user asked 2026-06-10k; plan written 2026-06-11c). `HH:MM:SS:FF` field in the
+  queue-row disclosure panel overriding only the `-timecode` ffmpeg arg (not `creation_time`). Library:
+  `orchetect/swift-timecode` v3.1.2 (`TimecodeField` SwiftUI-native, macOS 14+, Swift 6 ✓). Storage:
+  `var timecodeStringOverride: String?` on `ConversionJob`, excluded from `CodingKeys` (session-only).
+  Engine: `resolveJoinMetadata()` checks override before `TimecodeFormatter.wallClockTimecode()`.
+  **4-commit plan in `docs/sessions/2026-06-11c.md`**: (1) model+engine+tests, (2) `TimecodeDisclosure.build()`
+  reflects override, (3) TimecodeKit dep + xcodegen, (4) UI in `TimecodeDisclosurePanel`. ~305→314 tests. **(10) Output-folder ↔
   queue clarity — DONE + LIVE-VERIFIED + MERGED → `main` (`37aca3f`, 2026-06-10n); branch deleted,
   pushed.** Implemented 2026-06-10m (`2eb0143`); **live A+B GUI verify 2026-06-10n** on a real 60-job
   queue: per-row "Output" disclosure row showed each job's destination; changing the Output folder
@@ -126,6 +125,12 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-11c — Researched + planned backlog (9): per-recording manual TC override.**
+  Multi-agent research across three reference projects + TimecodeKit library. Decided on
+  `orchetect/swift-timecode` v3.1.2 (SwiftUI-native `TimecodeField`, macOS 14+, Swift 6
+  compatible). Override is TC-only (not `creation_time`), stored session-only on `ConversionJob`
+  outside `CodingKeys`. Full 4-commit plan written in `docs/sessions/2026-06-11c.md`, ready to
+  `/execute` next session.
 - **2026-06-11b — Shipped true source↔target verification (backlog 6); caught + fixed a deadlock.**
   Executed wave-based (`/execute`) against an in-repo plan, fresh-context agent per wave. New
   `SourceTargetVerifier` exploits the lossless join (output kept-streams == Σ sources): **Tier 0**
