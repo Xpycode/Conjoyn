@@ -4,6 +4,38 @@ This file tracks the WHY behind technical and design decisions for DJIjoiner.
 
 ---
 
+### 2026-06-12 - Ship Conjoyn ONLY with Sparkle auto-update; DMG enclosure, automatic checks, debut as 1.0
+**Context:** A `/status` review (2026-06-12c) surfaced that Conjoyn has **no auto-update mechanism** —
+a full code search found zero Sparkle/appcast integration; "notarized" had been conflated with
+"distribution done." No installed base yet (website not live), so adding it is greenfield. 3-agent
+recon → `docs/sparkle-research.md` (2026-06-12d); this session verified it against P2toMXF (verbatim
+port source), Penumbra's release runbook, and the live Sparkle **2.9.3** docs, then planned it in
+`docs/plans/sparkle-auto-update.md`.
+**Decision:** (1) **Ship only with the update function** — the first public download IS the first
+Sparkle-enabled build; no update-less interim release. (2) **DMG-only enclosure** — one notarized DMG
+serves both the website button and Sparkle's `<enclosure>` (matches the existing `make-dmg.sh`; no
+binary deltas, which are pointless with no installed base + a 27 MB app). (3) **Automatic + menu**
+checks (`SUEnableAutomaticChecks=true` daily background + a manual "Check for Updates…" item).
+(4) **Debut as 1.0 / build 100** — `MARKETING_VERSION=1.0`, `CURRENT_PROJECT_VERSION=100` (monotonic
+int, room to grow); the shipped binary is actually `0.1.0/build 1` ("v1.0.1" was narrative naming),
+and since it was never publicly distributed this is a clean reset. (5) **Sparkle `from: 2.9.3`**
+(upToNextMajor; carries the 2.9.2 security fixes). (6) **Self-host** the appcast at
+`conjoyn.lucesumbrarum.com` (Penumbra pattern); enclosure points at the **raw DMG**, not the
+counted/302 PHP endpoint.
+**Why:** A notarized app that can't update itself silently rots — users never get fixes and there's no
+recall path. Doing it now, before any installed base, is the cheapest moment (no orphaned old
+versions). Conjoyn is the **simplest case in the app family** because it's non-sandboxed: the existing
+FFmpeg entitlements (`cs.disable-library-validation` + `allow-unsigned-executable-memory` +
+`allow-jit`) are exactly what Sparkle's XPC needs, so **zero new entitlement, zero new build setting** —
+just the SPM dep + 3 base-Info.plist keys (`SU*` in the base plist, not `INFOPLIST_KEY_*`, per cookbook
+#89) + a ported `UpdaterController`. **Open at execution:** the `--account` key-isolation flag is
+unverified (Penumbra's docs use it; Sparkle's official page doesn't document it) — resolved by checking
+`generate_keys --help` and relying on `-x` export + 2× key backup either way. **Load-bearing risk:**
+EdDSA private-key loss permanently orphans all users (real incident: SyncthingStatus v1.5→1.5.1), so the
+key is generated fresh + backed up twice before the first signed release.
+
+---
+
 ### 2026-06-10 - Card-aware folder descent (drop a card root, not just the leaf media folder)
 **Context:** Live UI test exposed that dropping/choosing a card **root** (`/Volumes/M4P-1`) reported
 "No video segments found" — `DJIFolderReader.read` scanned only the chosen folder

@@ -22,15 +22,31 @@
   sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
   330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
 - **Blockers:** none.
-- **⚠ Scope gap surfaced 2026-06-12c — NO auto-update mechanism.** Code search found zero
-  Sparkle/appcast integration; never built, never decided, never deferred (only the unchecked
-  `[ ] Auto-update` line in `33_app-minimums.md`). Notarized ≠ updatable — the two got conflated.
-  No installed base yet (website not live), so adding Sparkle is still greenfield. **Open decision:**
-  add it before the first public download link, or ship update-less and retrofit.
-- **Next:** (1) **Decide auto-update** — scope Sparkle (SPM dep, `SUFeedURL`, EdDSA keygen, host
-  `appcast.xml`+DMGs on the webspace, wire `make-dmg.sh` → `generate_appcast`) *before* the public
-  link, or explicitly defer. (2) Website copy + download link (point it at `04_Exports/Conjoyn.dmg`;
-  appcast lives here too if (1) is yes). (3) QL thumbnail fix — switch from FFmpeg to
+- **✓ Auto-update gap DECIDED + PLANNED 2026-06-12e.** The 2026-06-12c scope gap (no Sparkle/appcast
+  integration) is now resolved on paper: **ship Conjoyn ONLY with Sparkle auto-update** — the first
+  public download IS the first Sparkle-enabled build (no update-less interim). Sub-decisions:
+  **DMG-only enclosure**, **automatic + menu** checks, **debut as 1.0 / build 100**, **Sparkle 2.9.3**,
+  self-host appcast at `conjoyn.lucesumbrarum.com`. Full plan in `docs/plans/sparkle-auto-update.md`
+  (5 waves); rationale in `docs/decisions.md` (2026-06-12).
+- **✓ Sparkle Wave 1 DONE 2026-06-12f (`11958e6`, branch `feature/sparkle-update`).** Local
+  integration: Sparkle 2.9.3 SPM dep + `Conjoyn` target dep; version baseline bumped **0.1.0/1 →
+  1.0/build 100** (monotonic == `sparkle:version`); 3 `SU*` keys in the **base Info.plist** (cookbook
+  #89 trap avoided — confirmed merged into the built plist); `UpdaterController.swift` ported verbatim
+  from P2toMXF; `UpdaterCommands` (`Commands` struct, not closure) adds "Check for Updates…" after
+  `.appInfo`. **BUILD SUCCEEDED**; `Sparkle.framework` auto-embedded with all 4 nested Mach-Os
+  (`Autoupdate`/`Updater`/`Installer.xpc`/`Downloader.xpc` — Wave 2's notarization-audit targets).
+  `SUPublicEDKey` is still the `__FILL_FROM_WAVE_0__` placeholder. **Next: Wave 0 (EdDSA key gen +
+  2× backup) — needs user-controlled custody.**
+- **Next:** (1) **Execute Sparkle auto-update** per `docs/plans/sparkle-auto-update.md` (decided
+  2026-06-12e). Wave 1 (SPM dep `from: 2.9.3` in `project.yml` + bump to 1.0/build 100 + 3 `SU*` keys
+  in **base Info.plist** + port `UpdaterController.swift` + `UpdaterCommands` in `ConjoynApp.swift`)
+  → Wave 0 (fresh EdDSA key, `-x` export + 2× backup, public key → `SUPublicEDKey`; check
+  `generate_keys --help` for `--account`) → Wave 2 (build/330 tests + extend `notarize.sh` to audit
+  Sparkle's 4 nested Mach-Os; never `codesign --deep` on *sign*) → Wave 3 (`make-appcast.sh` +
+  100→101 local-HTTPS self-update test). Wave 4 (host standup + publish) is gated on the website.
+  Branch `feature/sparkle-update`. (2) Website copy + download link (point it at
+  `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
+  (3) QL thumbnail fix — switch from FFmpeg to
   `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
   contention). (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
   sort policy (keep `.distantPast` or switch to Finder "undated always last" — `TODO` in `orders(...)`).
@@ -146,6 +162,33 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-12e — Decided + planned Sparkle auto-update (no code).** Closed the open scope gap:
+  **ship Conjoyn ONLY with auto-update** (first public DMG = first Sparkle build). Verified the
+  2026-06-12d research against P2toMXF (verbatim `UpdaterController.swift` + `Commands`-struct menu),
+  Penumbra's release runbook, and the **live Sparkle 2.9.3** docs via 3 agents + web/MCP. User picked
+  **DMG-only enclosure · automatic+menu checks · debut 1.0/build 100**. Wrote
+  `docs/plans/sparkle-auto-update.md` (5 waves: integrate → keys → verify → release pipeline → publish)
+  grounded in Conjoyn's actual files. **Three verification catches:** (a) the `--account` key-isolation
+  flag is **unverified** — Penumbra's docs use it, Sparkle's official page doesn't document it; plan
+  resolves it at execution and relies on `-x` export + 2× backup either way; (b) the shipped binary is
+  actually **0.1.0/build 1** ("v1.0.1" was narrative) — a free clean reset to 1.0/build 100, and
+  `sparkle:version` must stay monotonic forever; (c) the real signing risk is the **4 new nested Sparkle
+  Mach-Os** (`Autoupdate`/`Updater.app`/`Installer.xpc`/`Downloader.xpc`) — `notarize.sh` only audits
+  ffmpeg/ffprobe today, so the plan adds them with an Archive→Export fallback. Confirmed the non-sandbox
+  gift holds: **zero new entitlement, zero new build setting**. Logged to `docs/decisions.md`.
+  **Next: execute Wave 1.**
+- **2026-06-12d — Sparkle auto-update research (pre-planning, no code).** 3 read-only agents
+  reconnoitered every shipped sibling's Sparkle setup → `docs/sparkle-research.md`. **Headline:
+  Conjoyn is the simplest case in the family** (non-sandboxed → no new entitlement/build setting;
+  FFmpeg's `cs.disable-library-validation`/`allow-unsigned-executable-memory`/`allow-jit` already
+  cover Sparkle's XPC; drop the sandbox-only `network.client`/`SUEnableInstallerLauncherService`/
+  `-spks`/`-spki`). P2toMXF (Conjoyn's port ancestor) has copy-verbatim `UpdaterController.swift` +
+  `FileMenuCommands`/`@StateObject` menu but never finished (placeholder `SUPublicEDKey`) — take the
+  release *process* from Penumbra's `sparkle-release-runbook.md`. xcodegen: SPM dep in `project.yml`,
+  `SU*` keys in the **base Info.plist** (`INFOPLIST_KEY_*` drops them — cookbook #89 trap). Landmines
+  catalogued (EdDSA key-loss = users orphaned; never `codesign --deep`; nested-binary notarization;
+  monotonic `sparkle:version`; exact enclosure `length`; first release can't self-test). No code, no
+  decisions — **planning is next**.
 - **2026-06-12b — Sortable recordings columns (backlog 12, → v1.0.1).** First post-1.0 feature:
   Finder-style clickable column headers (Name·Date·Duration·Size). New `SortKey` + `setSort` on
   `ConversionViewModel` (re-click flips direction; switching columns adopts a per-column default);
