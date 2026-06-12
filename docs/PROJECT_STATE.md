@@ -18,12 +18,15 @@
   `git-remote-reconciliation`).
 
 ## Now
-- **Phase:** implementation, 100% feature-complete. All features shipped + eyeballed. **DMG built,
-  notarized + stapled — SHIPPABLE (2026-06-12).**
+- **Phase:** implementation, 100% feature-complete. 1.0 shipped (**DMG notarized + stapled —
+  SHIPPABLE 2026-06-12**). **v1.0.1 sortable recordings columns code-complete + 330-test-verified +
+  merged to `main` 2026-06-12b** (`feature/sortable-columns` `--no-ff`).
 - **Blockers:** none.
-- **Next:** (1) Website copy + download link (point it at `04_Exports/Conjoyn.dmg`). (2) QL thumbnail
-  fix — switch from FFmpeg to `QLThumbnailGenerator` (eager 74-item load is noticeable). (3) Optional
-  DMG polish: custom background image (current window is the clean default layout).
+- **Next:** (1) **Ship v1.0.1:** push `main` → re-cut the DMG (`make-dmg.sh`). (2) Website copy + download link
+  (point it at `04_Exports/Conjoyn.dmg`). (3) QL thumbnail fix — switch from FFmpeg to
+  `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
+  contention). (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
+  sort policy (keep `.distantPast` or switch to Finder "undated always last" — `TODO` in `orders(...)`).
 - **Ship artifact:** `04_Exports/Conjoyn.dmg` (27 MB, `source=Notarized Developer ID`). Rebuild any
   time with `01_Project/scripts/make-dmg.sh` (delegates to `notarize.sh` for the app, then wraps +
   signs + notarizes + staples the DMG; `SKIP_APP=1` reuses an already-stapled app). **Note:** the
@@ -32,7 +35,8 @@
 - **All eyeballs cleared (2026-06-11g):** green seal ✓, manual TC override ✓, single-file export ✓,
   ETA/speed ✓, Verifying… state ✓, restore banner ✓, slow-mo chip ✓ (`_0055/56/57_D`), filter
   All/Singles/Splits ✓, SRT-mismatch chip ✓ (test fixture, "differ by 20 min"), help window ✓.
-- **Backlog (post-ship):** (12) Sortable columns in recordings list.
+- **Backlog (post-ship):** ~~(12) Sortable columns in recordings list.~~ **DONE 2026-06-12b (v1.0.1,
+  merged to `main`).**
 - **Previously next:** (1) ~~`feature/rename-tc-disclosure`~~ **DONE — merged to `main` (`30c8447`, 2026-06-10f)
   and pushed.** Both commits in; eyeballed live on a real SRT-bearing card (Source TC `—`, Applied TC
   `19:53:03:11 · from SRT cue · 25 fps`, slow-mo caption — Applied TC matches the engine's s7 stamp
@@ -135,6 +139,22 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-12b — Sortable recordings columns (backlog 12, → v1.0.1).** First post-1.0 feature:
+  Finder-style clickable column headers (Name·Date·Duration·Size). New `SortKey` + `setSort` on
+  `ConversionViewModel` (re-click flips direction; switching columns adopts a per-column default);
+  sorting folded into the `filteredGroups` chokepoint via decorate-sort-undecorate (groups/selection/
+  rename cache untouched), with a pure static `orders(_:before:by:)` over a `SortField` (stable
+  `groupIndex` tie-break, `localizedStandard` name order). New `ColumnHeaderBar`/`SortLabel` + shared
+  `CJRowMetrics` so header columns pixel-align over rows. **+11 tests → 330 pass.** Two live-eyeball
+  fixes — header **ballooned** (greedy `Color.clear` spacers, unconstrained height → padding-based
+  leading inset) and **"DURATION" wrapped** (col 66→80 + `lineLimit(1)`). **Resort beachball fixed:**
+  the date sort resolved `.SRT` files **off the SD card synchronously inside `filteredGroups`** (view
+  body, main thread) → ~1s freeze; now the sort reads only the resolved cache (embedded-date
+  fallback) and `prewarmStartDates()` resolves all dates off-thread (`Task.detached .utility`,
+  `Sendable`-only capture) after scan, bumping `@Published startDateRevision` to re-sort once warm
+  (thumbnails — an `actor` + async FFmpeg — were never the blocker). nil-date policy = `.distantPast`
+  (Finder "always-last" left as a `TODO`). User: "works fantastic." **Patterns → cookbook #91, #92.**
+  **Merged to `main` (`feature/sortable-columns` `--no-ff`); 330 tests re-verified green.**
 - **2026-06-12 — Shipped the DMG wrapper (last release task). Conjoyn is now distributable.**
   Reconciled this Mac's git first (no `.git` — Syncthing excludes it; wired `origin`, spot-checked 3
   files byte-identical, `reset --hard origin/main` `1c47bfe`). Found the `conjoyn-notary` keychain
@@ -419,7 +439,7 @@
   date→TC→SRT, 14/14 batch)** · **design handoff ported to SwiftUI ✓ (live-validated)**.
   Footage-gated remaining: 2.2/2.3 reader polish vs more real cards, 2.7 (TS-remux fallback), the
   size-changing Apple `Keys` creationdate atom (6.3).
-- **Tests:** 315 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration
+- **Tests:** 330 (all pass; 1 pre-existing real-decode skip). Incl. real ffmpeg/ffprobe integration
   (source↔target byte-identical pass + tampered-source negative case).
 - **Readiness:** Directions installed; spec at `specs/dji-auto-stitcher.md`; P2toMXF port source
   cloned (gitignored); tech stack locked (macOS 14+, SwiftUI/Swift 6, Apple Silicon, AVFoundation +
