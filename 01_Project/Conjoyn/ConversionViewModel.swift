@@ -46,6 +46,11 @@ final class ConversionViewModel: ObservableObject {
     /// re-resolve each time. Cleared on every `scan()`.
     private var resolvedStartCache: [UUID: Date?] = [:]
 
+    /// Bumped when the background prewarm finishes filling `resolvedStartCache`, purely to trigger a
+    /// re-render so a "sort by Date" snaps from the embedded-date fallback to the corrected order.
+    /// (The cache itself is non-`@Published`; this is the observable signal.)
+    @Published private var startDateRevision = 0
+
     @Published private(set) var groups: [RecordGroup] = []
     /// Which groups will be enqueued by `addToQueue`. Defaults after a scan to the **split**
     /// recordings only (the ones that actually need joining), so pointing at a whole SD card doesn't
@@ -57,13 +62,31 @@ final class ConversionViewModel: ObservableObject {
     enum RecordingFilter { case all, splits, singles }
     @Published private(set) var recordingFilter: RecordingFilter = .all
 
-    /// The subset of `groups` currently visible given `recordingFilter`.
+    /// Column the recordings list is ordered by. `.found` keeps the scanner's discovery order — the
+    /// original pre-1.0.1 behaviour and the state every fresh scan resets to.
+    enum SortKey: CaseIterable { case found, name, date, duration, size }
+    @Published private(set) var sortKey: SortKey = .found
+    @Published private(set) var sortAscending = true
+
+    /// The view feed: `groups` filtered by `recordingFilter`, then ordered by the active sort. Kept
+    /// as the single chokepoint so selection (by id) and the rename cache stay valid regardless of
+    /// display order — only what the list *shows* is reordered, never `groups` itself.
     var filteredGroups: [RecordGroup] {
+        let visible: [RecordGroup]
         switch recordingFilter {
-        case .all:     return groups
-        case .splits:  return groups.filter { $0.groupType == .split }
-        case .singles: return groups.filter { $0.groupType == .single }
+        case .all:     visible = groups
+        case .splits:  visible = groups.filter { $0.groupType == .split }
+        case .singles: visible = groups.filter { $0.groupType == .single }
         }
+        guard sortKey != .found else { return visible }   // discovery order — leave untouched
+        // Decorate-sort-undecorate: resolve each group's sort fields once (the date resolve is the
+        // costly part), order the pairs, then drop back to groups.
+        let key = sortKey
+        let ascending = visible
+            .map { (group: $0, field: sortField(for: $0)) }
+            .sorted { Self.orders($0.field, before: $1.field, by: key) }
+            .map { $0.group }
+        return sortAscending ? ascending : ascending.reversed()
     }
     @Published private(set) var parseErrors: [ClipParseError] = []
     @Published private(set) var skippedFiles: [String] = []
@@ -119,6 +142,91 @@ final class ConversionViewModel: ObservableObject {
 
     /// Resets the filter to `.all` without changing selection. Called on rescan.
     func resetFilter() { recordingFilter = .all }
+
+    // MARK: - Sorting
+
+    /// Picks the sort column. Clicking the active column flips direction (Finder behaviour);
+    /// switching columns starts from that column's natural default direction.
+    func setSort(_ key: SortKey) {
+        if sortKey == key {
+            sortAscending.toggle()
+        } else {
+            sortKey = key
+            sortAscending = Self.defaultAscending(for: key)
+        }
+    }
+
+    /// Resets to discovery order. Called on rescan so a new card starts predictable.
+    func resetSort() {
+        sortKey = .found
+        sortAscending = true
+    }
+
+    /// First-click direction per column. Name reads naturally A→Z; the numeric/time columns lead
+    /// with the "interesting" end (newest, longest, biggest) the way Finder defaults Size to large-first.
+    private static func defaultAscending(for key: SortKey) -> Bool {
+        switch key {
+        case .found, .name:           return true
+        case .date, .duration, .size: return false
+        }
+    }
+
+    /// The list-sort fields for one group, pulled out so the ordering logic stays pure and
+    /// unit-testable (no `RecordGroup`, no date-resolver I/O). `date` is the **corrected** start.
+    struct SortField: Equatable {
+        var index: Int          // groupIndex — the stable tie-break
+        var name: String
+        var date: Date?
+        var duration: Double
+        var bytes: Int64
+    }
+
+    private func sortField(for g: RecordGroup) -> SortField {
+        // Read the *already-resolved* date — never resolve here. Resolving opens `.SRT` files off the
+        // SD card, and this runs inside `filteredGroups` during view-body evaluation on the main
+        // thread, so a synchronous resolve would beachball the whole window on the first date sort.
+        // Fall back to the in-memory embedded date until the background prewarm fills the cache (which
+        // then bumps `startDateRevision` to re-sort into corrected order). `?? embedded` distinguishes
+        // "key absent" (Date?? is .none) from "resolved to no date" (.some(nil), kept as-is).
+        let resolved: Date? = resolvedStartCache[g.id] ?? g.displayStartDate
+        return SortField(index: g.groupIndex,
+                         name: g.displayTitle,
+                         date: resolved,
+                         duration: g.totalDurationSeconds,
+                         bytes: g.totalBytes)
+    }
+
+    /// Orders two fields **ascending** for `key`, with a stable `index` tie-break so equal values
+    /// (same size, same duration) keep a fixed order instead of jiggling between renders.
+    /// `filteredGroups` reverses the whole result for descending. Internal so unit tests can drive it
+    /// with plain values.
+    static func orders(_ a: SortField, before b: SortField, by key: SortKey) -> Bool {
+        func tie() -> Bool { a.index < b.index }
+        switch key {
+        case .found:
+            return tie()
+        case .name:
+            let r = a.name.localizedStandardCompare(b.name)
+            return r == .orderedSame ? tie() : r == .orderedAscending
+        case .duration:
+            return a.duration == b.duration ? tie() : a.duration < b.duration
+        case .size:
+            return a.bytes == b.bytes ? tie() : a.bytes < b.bytes
+        case .date:
+            // Sorts by the *corrected* recording start, so the order matches the date each row shows.
+            //
+            // TODO(you): decide where *undated* recordings land. `resolvedStartDate` is `nil` only
+            // when every fallback failed (no SRT, unparseable filename, no embedded date, no
+            // filesystem date) — rare, but real on a stripped card. The `.distantPast` default below
+            // makes undated rows cluster at one end and **flip** with the sort direction (bottom when
+            // newest-first, top when oldest-first). The alternative — pin undated rows to the bottom
+            // *regardless* of direction (Finder's "—" behaviour) — can't be expressed through the
+            // outer reverse, so it would need handling right here. Replace the body with your policy.
+            let da = a.date ?? .distantPast
+            let db = b.date ?? .distantPast
+            return da == db ? tie() : da < db
+        }
+    }
 
     // MARK: - Folder selection
 
@@ -181,6 +289,7 @@ final class ConversionViewModel: ObservableObject {
         skippedFiles = []
         resolvedStartCache = [:]
         resetFilter()
+        resetSort()
 
         let discovery = await DJIFolderReader.read(folder: source, using: ffmpeg)
 
@@ -190,6 +299,9 @@ final class ConversionViewModel: ObservableObject {
         // Pre-select the split recordings only — single lone clips need no join.
         selectSplitGroupsOnly()
         isScanning = false
+        // Warm the recording-start cache off-thread so a later "sort by Date" never blocks on SD-card
+        // `.SRT` reads. Fire-and-forget; the list re-sorts when it lands.
+        prewarmStartDates()
 
         if groups.isEmpty {
             statusMessage = "No video segments found in \(source.lastPathComponent)."
@@ -288,6 +400,33 @@ final class ConversionViewModel: ObservableObject {
         }
         resolvedStartCache[group.id] = date
         return date
+    }
+
+    /// Resolves every group's recording-start date **off the main thread** right after a scan, so the
+    /// first "sort by Date" is an instant cache hit rather than opening dozens of `.SRT` files from
+    /// the SD card on the main thread (a visible beachball). Runs at `.utility` priority so it yields
+    /// to thumbnail extraction; fills only gaps, never clobbering an entry rename already resolved.
+    /// On completion it bumps `startDateRevision` to re-sort into corrected order.
+    private func prewarmStartDates() {
+        let items: [(id: UUID, clip: DJIClip?)] = groups.map { ($0.id, $0.clips.first) }
+        guard !items.isEmpty else { return }
+        let override = settings.dateOverride
+        Task.detached(priority: .utility) { [weak self] in
+            var resolved: [UUID: Date?] = [:]
+            for item in items {
+                let date = item.clip.flatMap {
+                    RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: override).date
+                }
+                resolved.updateValue(date, forKey: item.id)   // stores `.some(nil)`, not a delete
+            }
+            await MainActor.run {
+                guard let self else { return }
+                for (id, date) in resolved where self.resolvedStartCache[id] == nil {
+                    self.resolvedStartCache.updateValue(date, forKey: id)
+                }
+                self.startDateRevision &+= 1
+            }
+        }
     }
 
     /// Up to `limit` of the currently-selected recordings rendered through the active pattern, for

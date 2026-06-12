@@ -6,6 +6,24 @@ import UniformTypeIdentifiers
 
 // SwiftUI port of the handoff's `conjoyn/rows.jsx` against `styles.css` metrics.
 
+/// Shared column geometry, so the sortable header bar lines up with each row's columns. The header
+/// and the rows both read these — change a width once and both move together (no drift).
+enum CJRowMetrics {
+    static let checkbox: CGFloat = 14            // CJCheckbox frame
+    static let chevron: CGFloat = 18             // disclosure slot (reserved on singles too)
+    static let thumb: CGFloat = 38 * 16 / 9      // ClipThumbnailView width
+    static let lead: CGFloat = 12                // spacing between leading slots
+    static let rowPadH: CGFloat = 16             // row + header horizontal padding
+    static let metaSpacing: CGFloat = 18         // spacing inside the files/duration/size cluster
+    static let filesCol: CGFloat = 60
+    static let durationCol: CGFloat = 80         // wide enough for the "DURATION" header on one line
+    static let sizeCol: CGFloat = 64
+
+    /// Content-edge → row-title offset (checkbox + chevron + thumbnail + the gaps between them). The
+    /// header pads its left by this so NAME starts exactly where each row's title does.
+    static let leadingInset: CGFloat = checkbox + lead + chevron + lead + thumb + lead
+}
+
 // MARK: Display helpers
 
 extension RecordGroup {
@@ -49,6 +67,8 @@ struct RecordingsList: View {
                 )
             }
 
+            ColumnHeaderBar()
+
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(vm.filteredGroups) { group in
@@ -82,6 +102,86 @@ struct RecordingsList: View {
         case .splits:  return "Splits"
         case .singles: return "Singles"
         }
+    }
+}
+
+// MARK: Sortable column header
+
+/// Finder-style header row. The left cluster (NAME · DATE) sits over the row's flexible name region
+/// — DATE is a row sub-line, not its own column, so the two share the left side. The right cluster
+/// (FILES · DURATION · SIZE) pixel-aligns over the rows via the shared `CJRowMetrics` widths. FILES
+/// is a static label (not one of the chosen sort keys); the rest are clickable.
+private struct ColumnHeaderBar: View {
+    @EnvironmentObject private var vm: ConversionViewModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // NAME · DATE share the left region (date is a row sub-line, not its own column).
+            HStack(spacing: 14) {
+                SortLabel(.name, "Name")
+                SortLabel(.date, "Date")
+            }
+            Spacer(minLength: 8)
+
+            // Right cluster — mirrors the row's files/duration/size widths + spacing, so the columns
+            // line up over the rows.
+            HStack(spacing: CJRowMetrics.metaSpacing) {
+                Text("FILES")
+                    .foregroundStyle(Theme.txt3)
+                    .frame(width: CJRowMetrics.filesCol, alignment: .trailing)
+                SortLabel(.duration, "Duration", width: CJRowMetrics.durationCol)
+                SortLabel(.size, "Size", width: CJRowMetrics.sizeCol)
+            }
+        }
+        .font(.system(size: 11, weight: .bold))
+        .kerning(0.5)
+        .lineLimit(1)
+        // Padding (not greedy spacers) reserves the leading slot — Color.clear with a free height
+        // would balloon the bar vertically.
+        .padding(.leading, CJRowMetrics.rowPadH + CJRowMetrics.leadingInset)
+        .padding(.trailing, CJRowMetrics.rowPadH)
+        .padding(.vertical, 5)
+        .background(Color.black.opacity(0.12))
+        .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
+    }
+}
+
+/// One clickable sort header. Shows an up/down chevron when its column is active; reserves the arrow
+/// slot otherwise so the label doesn't shift on activation. A fixed `width` makes it a right-aligned
+/// numeric-column header (Duration/Size); without one it's a left-aligned label (Name/Date).
+private struct SortLabel: View {
+    @EnvironmentObject private var vm: ConversionViewModel
+    let key: ConversionViewModel.SortKey
+    let title: String
+    var width: CGFloat?
+    @State private var hovered = false
+
+    init(_ key: ConversionViewModel.SortKey, _ title: String, width: CGFloat? = nil) {
+        self.key = key
+        self.title = title
+        self.width = width
+    }
+
+    private var isActive: Bool { vm.sortKey == key }
+    private var trailing: Bool { width != nil }
+
+    var body: some View {
+        Button { vm.setSort(key) } label: {
+            HStack(spacing: 3) {
+                if trailing { Spacer(minLength: 0) }
+                Text(title.uppercased())
+                    .foregroundStyle(isActive ? Theme.acc2 : (hovered ? Theme.txt : Theme.txt3))
+                Image(systemName: vm.sortAscending ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Theme.acc2)
+                    .opacity(isActive ? 1 : 0)
+            }
+            .frame(width: width, alignment: trailing ? .trailing : .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
+        .help("Sort by \(title.lowercased())")
     }
 }
 
@@ -201,16 +301,18 @@ private struct RecordingRow: View {
                 isFlagged: !isSplit && (integrity?.hasWarning ?? false)
             )
 
-            // Fixed right-aligned meta columns, tabular numerals.
-            HStack(spacing: 18) {
+            // Fixed right-aligned meta columns, tabular numerals. Widths come from `CJRowMetrics`
+            // so the sortable header bar lines up over them.
+            HStack(spacing: CJRowMetrics.metaSpacing) {
                 (Text("\(group.clipCount)").bold().foregroundStyle(Theme.txt)
                     + Text(group.clipCount == 1 ? " file" : " files"))
+                    .frame(width: CJRowMetrics.filesCol, alignment: .trailing)
                 Text(CJFormat.duration(group.totalDurationSeconds))
                     .bold()
                     .foregroundStyle(Theme.txt)
-                    .frame(width: 52, alignment: .trailing)
+                    .frame(width: CJRowMetrics.durationCol, alignment: .trailing)
                 Text(CJFormat.size(group.totalBytes))
-                    .frame(width: 64, alignment: .trailing)
+                    .frame(width: CJRowMetrics.sizeCol, alignment: .trailing)
             }
             .font(.system(size: 12))
             .monospacedDigit()
