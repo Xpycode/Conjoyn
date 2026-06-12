@@ -18,12 +18,19 @@
   `git-remote-reconciliation`).
 
 ## Now
-- **Phase:** implementation, 100% feature-complete. 1.0 shipped (**DMG notarized + stapled —
-  SHIPPABLE 2026-06-12**). **v1.0.1 sortable recordings columns code-complete + 330-test-verified +
-  merged to `main` 2026-06-12b** (`feature/sortable-columns` `--no-ff`).
+- **Phase:** implementation, 100% feature-complete. 1.0 shipped. **v1.0.1 shipped 2026-06-12c:**
+  sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
+  330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
 - **Blockers:** none.
-- **Next:** (1) **Ship v1.0.1:** push `main` → re-cut the DMG (`make-dmg.sh`). (2) Website copy + download link
-  (point it at `04_Exports/Conjoyn.dmg`). (3) QL thumbnail fix — switch from FFmpeg to
+- **⚠ Scope gap surfaced 2026-06-12c — NO auto-update mechanism.** Code search found zero
+  Sparkle/appcast integration; never built, never decided, never deferred (only the unchecked
+  `[ ] Auto-update` line in `33_app-minimums.md`). Notarized ≠ updatable — the two got conflated.
+  No installed base yet (website not live), so adding Sparkle is still greenfield. **Open decision:**
+  add it before the first public download link, or ship update-less and retrofit.
+- **Next:** (1) **Decide auto-update** — scope Sparkle (SPM dep, `SUFeedURL`, EdDSA keygen, host
+  `appcast.xml`+DMGs on the webspace, wire `make-dmg.sh` → `generate_appcast`) *before* the public
+  link, or explicitly defer. (2) Website copy + download link (point it at `04_Exports/Conjoyn.dmg`;
+  appcast lives here too if (1) is yes). (3) QL thumbnail fix — switch from FFmpeg to
   `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
   contention). (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
   sort policy (keep `.distantPast` or switch to Finder "undated always last" — `TODO` in `orders(...)`).
