@@ -526,3 +526,30 @@ Developer ID`. Credentials live only in the keychain (the `.p8` stays outside th
 wrapper (drag-to-Applications, background art) is deferred to the design/icon session — the zip is
 sufficient for now. Note: the helper-hardening check originally used `grep -q`, which under
 `set -o pipefail` SIGPIPE'd codesign and falsely failed; rewritten to capture-then-match.
+
+### 2026-06-13 - Persistent diagnostic logging (file-backed, rotating)
+**Context:** A `/minimums` pass (verified against the code) found one real baseline gap: logging was
+in-memory only. `QueueManager.log()` appended to a `consoleLines` buffer shown in the console window
+but trimmed to 5000 lines and lost on quit — so a bug reported after a relaunch left nothing on disk
+to inspect. No `OSLog`/`NSLog`/`print` either. (One deliberate omission was re-affirmed, not a gap:
+**no Preferences window / ⌘,** — appearance lives in its own menu and nothing else is configurable.)
+**Decision:** Add `DiagnosticLogger` — a file-backed log at
+`~/Library/Application Support/Conjoyn/diagnostic.log`. `@MainActor` singleton with an **injectable**
+storage directory (mirrors `SpeedTracker`/`QueueManager` so tests use a temp dir), ISO-8601 stamps, a
+per-session banner carrying the bundle version, append via `FileHandle.seekToEnd`, and
+**single-generation rotation** to `diagnostic.log.1` at 1 MB (`maxBytes`). Wired through the existing
+`QueueManager.log()` chokepoint with **one line**, so all ~56 call sites persist for free; the console
+and the file stay in lockstep by construction.
+**Rationale:** Route through the one existing `log()` funnel rather than introducing a parallel
+logging API — zero call-site churn, no drift between console and file. **Rotate-to-`.1`** over
+truncate-front or delete-on-full: it preserves the most relevant case (a bug reported *after* a
+relaunch) at a bounded ~2 × `maxBytes` disk cost and is trivial to implement. Synchronous main-thread
+writes are fine because every `log()` message is a coarse lifecycle event (job start / SUCCESS /
+FAILED / resolution milestones); the high-frequency `speed=`/progress stream deliberately flows
+through `activeMetrics`, never `log()`. The whole type is failure-swallowing (`try?` on every
+`FileManager`/`FileHandle` call) — a diagnostics facility must never crash the app it diagnoses.
+**Consequences:** Closes the last `/minimums` gap. `DiagnosticLoggerTests` (7) cover banner/version,
+append, ordering, injected dir, rotation, `.1` replacement, and the no-rotate-below-threshold guard;
+rotation is exercised by pre-seeding an oversized log so the test never writes a real megabyte. Full
+suite 337 / 1 skip / 0 fail. Owed: one live eyeball that the real file materializes on a join
+(verifies the bundle version stamp outside the test host). Shipped in `5a11fc6`.

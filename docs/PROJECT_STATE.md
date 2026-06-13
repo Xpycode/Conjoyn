@@ -217,6 +217,17 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13j — Persistent diagnostic logging (closes the last `/minimums` gap) (`5a11fc6`, pushed `main`).**
+  `/minimums` (verified against code) found one real gap: logging was in-memory only (`QueueManager.log()`
+  → `consoleLines`, lost on quit). New **`DiagnosticLogger`** (`Services/DiagnosticLogger.swift`): file-backed
+  log at `~/Library/Application Support/Conjoyn/diagnostic.log` — `@MainActor` singleton, **injectable storage
+  dir** (matches `SpeedTracker`), ISO-8601 stamps, per-session banner w/ bundle version, append via
+  `FileHandle.seekToEnd`, **single-generation rotation → `diagnostic.log.1` at 1 MB**; every `FileManager`/
+  `FileHandle` call `try?` (logging can't crash the app). **One line** in `QueueManager.log()` mirrors all
+  ~56 call sites for free (the noisy `speed=`/progress stream goes via `activeMetrics`, not `log()`).
+  `DiagnosticLoggerTests` (7); **337 tests / 1 skip / 0 fail**. Deliberate omission re-affirmed: **no
+  Preferences window (⌘,)**. **Owed:** one live eyeball that the real log file materializes on a join.
+  DMG now lags `main` by light-theme + menu + logging. Only **Sparkle Wave 4** gates 1.0-public.
 - **2026-06-13i — Menu polish + single-window mode (UI, no engine change).** Three small `ConjoynApp.swift`
   changes: **(1)** new `FileCommands` adds **File › Choose Folder…** (⌘O) calling the same
   `chooseSourceFolder()` path as the toolbar Scan. **(2)** Stripped everything below **Edit › Select All**
