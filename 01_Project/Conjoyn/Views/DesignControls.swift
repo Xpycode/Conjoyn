@@ -46,7 +46,7 @@ struct CJButtonStyle: ButtonStyle {
 
     private var fill: Color {
         switch kind {
-        case .standard: return .white.opacity(0.12)
+        case .standard: return Theme.raised(0.12)
         case .primary:  return Theme.acc2
         case .stop:     return Color(hex: 0xFF6B6B).opacity(0.22)
         case .ghost:    return .clear
@@ -57,7 +57,7 @@ struct CJButtonStyle: ButtonStyle {
         switch kind {
         case .standard: return Theme.txt
         case .primary:  return .white
-        case .stop:     return Color(hex: 0xFFB3B3)
+        case .stop:     return Color(light: 0xB23A3A, dark: 0xFFB3B3)
         case .ghost:    return Theme.txt2
         }
     }
@@ -82,7 +82,7 @@ struct CJIconButtonStyle: ButtonStyle {
             .frame(width: 22, height: 22)
             .background(
                 RoundedRectangle(cornerRadius: 5)
-                    .fill(hovered ? Color.white.opacity(0.08) : .clear)
+                    .fill(hovered ? Theme.raised(0.08) : .clear)
             )
             .opacity(configuration.isPressed ? 0.7 : 1)
             .onHover { hovered = $0 }
@@ -114,7 +114,7 @@ struct CJSegGroup: View {
             }
         }
         .padding(1)
-        .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 6))
+        .background(Theme.recessed(0.28), in: RoundedRectangle(cornerRadius: 6))
     }
 
     private struct SegButton: View {
@@ -134,7 +134,7 @@ struct CJSegGroup: View {
                         RoundedRectangle(cornerRadius: 5)
                             .fill(isActive
                                   ? Theme.acc2.opacity(0.15)
-                                  : (hovered ? Color.white.opacity(0.16) : .clear))
+                                  : (hovered ? Theme.raised(0.16) : .clear))
                     )
             }
             .buttonStyle(.plain)
@@ -155,9 +155,9 @@ struct CJCheckbox: View {
         Button(action: toggle) {
             ZStack {
                 RoundedRectangle(cornerRadius: 3.5)
-                    .fill(isOn ? Theme.acc2 : Color.black.opacity(0.25))
+                    .fill(isOn ? Theme.acc2 : Theme.recessed(0.25))
                 RoundedRectangle(cornerRadius: 3.5)
-                    .strokeBorder(isOn ? .clear : Color.white.opacity(0.28), lineWidth: 1)
+                    .strokeBorder(isOn ? .clear : Theme.raised(0.28), lineWidth: 1)
                 if isOn {
                     Image(systemName: "checkmark")
                         .font(.system(size: 9, weight: .bold))
@@ -190,7 +190,7 @@ struct CJBadge: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                Capsule().fill(accented ? Theme.acc1.opacity(0.12) : Color.white.opacity(0.04))
+                Capsule().fill(accented ? Theme.acc1.opacity(0.12) : Theme.raised(0.04))
             )
             .overlay(
                 Capsule().strokeBorder(
@@ -214,7 +214,7 @@ struct CJProgressBar: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.black.opacity(0.35))
+                Capsule().fill(Theme.recessed(0.35))
                 Capsule()
                     .fill(fillColor)
                     .frame(width: max(0, min(1, fraction)) * geo.size.width)
@@ -271,7 +271,7 @@ struct CJPathWell: View {
         .padding(.trailing, 4)
         .frame(height: height)
         .frame(minWidth: minWidth, maxWidth: 460)
-        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 7))
+        .background(Theme.recessed(0.30), in: RoundedRectangle(cornerRadius: 7))
         .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.line, lineWidth: 1))
     }
 }

@@ -26,6 +26,9 @@ struct ConjoynApp: App {
     /// Owns the Sparkle updater (starts a daily background check on init) and drives the
     /// "Check for Updates…" menu item's enabled state.
     @StateObject private var updaterController = UpdaterController()
+    /// User-chosen appearance (View › Appearance). Persisted; defaults to Dark so the
+    /// out-of-box look matches the dark-first FCP design. `.auto` follows the system.
+    @AppStorage("appearancePreference") private var appearance: AppearancePreference = .dark
 
     private let helpContent: HelpContent = {
         let content = (try? HelpContent(manifest: "help-manifest", in: .main))
@@ -39,7 +42,7 @@ struct ConjoynApp: App {
             ContentView()
                 .environmentObject(viewModel)
                 .environmentObject(viewModel.queue)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(appearance.colorScheme)
         }
         // Native titlebar toolbar (App Shell Standard): `.hiddenTitleBar` + the `.toolbar` /
         // `.toolbarRole(.editor)` in ContentView put the source well + Scan in the system titlebar.
@@ -49,6 +52,54 @@ struct ConjoynApp: App {
         .commands {
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
             UpdaterCommands(updater: updaterController)
+            AppearanceCommands(appearance: $appearance)
+        }
+    }
+}
+
+/// User appearance preference, persisted via `@AppStorage`. `.auto` follows the system
+/// (`colorScheme == nil`); `.light`/`.dark` pin the window via `.preferredColorScheme`.
+enum AppearancePreference: String, CaseIterable, Identifiable {
+    case auto, light, dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto:  return "Match System"
+        case .light: return "Light"
+        case .dark:  return "Dark"
+        }
+    }
+
+    /// `nil` = follow the system appearance.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .auto:  return nil
+        case .light: return .light
+        case .dark:  return .dark
+        }
+    }
+}
+
+/// Adds a top-level **Appearance** menu with Match System / Light / Dark radio items directly under it
+/// (`.inline` picker, no nested submenu). A `Commands` struct (not an inline closure) bound to
+/// the App's `@AppStorage` so the checkmark + `.preferredColorScheme` stay in sync — same
+/// pattern as `UpdaterCommands` (closures let the binding go stale). The `EmptyView` label
+/// suppresses a redundant "Appearance" section header inside the same-named menu.
+struct AppearanceCommands: Commands {
+    @Binding var appearance: AppearancePreference
+
+    var body: some Commands {
+        CommandMenu("Appearance") {
+            Picker(selection: $appearance) {
+                ForEach(AppearancePreference.allCases) { pref in
+                    Text(pref.title).tag(pref)
+                }
+            } label: {
+                EmptyView()
+            }
+            .pickerStyle(.inline)
         }
     }
 }
