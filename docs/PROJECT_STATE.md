@@ -217,6 +217,16 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13i — Menu polish + single-window mode (UI, no engine change).** Three small `ConjoynApp.swift`
+  changes: **(1)** new `FileCommands` adds **File › Choose Folder…** (⌘O) calling the same
+  `chooseSourceFolder()` path as the toolbar Scan. **(2)** Stripped everything below **Edit › Select All**
+  (Writing Tools / Emoji & Symbols / Dictation) — Dictation+Emoji via the documented `UserDefaults` keys
+  (`NSDisabledDictationMenuItem`/`NSDisabledCharacterPaletteMenuItem`), Writing Tools (no opt-out key) via a
+  new `EditMenuTrimmer` `NSMenuDelegate` that deletes items after `selectAll:` on every `menuNeedsUpdate`.
+  **(3)** `WindowGroup` → `Window("Conjoyn", id: "main")` — single-instance scene removes "New Window" (⌘N)
+  + the tab bar for free (app shares one view model + queue, so multi-window only mirrored state). Verified
+  zero other multi-window deps (`openWindow`/`scenePhase`/2nd scene). Spec: `specs/single-window-mode.md`.
+  Built **ad-hoc-signed Debug** (this Mac has Developer ID but no *Mac Development* cert) + user-eyeballed.
 - **2026-06-13g — QL thumbnail fix: QuickLook-first row thumbnails with an FFmpeg fallback (`ab6d140`,
   pushed `main`).** Backlog item (3). Row thumbnails now come from `QLThumbnailGenerator` instead of
   shelling out to FFmpeg per clip: QuickLook decodes **out-of-process** in the system Thumbnails agent

@@ -4,6 +4,17 @@ import HelpMenu
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Strips the system text extras (Writing Tools, Emoji & Symbols, Dictation, …) that AppKit
+    /// injects below "Select All" in the Edit menu. Retained so its menu delegate stays alive.
+    private let editMenuTrimmer = EditMenuTrimmer()
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Suppress the two system items AppKit auto-adds to the bottom of the Edit menu before the
+        // menu is built. (Writing Tools has no defaults switch — it's removed by the trimmer below.)
+        UserDefaults.standard.set(true, forKey: "NSDisabledDictationMenuItem")
+        UserDefaults.standard.set(true, forKey: "NSDisabledCharacterPaletteMenuItem")
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // SwiftUI maps "?" + .command to keyEquivalent="/" + .shift in the NSMenuItem,
         // which displays as ⌘⇧/. Patch it to "?" so the menu shows ⌘? and AppKit
@@ -13,6 +24,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 item.keyEquivalent = "?"
                 item.keyEquivalentModifierMask = [.command]
             }
+        }
+
+        // Remove everything below "Select All" in the Edit menu (writing tools, emoji, etc.).
+        if let editMenu = NSApp.mainMenu?.items
+            .compactMap(\.submenu)
+            .first(where: { menu in menu.items.contains { $0.action == #selector(NSText.selectAll(_:)) } }) {
+            editMenuTrimmer.attach(to: editMenu)
+        }
+    }
+}
+
+/// Becomes the Edit menu's delegate and, every time the menu is about to open, deletes every item
+/// after "Select All". This catches AppKit's lazily-injected items (Writing Tools especially, which
+/// has no `UserDefaults` opt-out) that a one-time pass at launch would miss.
+@MainActor
+final class EditMenuTrimmer: NSObject, NSMenuDelegate {
+    func attach(to menu: NSMenu) {
+        menu.delegate = self
+        trim(menu)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) { trim(menu) }
+
+    private func trim(_ menu: NSMenu) {
+        guard let selectAll = menu.items.firstIndex(where: { $0.action == #selector(NSText.selectAll(_:)) })
+        else { return }
+        while menu.items.count > selectAll + 1 {
+            menu.removeItem(at: selectAll + 1)
         }
     }
 }
@@ -38,7 +77,10 @@ struct ConjoynApp: App {
     }()
 
     var body: some Scene {
-        WindowGroup {
+        // Single-instance `Window` (not `WindowGroup`): Conjoyn shares one view model + queue, so a
+        // second window/tab would only mirror the same state. `Window` removes "New Window" (⌘N) and
+        // the tab bar automatically. See specs/single-window-mode.md.
+        Window("Conjoyn", id: "main") {
             ContentView()
                 .environmentObject(viewModel)
                 .environmentObject(viewModel.queue)
@@ -50,6 +92,7 @@ struct ConjoynApp: App {
         .windowResizability(.contentMinSize)
         .defaultSize(width: 1240, height: 800)
         .commands {
+            FileCommands(viewModel: viewModel)
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
             UpdaterCommands(updater: updaterController)
             AppearanceCommands(appearance: $appearance)
@@ -100,6 +143,21 @@ struct AppearanceCommands: Commands {
                 EmptyView()
             }
             .pickerStyle(.inline)
+        }
+    }
+}
+
+/// Adds **File › Choose Folder…** (⌘O), right after "New Window". Calls the same
+/// `chooseSourceFolder()` path the toolbar Scan button uses — opens the media-folder picker and
+/// scans. A `Commands` struct bound to the App's `@StateObject` view model (same pattern as
+/// `UpdaterCommands`) so the action always targets the live view model.
+struct FileCommands: Commands {
+    @ObservedObject var viewModel: ConversionViewModel
+
+    var body: some Commands {
+        CommandGroup(after: .newItem) {
+            Button("Choose Folder\u{2026}") { viewModel.chooseSourceFolder() }
+                .keyboardShortcut("o", modifiers: [.command])
         }
     }
 }
