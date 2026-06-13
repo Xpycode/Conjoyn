@@ -26,15 +26,13 @@ scar in the siblings is sidestepped:
 
 ---
 
-## Open factual note carried into execution
-**The `--account <name>` flag for key isolation is unverified.** Penumbra's docs use
-`generate_keys/generate_appcast --account penumbra`, but the official Sparkle publishing page (checked
-this session) doesn't document it, and a source-level agent claimed the key is fixed at keychain
-account `ed25519`. **Resolution:** in Wave 0, run `generate_keys --help` against the *pinned* Sparkle
-binary and use `--account conjoyn` only if the flag exists. **Regardless of the outcome, isolation +
-safety come from `-x` exporting the private key and backing it up twice** — that step is identical
-either way, so the plan is robust to both answers. Bake whichever invocation works into
-`make-appcast.sh` consistently.
+## Open factual note carried into execution — ✅ RESOLVED 2026-06-13
+**The `--account <name>` flag for key isolation IS supported** (verified against the pinned Sparkle
+2.9.3 `generate_keys --help` on the M4 Pro): `--account <account>` exists, default is the global
+`ed25519` account, and Sparkle explicitly recommends *"using different accounts for different
+organizations."* Confirmed empirically — this Mac's keychain already held a `penumbra` account from
+the sibling app. **Conjoyn's key was generated with `--account conjoyn`** for per-app isolation.
+Bake `--account conjoyn` into `make-appcast.sh` consistently.
 
 ---
 
@@ -158,10 +156,19 @@ after adding the new source file so it's compiled.
 
 ---
 
-## Wave 0 — EdDSA keys & custody (run right after 1.1 resolves the SPM artifacts)
+## Wave 0 — EdDSA keys & custody ✅ DONE 2026-06-13 (on the M4 Pro)
 > Sequenced after 1.1 because the `generate_keys` binary only exists once SPM resolves Sparkle.
 > This is the highest-stakes, least-reversible step: **lose this private key and no future build can
 > ever be signed → every user is permanently orphaned** (happened for real: SyncthingStatus v1.5→1.5.1).
+>
+> **DONE:** Generated on the **M4 Pro** (the M1 Max — the prior intended release Mac — was out of
+> order/being reset, and no Conjoyn key existed anywhere yet, so a fresh generation here is clean and
+> makes the M4 Pro Conjoyn's key-custody Mac going forward). `generate_keys --account conjoyn` →
+> **public key `Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=`** (now in `Info.plist`, round-trips via
+> `-p`). Private key in the M4 Pro login keychain (account `conjoyn`, does **not** sync). **Backup #1:**
+> `99-AUTH/conjoyn-sparkle-private.key` (`-x` export, 44-byte base64 seed, `chmod 600`).
+> **⏳ Backup #2 OWED** — user must copy it to a second out-of-repo secure location (password manager /
+> external drive) before the first signed public release.
 
 ```bash
 SPARKLE_BIN="$(find ~/Library/Developer/Xcode/DerivedData -path '*artifacts/sparkle/Sparkle/bin/generate_keys' 2>/dev/null | head -1 | xargs dirname)"
