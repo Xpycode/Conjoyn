@@ -62,10 +62,24 @@
   exact enclosure `length`/non-empty `edSignature`/URL). Ran it → signed `04_Exports/appcast/appcast.xml`
   (sparkle:version 100, len 27216044, edSignature present, auto `hardwareRequirements arm64`,
   minimumSystemVersion 14.0). Both appcast.xml + the staged DMG are gitignored (build artifacts).
-- **Next:** (1) **Wave 3.2** — the **100→101 local-HTTPS self-update dry run** (the remaining Wave 3
-  task): build a throwaway build-101 DMG + appcast, serve over local HTTPS (mkcert so ATS accepts it),
-  install build-100 to `/Applications`, **Check for Updates…** → confirm it updates to 101. Proves the
-  mechanism a first public release can't self-test. (2) **Wave 4** (host standup + publish) gated on the website.
+- **✓ Sparkle Wave 3.2 DONE 2026-06-13b — self-update PROVEN end-to-end.** Built a throwaway notarized
+  1.0.1/101 DMG (both notary round-trips Accepted), generated a local-feed appcast (`sparkle:version 101`,
+  enclosure `https://localhost:8443/Conjoyn-1.0.1.dmg`), served it over **mkcert HTTPS** (CA already in
+  System keychain → ATS trusts it), set the `SUFeedURL` user-default override, launched the installed
+  **build-100** app → **Check for Updates… offered 1.0.1 → downloaded → EdDSA-verified → installed →
+  relaunched as 1.0.1/101** (user-confirmed via 3 screenshots: "available" sheet, "Ready to Install",
+  About box "1.0.1 (101)"). Server log confirms `GET /appcast.xml` + `GET /Conjoyn-1.0.1.dmg`; the
+  swapped-in app is **still notarized + stapled** (`spctl` accepted) → clean relaunch for real users.
+  **Fully restored afterward:** `project.yml`→1.0/100 + xcodegen, `/Applications/Conjoyn.app`→100 (from
+  backup), `04_Exports/Conjoyn.dmg`→real notarized 100 (27216044 B), `SUFeedURL` default deleted, server
+  stopped, `/tmp` dry-run artifacts (incl. mkcert key) wiped. Git tree clean. One keychain note: a fresh
+  `generate_appcast` dir prompts for the `conjoyn` key — click **Always Allow**.
+- **🎉 SPARKLE COMPLETE through Wave 3.** The full release pipeline is Apple-validated *and* self-update-
+  proven: `notarize.sh` (archive→export, 8 nested Mach-Os Developer ID) → `make-dmg.sh` → `make-appcast.sh`.
+- **Next:** **Wave 4** (host standup + publish) — gated on the website session: stand up
+  `conjoyn.lucesumbrarum.com`, deploy `appcast.xml` + `Conjoyn-1.0.dmg` (Strato gotchas: `lftp mirror -R`
+  **without** `--delete`, `chmod 644/755` first), point the enclosure at the **raw** DMG URL (not the
+  counted PHP endpoint), `curl -sI` verify length/type, then publish the download link. Only then is 1.0 public.
   Branch `feature/sparkle-update`. (4) Website copy + download link (point it at
   `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
   (3) QL thumbnail fix — switch from FFmpeg to
@@ -184,6 +198,20 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13d — Wave 3.2: proved the Sparkle self-update end-to-end (Sparkle now complete through W3).**
+  Built a throwaway notarized **1.0.1/101** DMG (bumped `project.yml`, both notary round-trips Accepted),
+  generated a local-feed appcast (`generate_appcast --account conjoyn --download-url-prefix
+  https://localhost:8443/`, `sparkle:version 101`, exact length, signed), served it over **mkcert local
+  HTTPS** (CA already trusted in the System keychain → Sparkle's ATS accepts it), overrode the feed with
+  `defaults write …SUFeedURL https://localhost:8443/appcast.xml`, and ran **Check for Updates…** in the
+  installed build-100 app. It offered 1.0.1, downloaded, EdDSA-verified, installed, and **relaunched as
+  1.0.1/101** (user-confirmed via screenshots). Server access log shows the appcast + DMG GETs; the
+  swapped app stayed **notarized + stapled** (Gatekeeper accepted) → real users get a clean relaunch.
+  Then **restored everything**: `project.yml`→1.0/100 (+xcodegen), `/Applications`→build-100 (reinstalled
+  from a pre-test backup of the real DMG), `04_Exports/Conjoyn.dmg`→notarized 100, deleted the SUFeedURL
+  default, stopped the server, wiped `/tmp` artifacts incl. the mkcert key. Git tree clean. The whole
+  release pipeline (`notarize.sh`→`make-dmg.sh`→`make-appcast.sh`) is now both Apple-Accepted and
+  self-update-verified. **Only Wave 4 (website-gated publish) remains.**
 - **2026-06-13c — Re-cut the Sparkle DMG + shipped Wave 3.1 (signed appcast).** `make-dmg.sh SKIP_APP=1`
   reused the stapled archive→export app → `04_Exports/Conjoyn.dmg` (26 MB), DMG notary **Accepted**,
   stapled + validated, `spctl -t open` = `source=Notarized Developer ID` — the first Sparkle-enabled

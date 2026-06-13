@@ -277,7 +277,17 @@ Expected appcast shape:
 </rss>
 ```
 
-### 3.2 100 → 101 self-update test (BEFORE any public appcast)
+### 3.2 100 → 101 self-update test (BEFORE any public appcast) — ✅ DONE 2026-06-13d
+> Built a throwaway notarized **1.0.1/101** DMG, generated a local-feed appcast (enclosure
+> `https://localhost:8443/Conjoyn-1.0.1.dmg`), served via **mkcert HTTPS** (CA already in the System
+> keychain), set `defaults write com.lucesumbrarum.conjoyn SUFeedURL https://localhost:8443/appcast.xml`,
+> and ran **Check for Updates…** in the installed build-100 app → it offered 1.0.1, downloaded,
+> EdDSA-verified, installed, and **relaunched as 1.0.1/101** (user-confirmed). Server log shows the
+> appcast + DMG GETs; the swapped app stayed notarized + stapled (Gatekeeper accepted). All test state
+> restored (project.yml→100, /Applications→100, real DMG→100, SUFeedURL deleted, server + tmp wiped).
+> **Keychain note:** a fresh `generate_appcast` working dir re-prompts for the `conjoyn` key → Always Allow.
+> **Wave 3 COMPLETE. Only Wave 4 (website-gated publish) remains.**
+
 A first release can't test itself (nothing to update *from*). Prove the mechanism with a throwaway:
 1. Build a "new" build `101` DMG; `generate_appcast` an appcast advertising 101.
 2. Serve `appcast.xml` + the 101 DMG over **local HTTPS** (mkcert CA so ATS accepts it; plain HTTP or
