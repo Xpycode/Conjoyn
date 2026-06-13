@@ -52,11 +52,20 @@
   `04_Exports/Conjoyn.zip` (26 MB). **The archive→export adhoc-Sparkle fix is now Apple-confirmed, not just locally audited.**
   **⏳ Owed:** (a) **backup #2** of the Sparkle private key (user task — second out-of-repo location
   before the first public release).
-- **Next:** (1) **`make-dmg.sh SKIP_APP=1`** to wrap the just-stapled app into the notarized DMG (the app
-  build is already done, so reuse it). (2) **Wave 3** per
-  `docs/plans/sparkle-auto-update.md`: write `01_Project/scripts/make-appcast.sh` (use `--account
-  conjoyn`) + the 100→101 local-HTTPS self-update dry run (needs the notarized+stapled DMG, so it
-  follows the notarize run). (3) **Wave 4** (host standup + publish) gated on the website.
+- **✓ DMG re-cut (Sparkle-enabled) 2026-06-13b:** `make-dmg.sh SKIP_APP=1` wrapped the stapled
+  archive→export app → `04_Exports/Conjoyn.dmg` (26 MB), DMG notary **Accepted**, stapled +
+  `stapler validate` worked, `spctl -t open` = `source=Notarized Developer ID`. This DMG is the first
+  Sparkle-enabled shippable artifact.
+- **✓ Sparkle Wave 3.1 DONE 2026-06-13b:** wrote `01_Project/scripts/make-appcast.sh` (DMG enclosure,
+  `--account conjoyn`, `--download-url-prefix https://conjoyn.lucesumbrarum.com/`; stages the DMG as
+  `Conjoyn-<short>.dmg`, runs `generate_appcast`, then hard-verifies xmllint/`sparkle:version==build`/
+  exact enclosure `length`/non-empty `edSignature`/URL). Ran it → signed `04_Exports/appcast/appcast.xml`
+  (sparkle:version 100, len 27216044, edSignature present, auto `hardwareRequirements arm64`,
+  minimumSystemVersion 14.0). Both appcast.xml + the staged DMG are gitignored (build artifacts).
+- **Next:** (1) **Wave 3.2** — the **100→101 local-HTTPS self-update dry run** (the remaining Wave 3
+  task): build a throwaway build-101 DMG + appcast, serve over local HTTPS (mkcert so ATS accepts it),
+  install build-100 to `/Applications`, **Check for Updates…** → confirm it updates to 101. Proves the
+  mechanism a first public release can't self-test. (2) **Wave 4** (host standup + publish) gated on the website.
   Branch `feature/sparkle-update`. (4) Website copy + download link (point it at
   `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
   (3) QL thumbnail fix — switch from FFmpeg to
@@ -175,6 +184,17 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13c — Re-cut the Sparkle DMG + shipped Wave 3.1 (signed appcast).** `make-dmg.sh SKIP_APP=1`
+  reused the stapled archive→export app → `04_Exports/Conjoyn.dmg` (26 MB), DMG notary **Accepted**,
+  stapled + validated, `spctl -t open` = `source=Notarized Developer ID` — the first Sparkle-enabled
+  shippable artifact. Then **Wave 3.1:** wrote `01_Project/scripts/make-appcast.sh` (modeled on
+  Penumbra's runbook but DMG-enclosure + `--account conjoyn` + `--download-url-prefix`; resolves
+  Conjoyn's own `generate_appcast` from DerivedData, stages the DMG as `Conjoyn-1.0.dmg`, then
+  hard-verifies xmllint / `sparkle:version==100` / exact enclosure `length==27216044` / non-empty
+  `edSignature` / enclosure URL — soft-reports shortVersionString + minimumSystemVersion). Ran it →
+  `04_Exports/appcast/appcast.xml` signed and all checks ✓; `generate_appcast` auto-added
+  `hardwareRequirements arm64` (Apple-Silicon-only → never offered to Intel). appcast.xml + staged DMG
+  are gitignored. Next: **Wave 3.2** 100→101 local-HTTPS self-update dry run.
 - **2026-06-13b — Ran the real Apple notary round-trip (Sparkle Wave 2 capstone).** `notarize.sh`
   end-to-end on the M4 Pro: clean archive → Developer-ID export (re-signs nested code) → the
   `assert_devid_runtime` loop passed **8/8 nested Mach-Os** (app, ffmpeg, ffprobe, Sparkle.framework,

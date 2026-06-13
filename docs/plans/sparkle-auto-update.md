@@ -242,6 +242,11 @@ nested Mach-Os, so submission is expected to be Accepted). Scripts are notary-re
 ---
 
 ## Wave 3 — Release pipeline + self-update dry run (local HTTPS, no public host)
+> **3.1 ✅ DONE 2026-06-13c.** Apple notary round-trip on the archive→export app came back **Accepted**
+> (Wave 2 capstone), DMG re-cut + notarized (`04_Exports/Conjoyn.dmg`, 26 MB), then
+> `01_Project/scripts/make-appcast.sh` written and run → signed `04_Exports/appcast/appcast.xml`
+> (`sparkle:version 100`, exact `length 27216044`, non-empty `edSignature`, auto `hardwareRequirements
+> arm64`, `minimumSystemVersion 14.0`). All hard checks pass. **3.2 (self-update dry run) is next.**
 
 ### 3.1 New `01_Project/scripts/make-appcast.sh`
 Runs **after** `make-dmg.sh` has produced the stapled, notarized `04_Exports/Conjoyn.dmg`. It:
