@@ -96,7 +96,7 @@ struct RenamePopover: View {
             )
             .frame(height: 24)
             .padding(.horizontal, 8)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.30)))
+            .background(RoundedRectangle(cornerRadius: 6).fill(Theme.recessed(0.30)))
             .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.lineStrong, lineWidth: 1))
 
             HStack(spacing: 5) {
@@ -151,7 +151,7 @@ struct RenamePopover: View {
             }
         }
         .padding(1)
-        .background(Color.black.opacity(0.28), in: RoundedRectangle(cornerRadius: 6))
+        .background(Theme.recessed(0.28), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: Row 4 — live preview
@@ -183,7 +183,7 @@ struct RenamePopover: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.28)))
+        .background(RoundedRectangle(cornerRadius: 6).fill(Theme.recessed(0.28)))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.line, lineWidth: 1))
     }
 
@@ -210,7 +210,7 @@ struct RenamePopover: View {
 
     private func chipFill(selected: Bool, mono: Bool) -> Color {
         if selected { return Theme.acc2 }
-        return mono ? Theme.acc2.opacity(0.20) : Color.white.opacity(0.10)
+        return mono ? Theme.acc2.opacity(0.20) : Theme.raised(0.10)
     }
 }
 

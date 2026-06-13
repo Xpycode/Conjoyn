@@ -141,7 +141,7 @@ private struct ColumnHeaderBar: View {
         .padding(.leading, CJRowMetrics.rowPadH + CJRowMetrics.leadingInset)
         .padding(.trailing, CJRowMetrics.rowPadH)
         .padding(.vertical, 5)
-        .background(Color.black.opacity(0.12))
+        .background(Theme.recessed(0.12))
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
     }
 }
@@ -332,7 +332,7 @@ private struct RecordingRow: View {
 
     private func rowBackground(checked: Bool) -> Color {
         if checked { return Theme.acc2.opacity(0.12) }
-        if hovered { return .white.opacity(0.025) }
+        if hovered { return Theme.raised(0.025) }
         return .clear
     }
 }
@@ -359,7 +359,7 @@ private struct IntegrityChip: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(
-            Capsule().fill(isWarning ? Theme.acc1.opacity(0.12) : Color.white.opacity(0.04))
+            Capsule().fill(isWarning ? Theme.acc1.opacity(0.12) : Theme.raised(0.04))
         )
         .overlay(
             Capsule().strokeBorder(isWarning ? Theme.acc1.opacity(0.28) : Theme.line, lineWidth: 1)
@@ -402,7 +402,7 @@ private struct SegmentSublist: View {
                 .padding(.trailing, 16)
             }
         }
-        .background(Color.black.opacity(0.22))
+        .background(Theme.recessed(0.22))
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
     }
 }
@@ -439,8 +439,8 @@ struct ClipThumbnailView: View {
     }
 
     private var placeholder: some View {
-        // Flat dark loading tile — no glyph, so it never reads as a clickable play button.
-        Color(hex: 0x222222)
+        // Flat loading tile — no glyph, so it never reads as a clickable play button.
+        Color(light: 0xDDDDDD, dark: 0x222222)
     }
 }
 
@@ -455,7 +455,7 @@ struct EmptyStateView: View {
             VStack(spacing: 12) {
                 Image(systemName: "sdcard")
                     .font(.system(size: 34, weight: .ultraLight))
-                    .foregroundStyle(Color(hex: 0x555555))
+                    .foregroundStyle(Theme.txt3)
                 Text("Choose a folder or drop a card to begin")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.txt)
@@ -475,7 +475,7 @@ struct EmptyStateView: View {
             .background(
                 RoundedRectangle(cornerRadius: 14)
                     .strokeBorder(
-                        dropTargeted ? Theme.acc2.opacity(0.7) : Color.white.opacity(0.16),
+                        dropTargeted ? Theme.acc2.opacity(0.7) : Theme.raised(0.16),
                         style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
                     )
             )

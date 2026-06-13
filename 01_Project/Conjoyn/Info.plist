@@ -8,5 +8,16 @@
 	     toolbar items render flat instead of in glass capsules. -->
 	<key>UIDesignRequiresCompatibility</key>
 	<true/>
+	<!-- Sparkle auto-update. These SU* keys MUST live here in the base plist, NOT as
+	     INFOPLIST_KEY_SU* build settings: with GENERATE_INFOPLIST_FILE=YES, custom SU* keys
+	     are silently dropped (not on Apple's allowlist) → runtime "specify the URL of the
+	     appcast" (same trap class as cookbook #89). SUPublicEDKey is filled in Wave 0 from the
+	     freshly generated EdDSA keypair. -->
+	<key>SUFeedURL</key>
+	<string>https://conjoyn.lucesumbrarum.com/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>
