@@ -96,9 +96,11 @@
   counted PHP endpoint), `curl -sI` verify length/type, then publish the download link. Only then is 1.0 public.
   Work off **`main`** now (both feature branches merged & deletable). (4) Website copy + download link (point it at
   `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
-  (3) QL thumbnail fix — switch from FFmpeg to
-  `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
-  contention). (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
+  ~~(3) QL thumbnail fix — switch from FFmpeg to `QLThumbnailGenerator`.~~ **DONE 2026-06-13g
+  (`ab6d140`, pushed `main`).** Hybrid: QuickLook-first (out-of-process system Thumbnails agent +
+  system cache → instant re-scan, decode load leaves the app), FFmpeg first-frame kept as fallback;
+  also dropped the unused last-frame extraction (row only showed `first ?? last`). User-confirmed
+  "definitely faster." 330 tests. Pattern → cookbook #94. (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
   sort policy (keep `.distantPast` or switch to Finder "undated always last" — `TODO` in `orders(...)`).
 - **Ship artifact:** `04_Exports/Conjoyn.dmg` (27 MB, `source=Notarized Developer ID`). Rebuild any
   time with `01_Project/scripts/make-dmg.sh` (delegates to `notarize.sh` for the app, then wraps +
@@ -212,6 +214,22 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13g — QL thumbnail fix: QuickLook-first row thumbnails with an FFmpeg fallback (`ab6d140`,
+  pushed `main`).** Backlog item (3). Row thumbnails now come from `QLThumbnailGenerator` instead of
+  shelling out to FFmpeg per clip: QuickLook decodes **out-of-process** in the system Thumbnails agent
+  and is **system-cached** (file+mtime+size), so the decode load leaves the app (eases the post-scan
+  thumbnail/SRT I/O contention) and a **re-scan returns instantly**. The FFmpeg first-frame path is
+  **kept as a fallback** for any file QuickLook can't read, so the throttle-semaphore / kill-poll /
+  `ContinuationGuard` machinery is *demoted* to the rare-miss path, not deleted (no blank tiles ever).
+  Also **dropped the unused last-frame extraction** — the recordings row only ever displayed
+  `first ?? last`, so `last` was a second subprocess per clip for a never-shown frame (now always nil;
+  field kept so call sites don't churn). `representationTypes: .thumbnail` only (`.icon`/`.all` can
+  "succeed" with the generic movie-file icon → would suppress the fallback); `import
+  QuickLookThumbnailing` auto-links (no `project.yml`/xcodegen change). **330 pass / 1 skip / 0 fail**
+  (integration test flipped to the new contract: `first` non-nil via QL-or-fallback, `last` nil).
+  **User-confirmed "definitely faster"** on a real card. Pattern → **cookbook #94**
+  (`94-macos-quicklook-thumbnail-hybrid.md`). Push gotcha logged: `main` had no upstream → first
+  `git push` silently no-op'd (tell: `## main` not `## main...origin/main`); fixed with `push -u`.
 - **2026-06-13e — Sparkle key backup #2: custody secured (last R1-risk owed item closed).** Located
   backup #1 at `/Users/sim/ProgrammingProjects/99-AUTH/` — one level **above** the repo, in no git tree
   → genuinely out-of-repo (explains the earlier "not ignored" reading). Confirmed **this is the M4 Pro**
