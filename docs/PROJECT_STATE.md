@@ -11,11 +11,14 @@
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
 - **Tags:** macOS, video, DJI, metadata, ffmpeg
 - **Started:** 2026-06-07
-- **Repo/git:** canonical history at `github.com/Xpycode/Conjoyn` (private), baseline `830b8fa`
-  (created 2026-06-10c). Code syncs across Macs via **Syncthing, which excludes `.git`** — so git
-  history travels **only via `origin`**. Any other Mac must `git remote add origin … && git fetch
-  && git reset --hard origin/main` **before committing**, or history forks (see memory
-  `git-remote-reconciliation`).
+- **Repo/git:** canonical history at `github.com/Xpycode/Conjoyn` (private, **HTTPS via `gh`** —
+  no SSH key), baseline `830b8fa` (created 2026-06-10c). Code syncs across Macs via **Syncthing,
+  which excludes `.git`** — so git history travels **only via `origin`**. On a fresh Mac (no
+  `.git`) reconcile **before committing** or history forks: `git init -b main && git remote add
+  origin … && git fetch && git reset --mixed origin/main`, then **`git status`** — a **clean** tree
+  means on-disk == origin (done); **any tracked diff** means stop and reconcile by hand. **Never
+  `reset --hard` blind** (it silently clobbers Mac-local work). Full procedure = the global
+  **`git-bootstrap` skill**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
 - **Phase:** implementation, 100% feature-complete. 1.0 shipped. **v1.0.1 shipped 2026-06-12c:**
