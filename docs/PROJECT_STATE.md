@@ -44,11 +44,16 @@
   Developer ID + `flags=0x10000(runtime)`**; `make-dmg.sh` repointed to `export/Conjoyn.app`; version
   `1.0/100`. Keychain audit: M4 Pro holds the full **Developer ID Application** identity → complete
   release Mac.
-- **Blockers:** none. **⏳ Owed:** (a) **backup #2** of the Sparkle private key (user task — second
-  out-of-repo location before the first public release); (b) the **actual Apple notary round-trip** is
-  not yet run (local audit passes → safe deliberate next step).
-- **Next:** (1) **Run `notarize.sh`** (real Apple submission) to prove the archive→export round-trip
-  end-to-end + produce the notarized app → then `make-dmg.sh`. (2) **Wave 3** per
+- **Blockers:** none. **✓ Notary round-trip RUN 2026-06-13b** (this proved owed item (b)): `notarize.sh`
+  end-to-end green on the M4 Pro — archive→export, **8/8 nested Mach-Os Developer ID + hardened runtime**
+  (app, ffmpeg, ffprobe, Sparkle.framework, Autoupdate, Updater, Installer.xpc, Downloader.xpc), Apple
+  **status: Accepted** (id `3c43b140…`), stapled + `stapler validate` worked, `spctl -t exec` =
+  `source=Notarized Developer ID`. Exported app `1.0/100`, `SUPublicEDKey` round-trips; stapled
+  `04_Exports/Conjoyn.zip` (26 MB). **The archive→export adhoc-Sparkle fix is now Apple-confirmed, not just locally audited.**
+  **⏳ Owed:** (a) **backup #2** of the Sparkle private key (user task — second out-of-repo location
+  before the first public release).
+- **Next:** (1) **`make-dmg.sh SKIP_APP=1`** to wrap the just-stapled app into the notarized DMG (the app
+  build is already done, so reuse it). (2) **Wave 3** per
   `docs/plans/sparkle-auto-update.md`: write `01_Project/scripts/make-appcast.sh` (use `--account
   conjoyn`) + the 100→101 local-HTTPS self-update dry run (needs the notarized+stapled DMG, so it
   follows the notarize run). (3) **Wave 4** (host standup + publish) gated on the website.
@@ -170,6 +175,16 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13b — Ran the real Apple notary round-trip (Sparkle Wave 2 capstone).** `notarize.sh`
+  end-to-end on the M4 Pro: clean archive → Developer-ID export (re-signs nested code) → the
+  `assert_devid_runtime` loop passed **8/8 nested Mach-Os** (app, ffmpeg, ffprobe, Sparkle.framework,
+  Autoupdate, Updater, Installer.xpc, Downloader.xpc) as Developer ID + `flags=0x10000(runtime)` →
+  Apple notary **Accepted** (id `3c43b140-4aed-4bd4-b34b-ddd7c1ef78cb`) → stapled + `stapler validate`
+  worked → `spctl -a -t exec` = `source=Notarized Developer ID`. Exported app is `1.0/100` with the
+  M4 Pro `SUPublicEDKey`; stapled `04_Exports/Conjoyn.zip` (26 MB). **This is the proof the Wave-2 fix
+  needed:** the local audit only checked signatures looked right; Apple's server-side re-validation of
+  every nested Mach-O confirms the adhoc-Sparkle trap is genuinely closed (a plain `xcodebuild build`
+  would have been rejected here). Next: `make-dmg.sh SKIP_APP=1` to wrap the stapled app, then Wave 3.
 - **2026-06-13 — Sparkle Wave 0 (EdDSA key) + Wave 2 (local verify), on the M4 Pro.** Git reconcile
   found **nothing from the M1 Max** — both sync channels agreed (Syncthing excludes `.git`; origin
   unchanged at `30b5e8e`; `SUPublicEDKey` still placeholder), so Wave 0 was never done there. M1 Max is
