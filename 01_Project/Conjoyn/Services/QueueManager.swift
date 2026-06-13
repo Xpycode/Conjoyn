@@ -167,6 +167,10 @@ final class QueueManager: ObservableObject {
     // MARK: - Logging
 
     func log(_ message: String) {
+        // Mirror every console message to the persistent diagnostic log so a bug report filed after
+        // a quit/relaunch still has the events on disk (the console buffer below is in-memory only).
+        DiagnosticLogger.shared.log(message)
+
         let timestamp = Self.timestampFormatter.string(from: Date())
         let line = "[\(timestamp)] \(message)"
         consoleLines.append(line)
