@@ -22,21 +22,25 @@
   sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
   330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
 - **Blockers:** none.
-- **✓ Light theme done (branch `feature/light-theme`, 2026-06-13) — UNMERGED.** Auto/Light/Dark via a
-  top-level **Appearance** menu (Match System / Light / Dark), default **Dark** (no out-of-box change).
-  All 13 `Theme` tokens made adaptive via dynamic `NSColor` (one chokepoint; 136 usages untouched); new
-  "soft neutral gray" light palette, accents unchanged; `Theme.raised()`/`recessed()` helpers replaced
-  18 inline overlay colors + 2 stray hex. `AppearancePreference` + `@AppStorage` + `AppearanceCommands`.
-  Build clean, light mode user-confirmed. **Diverges from the App Shell Standard (dark-only) — flagged.**
-  Rebased onto the sparkle-update tip (the `ConjoynApp.swift` edits sit alongside `UpdaterCommands`); not
-  pushed. **Owed:** light-mode accent eyeball (seal/chip on white); decide merge order vs Sparkle Wave 4.
+- **✓ Light theme MERGED → `main` 2026-06-13f (`ebd260d`, `--no-ff`, pushed origin `4244ab2..ebd260d`).**
+  Auto/Light/Dark via a top-level **Appearance** menu (Match System / Light / Dark), default **Dark** (no
+  out-of-box change). All 13 `Theme` tokens made adaptive via dynamic `NSColor` (one chokepoint; 136 usages
+  untouched); new "soft neutral gray" light palette, accents unchanged; `Theme.raised()`/`recessed()` helpers
+  replaced 18 inline overlay colors + 2 stray hex. `AppearancePreference` + `@AppStorage` + `AppearanceCommands`.
+  **330 tests pass / 1 skip / 0 fail**; light mode user-confirmed live (palette + tint accents — SPLIT badge
+  proves the chip construction; full-opacity seal trusted by construction, not yet post-join eyeballed).
+  **Diverges from the App Shell Standard (dark-only) — flagged; Conjoyn is now intentionally not dark-only.**
+  Because the branch was **stacked on `feature/sparkle-update`**, this one merge also brought **all of Sparkle
+  (Waves 0–3) onto `main`** — both feature branches are now `--merged main` (deletable). Merge ≠ public ship:
+  the 1.0-public gate is still **Sparkle Wave 4** (website appcast hosting).
 - **✓ Auto-update gap DECIDED + PLANNED 2026-06-12e.** The 2026-06-12c scope gap (no Sparkle/appcast
   integration) is now resolved on paper: **ship Conjoyn ONLY with Sparkle auto-update** — the first
   public download IS the first Sparkle-enabled build (no update-less interim). Sub-decisions:
   **DMG-only enclosure**, **automatic + menu** checks, **debut as 1.0 / build 100**, **Sparkle 2.9.3**,
   self-host appcast at `conjoyn.lucesumbrarum.com`. Full plan in `docs/plans/sparkle-auto-update.md`
   (5 waves); rationale in `docs/decisions.md` (2026-06-12).
-- **✓ Sparkle Waves 1+0+2 DONE (branch `feature/sparkle-update`).** **Wave 1** (`11958e6`, 2026-06-12f):
+- **✓ Sparkle Waves 0–3 DONE + now on `main`** (merged via the stacked `feature/light-theme` merge `ebd260d`,
+  2026-06-13f; `feature/sparkle-update` is `--merged main`). **Wave 1** (`11958e6`, 2026-06-12f):
   Sparkle 2.9.3 SPM dep + target dep; version baseline **0.1.0/1 → 1.0/build 100** (monotonic ==
   `sparkle:version`); 3 `SU*` keys in the **base Info.plist** (cookbook #89 trap avoided);
   `UpdaterController.swift` ported verbatim; `UpdaterCommands` (`Commands` struct) adds "Check for
@@ -90,7 +94,7 @@
   `conjoyn.lucesumbrarum.com`, deploy `appcast.xml` + `Conjoyn-1.0.dmg` (Strato gotchas: `lftp mirror -R`
   **without** `--delete`, `chmod 644/755` first), point the enclosure at the **raw** DMG URL (not the
   counted PHP endpoint), `curl -sI` verify length/type, then publish the download link. Only then is 1.0 public.
-  Branch `feature/sparkle-update`. (4) Website copy + download link (point it at
+  Work off **`main`** now (both feature branches merged & deletable). (4) Website copy + download link (point it at
   `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
   (3) QL thumbnail fix — switch from FFmpeg to
   `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
