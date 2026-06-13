@@ -50,8 +50,10 @@
   **status: Accepted** (id `3c43b140…`), stapled + `stapler validate` worked, `spctl -t exec` =
   `source=Notarized Developer ID`. Exported app `1.0/100`, `SUPublicEDKey` round-trips; stapled
   `04_Exports/Conjoyn.zip` (26 MB). **The archive→export adhoc-Sparkle fix is now Apple-confirmed, not just locally audited.**
-  **⏳ Owed:** (a) **backup #2** of the Sparkle private key (user task — second out-of-repo location
-  before the first public release).
+  **✓ Sparkle key custody SECURED 2026-06-13d:** 3 verified-identical copies — M4 Pro keychain
+  (`account=conjoyn`), backup #1 `99-AUTH/conjoyn-sparkle-private.key` (out-of-repo, Syncthing-
+  replicated), backup #2 in the password manager (off-mesh). Proven equal by bit-identical
+  deterministic Ed25519 signatures + the seed derives the shipping `SUPublicEDKey`. No owed items.
 - **✓ DMG re-cut (Sparkle-enabled) 2026-06-13b:** `make-dmg.sh SKIP_APP=1` wrapped the stapled
   archive→export app → `04_Exports/Conjoyn.dmg` (26 MB), DMG notary **Accepted**, stapled +
   `stapler validate` worked, `spctl -t open` = `source=Notarized Developer ID`. This DMG is the first
@@ -198,6 +200,18 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13e — Sparkle key backup #2: custody secured (last R1-risk owed item closed).** Located
+  backup #1 at `/Users/sim/ProgrammingProjects/99-AUTH/` — one level **above** the repo, in no git tree
+  → genuinely out-of-repo (explains the earlier "not ignored" reading). Confirmed **this is the M4 Pro**
+  (key-custody Mac), `conjoyn` account in keychain. **Verified backup #1 without exposing the secret:**
+  signed fixed test bytes with the keychain key (`sign_update --account conjoyn -p`) and with the file
+  (`--ed-key-file`) → **bit-identical Ed25519 signatures** (deterministic) = byte-for-byte the same
+  signing key. **Backup #2 = password manager** (off the Syncthing mesh — `99-AUTH/` is Syncthing-
+  replicated, so keychain+file shared a failure domain): seed copied via `pbcopy` (never printed; length
+  44 confirmed), pasted into a secure note with recovery metadata (public key `Ks14npeWNt9Rd8…`,
+  `account=conjoyn`, both backup locations, restore steps), clipboard then **cleared** (0 chars). Key
+  custody now = **3 verified-identical copies** (keychain + 99-AUTH file + password manager); a restored
+  seed is *the* key iff it derives the shipped `SUPublicEDKey`. **Only Wave 4 (website publish) remains.**
 - **2026-06-13d — Wave 3.2: proved the Sparkle self-update end-to-end (Sparkle now complete through W3).**
   Built a throwaway notarized **1.0.1/101** DMG (bumped `project.yml`, both notary round-trips Accepted),
   generated a local-feed appcast (`generate_appcast --account conjoyn --download-url-prefix
