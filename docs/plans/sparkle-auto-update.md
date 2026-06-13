@@ -194,9 +194,14 @@ SPARKLE_BIN="$(find ~/Library/Developer/Xcode/DerivedData -path '*artifacts/spar
 ## Wave 2 — Local verification (no network, no publish)
 
 1. **Build + full suite:** clean Debug build launches; `330 pass / 1 skip / 0 fail` still green.
+   — ✅ DONE 2026-06-13 (M4 Pro): clean build + test `330 pass / 1 skip / 0 fail`. Built plist
+   carries the real `SUPublicEDKey`, `SUFeedURL`, `SUEnableAutomaticChecks=true`, version 1.0/build
+   100; `Sparkle.framework` embedded with all 4 nested Mach-Os.
 2. **"Check for Updates…" smoke:** menu item present under the app menu, enabled, click shows
    Sparkle's "you're up to date" (or a network-error sheet if offline) — proves the updater starts
    and reads `SUFeedURL`/`SUPublicEDKey` (no appcast served yet).
+   — ✅ DONE 2026-06-13: menu item present + enabled; click produced a Sparkle sheet (host not live →
+   network/not-found, the expected Wave-2 result). Updater initializes; `Commands`-struct binding works.
 3. **Signing/notarization audit — extend `notarize.sh` for the new nested Mach-Os.** Adding Sparkle
    adds binaries that notarization will inspect; each must be Developer-ID + `flags=0x10000(runtime)`.
    Add to the verify loop in `notarize.sh` (currently only ffmpeg/ffprobe):
@@ -215,9 +220,24 @@ SPARKLE_BIN="$(find ~/Library/Developer/Xcode/DerivedData -path '*artifacts/spar
      `xcodebuild build` doesn't correctly re-sign the nested XPC with hardened runtime, fall back to
      Penumbra's **Archive → Export (developer-id)** path (an `exportOptions.plist` with
      `method=developer-id`). Decide by the `codesign -dv` audit above, not by assumption.
+   — ✅ DONE 2026-06-13: **risk gate FIRED — the plain `xcodebuild build` left all 4 nested Sparkle
+   Mach-Os ADHOC** (`flags=0x10002(adhoc,runtime)`, no Developer ID, no timestamp) while correctly
+   signing only the framework dylib + app wrapper. `--deep --strict` passed anyway (adhoc is "valid on
+   disk") — exactly the notary-rejection trap. **Switched `notarize.sh` to Archive → Export
+   (`method=developer-id`, `teamID`, `signingStyle=automatic`)** per Penumbra's runbook. Re-audited the
+   export: **all 8 binaries** (Autoupdate, Updater, Installer.xpc, Downloader.xpc, Sparkle.framework,
+   app wrapper, ffmpeg, ffprobe) now show `flags=0x10000(runtime)` + `Authority=Developer ID
+   Application: GREGOR MÜLLER (FDMSRXXN73)`. Added an `assert_devid_runtime` loop to `notarize.sh`
+   (audits all 8, not just ffmpeg/ffprobe); `make-dmg.sh` consumes the new `export/Conjoyn.app` path.
+   `sign-bundled-binaries.sh` confirmed scoped to `Resources/Helpers` only (never touches Sparkle).
+   **Apple notary submission NOT yet run** — local audit passes, so it's a safe deliberate next step.
 4. **Monotonic version check:** confirm `CFBundleVersion` of the Release build == `100`.
+   — ✅ DONE 2026-06-13: Release export reports `CFBundleShortVersionString=1.0`, `CFBundleVersion=100`.
 
 **Wave 2 exit:** Release build signs + notarizes with all Sparkle nested binaries hardened; menu works.
+— ✅ **WAVE 2 COMPLETE 2026-06-13** (M4 Pro), except the actual Apple notary round-trip (deferred to a
+deliberate run; the local `codesign -dv` audit — which mirrors notarize.sh's gate — passes for all 8
+nested Mach-Os, so submission is expected to be Accepted). Scripts are notary-ready.
 
 ---
 

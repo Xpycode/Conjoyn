@@ -27,9 +27,9 @@ TEAM_ID="FDMSRXXN73"
 IDENTITY="Developer ID Application"
 NOTARY_PROFILE="${NOTARY_PROFILE:-conjoyn-notary}"
 
-# Same DERIVED path notarize.sh builds into, so we consume the app it stapled.
+# Same export path notarize.sh produces, so we consume the app it stapled.
 DERIVED="${PROJECT_DIR}/build/notarize"
-APP="${DERIVED}/Build/Products/Release/Conjoyn.app"
+APP="${DERIVED}/export/Conjoyn.app"
 
 OUT_DIR="${PROJECT_DIR}/../04_Exports"
 DMG="${OUT_DIR}/Conjoyn.dmg"
