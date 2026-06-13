@@ -145,7 +145,7 @@ final class ThumbnailManagerTests: XCTestCase {
 
     // MARK: - Integration: extract real frames (skips without ffmpeg)
 
-    func testExtractsFirstAndLastFrameFromRealClip() async throws {
+    func testExtractsFirstFrameFromRealClip() async throws {
         let resolver = BundledToolResolver.shared
         guard let ffmpegBin = resolver.path(for: .ffmpeg) else {
             throw XCTSkip("No ffmpeg available (bundled or Homebrew)")
@@ -169,8 +169,12 @@ final class ThumbnailManagerTests: XCTestCase {
 
         let result = await manager.getThumbnails(for: clip)
 
-        XCTAssertNotNil(result.first, "should extract a first-frame thumbnail")
-        XCTAssertNotNil(result.last, "should extract a last-frame thumbnail")
+        // `first` comes from QuickLook, or the FFmpeg first-frame fallback when QuickLook produces
+        // nothing — either way the recordings row gets a frame.
+        XCTAssertNotNil(result.first, "should extract a first-frame thumbnail (QuickLook or FFmpeg fallback)")
+        // The last frame is no longer extracted: the row only ever displayed `first`, so the second
+        // extraction was wasted work. `last` is intentionally nil now.
+        XCTAssertNil(result.last, "last frame is no longer extracted")
         if let first = result.first {
             XCTAssertGreaterThan(first.size.width, 0)
         }

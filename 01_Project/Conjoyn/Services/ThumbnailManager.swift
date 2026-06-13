@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import QuickLookThumbnailing
 
 // MARK: - Thumbnail Manager (Wave 1, task 1.10)
 
@@ -10,8 +11,11 @@ import AppKit
 ///
 /// **The DJI change:** P2 clips had a PROXY → ICON → VIDEO(MXF) fallback chain per frame (a P2 card
 /// carries low-res proxies and a first-frame BMP). A DJI segment is a single self-contained MP4/MOV,
-/// so extraction reads directly from `clip.videoURL` — no fallback chain, and the P2 `ThumbnailSource`
-/// indicator enum is dropped.
+/// so the P2 `ThumbnailSource` indicator enum is dropped.
+///
+/// **The QuickLook change:** the actual frame now comes from `QLThumbnailGenerator` (out-of-process,
+/// system-cached) with the in-process FFmpeg first-frame path kept only as a fallback. The semaphore
+/// and cancellation machinery therefore now throttle *only* that fallback. See `extractThumbnails`.
 actor ThumbnailManager {
 
     /// Thumbnail pair for a clip (first and last frames).
@@ -129,16 +133,53 @@ actor ThumbnailManager {
 
     // MARK: - Private Extraction Logic
 
-    /// Extract both first and last frame thumbnails for a clip, directly from its MP4/MOV.
+    /// Produce the row thumbnail for a clip.
+    ///
+    /// **Hybrid strategy:** ask QuickLook first — it decodes out-of-process in the system Thumbnails
+    /// agent and is system-cached (keyed on file + mtime + size), so a re-scan of the same card
+    /// returns instantly and the decode load never touches this app. Only if QuickLook returns nothing
+    /// (rare, odd file) do we fall back to the in-process FFmpeg first-frame path, which is still
+    /// semaphore-throttled to keep SD-card I/O contention in check.
+    ///
+    /// The previously-extracted *last* frame is gone: the recordings row only ever displayed `first`
+    /// (`first ?? last` in `ClipThumbnailView`), so the second extraction was pure wasted work. `last`
+    /// is now always nil; the field is kept so the struct/call sites don't churn.
     private func extractThumbnails(for clip: DJIClip) async -> ClipThumbnails {
-        // Extract first and last frames concurrently
-        async let firstFrame = extractFrameWithSemaphore(from: clip.videoURL, atSeconds: 0)
-        async let lastFrame = extractFrameWithSemaphore(from: clip.videoURL, atSeconds: clip.lastFrameSeekSeconds)
+        if let quickLook = await generateQuickLookThumbnail(for: clip.videoURL) {
+            return ClipThumbnails(first: quickLook, last: nil)
+        }
+        // QuickLook produced no content thumbnail — fall back to the throttled FFmpeg first frame.
+        let frame = await extractFrameWithSemaphore(from: clip.videoURL, atSeconds: 0)
+        return ClipThumbnails(first: frame, last: nil)
+    }
 
-        return ClipThumbnails(
-            first: await firstFrame,
-            last: await lastFrame
+    /// QuickLook thumbnail for a video file, or nil if QuickLook can't produce a *content* thumbnail
+    /// (the caller then falls back to FFmpeg). Honors task cancellation.
+    ///
+    /// The display tile is 38 pt tall × ~67.6 pt wide at 16:9, drawn with `.aspectRatio(.fill)`, on
+    /// Retina (scale 2). We request larger than the tile so the fill crop stays crisp.
+    private func generateQuickLookThumbnail(for url: URL) async -> NSImage? {
+        guard !Task.isCancelled else { return nil }
+
+        // ~320×180 pt at scale 2 matches the FFmpeg path's old `maxWidth: 320` and keeps the 16:9
+        // `.aspectRatio(.fill)` crop on the 67.6×38 pt tile sharp on Retina without over-rendering.
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: CGSize(width: 320, height: 180),
+            scale: 2,
+            // `.thumbnail` only — a real rendered frame. `.icon`/`.all` may "succeed" with the generic
+            // movie-file icon, which would suppress the FFmpeg fallback and show the same glyph on
+            // every row.
+            representationTypes: .thumbnail
         )
+
+        do {
+            let representation = try await QLThumbnailGenerator.shared.generateBestRepresentation(for: request)
+            return representation.nsImage
+        } catch {
+            // Unreadable / unsupported / no content thumbnail — route this clip to the FFmpeg fallback.
+            return nil
+        }
     }
 
     /// Extract a frame with semaphore-controlled concurrency.
