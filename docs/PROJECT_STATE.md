@@ -217,6 +217,17 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13k — Roadmap help topic (in-app Help, content-only) (`2655aaf`, merged `--no-ff`, pushed `main`).**
+  Added a user-facing **Roadmap** page as the **last item under Reference** in the Help window. Audited Help
+  first — fully shipped (vendored `HelpMenu` SPM pkg, 9 topics/4 groups, wired to the `?` toolbar button +
+  Help menu); old backlog item (7) was stale. Drafted **only honest futures:** **watch-folder ingest** (spec
+  v1 scope but never shipped — only a stale comment at `RecordGroup.swift:10`) + **more camera families**
+  (GoPro/Osmo; engine already camera-agnostic), an "exploring" metadata-grouping mode, and a link-less "Have a
+  request?" close. **Auto-update deliberately omitted** (it ships *in* 1.0 → a reader already has it).
+  **Content-only:** new `help-roadmap.md` + one manifest row, **no Swift / no build config** (recursive
+  `Conjoyn/` source ref auto-bundles the `.md`; `.xcodeproj` gitignored). `xcodegen` → ad-hoc Debug build
+  SUCCEEDED, `.md` confirmed in `Contents/Resources/`, app launched. **Owed:** eyeball the live page; wire the
+  feedback link once the site exists (pairs with Wave 4). DMG now also lags `main` by this topic.
 - **2026-06-13j — Persistent diagnostic logging (closes the last `/minimums` gap) (`5a11fc6`, pushed `main`).**
   `/minimums` (verified against code) found one real gap: logging was in-memory only (`QueueManager.log()`
   → `consoleLines`, lost on quit). New **`DiagnosticLogger`** (`Services/DiagnosticLogger.swift`): file-backed
