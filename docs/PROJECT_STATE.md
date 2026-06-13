@@ -22,6 +22,14 @@
   sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
   330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
 - **Blockers:** none.
+- **✓ Light theme done (branch `feature/light-theme`, 2026-06-13) — UNMERGED.** Auto/Light/Dark via a
+  top-level **Appearance** menu (Match System / Light / Dark), default **Dark** (no out-of-box change).
+  All 13 `Theme` tokens made adaptive via dynamic `NSColor` (one chokepoint; 136 usages untouched); new
+  "soft neutral gray" light palette, accents unchanged; `Theme.raised()`/`recessed()` helpers replaced
+  18 inline overlay colors + 2 stray hex. `AppearancePreference` + `@AppStorage` + `AppearanceCommands`.
+  Build clean, light mode user-confirmed. **Diverges from the App Shell Standard (dark-only) — flagged.**
+  Rebased onto the sparkle-update tip (the `ConjoynApp.swift` edits sit alongside `UpdaterCommands`); not
+  pushed. **Owed:** light-mode accent eyeball (seal/chip on white); decide merge order vs Sparkle Wave 4.
 - **✓ Auto-update gap DECIDED + PLANNED 2026-06-12e.** The 2026-06-12c scope gap (no Sparkle/appcast
   integration) is now resolved on paper: **ship Conjoyn ONLY with Sparkle auto-update** — the first
   public download IS the first Sparkle-enabled build (no update-less interim). Sub-decisions:
