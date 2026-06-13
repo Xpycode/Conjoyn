@@ -47,3 +47,4 @@ _reference/
 *.mobileprovision
 .env
 .claude/scheduled_tasks.lock
+.claude/settings.local.json
