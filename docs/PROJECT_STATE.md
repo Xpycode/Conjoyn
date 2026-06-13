@@ -28,23 +28,31 @@
   **DMG-only enclosure**, **automatic + menu** checks, **debut as 1.0 / build 100**, **Sparkle 2.9.3**,
   self-host appcast at `conjoyn.lucesumbrarum.com`. Full plan in `docs/plans/sparkle-auto-update.md`
   (5 waves); rationale in `docs/decisions.md` (2026-06-12).
-- **✓ Sparkle Wave 1 DONE 2026-06-12f (`11958e6`, branch `feature/sparkle-update`).** Local
-  integration: Sparkle 2.9.3 SPM dep + `Conjoyn` target dep; version baseline bumped **0.1.0/1 →
-  1.0/build 100** (monotonic == `sparkle:version`); 3 `SU*` keys in the **base Info.plist** (cookbook
-  #89 trap avoided — confirmed merged into the built plist); `UpdaterController.swift` ported verbatim
-  from P2toMXF; `UpdaterCommands` (`Commands` struct, not closure) adds "Check for Updates…" after
-  `.appInfo`. **BUILD SUCCEEDED**; `Sparkle.framework` auto-embedded with all 4 nested Mach-Os
-  (`Autoupdate`/`Updater`/`Installer.xpc`/`Downloader.xpc` — Wave 2's notarization-audit targets).
-  `SUPublicEDKey` is still the `__FILL_FROM_WAVE_0__` placeholder. **Next: Wave 0 (EdDSA key gen +
-  2× backup) — needs user-controlled custody.**
-- **Next:** (1) **Execute Sparkle auto-update** per `docs/plans/sparkle-auto-update.md` (decided
-  2026-06-12e). Wave 1 (SPM dep `from: 2.9.3` in `project.yml` + bump to 1.0/build 100 + 3 `SU*` keys
-  in **base Info.plist** + port `UpdaterController.swift` + `UpdaterCommands` in `ConjoynApp.swift`)
-  → Wave 0 (fresh EdDSA key, `-x` export + 2× backup, public key → `SUPublicEDKey`; check
-  `generate_keys --help` for `--account`) → Wave 2 (build/330 tests + extend `notarize.sh` to audit
-  Sparkle's 4 nested Mach-Os; never `codesign --deep` on *sign*) → Wave 3 (`make-appcast.sh` +
-  100→101 local-HTTPS self-update test). Wave 4 (host standup + publish) is gated on the website.
-  Branch `feature/sparkle-update`. (2) Website copy + download link (point it at
+- **✓ Sparkle Waves 1+0+2 DONE (branch `feature/sparkle-update`).** **Wave 1** (`11958e6`, 2026-06-12f):
+  Sparkle 2.9.3 SPM dep + target dep; version baseline **0.1.0/1 → 1.0/build 100** (monotonic ==
+  `sparkle:version`); 3 `SU*` keys in the **base Info.plist** (cookbook #89 trap avoided);
+  `UpdaterController.swift` ported verbatim; `UpdaterCommands` (`Commands` struct) adds "Check for
+  Updates…" after `.appInfo`. **Wave 0** (`a53d080`, 2026-06-13, **on the M4 Pro** — M1 Max out of
+  order, no Conjoyn key existed yet so fresh gen is clean and **moves key custody to the M4 Pro**):
+  `generate_keys --account conjoyn` (`--account` confirmed supported), **public key
+  `Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=`** in `Info.plist` (round-trips via `-p`); private key
+  in M4 Pro keychain + **backup #1** `99-AUTH/conjoyn-sparkle-private.key` (chmod 600). **Wave 2**
+  (`aeb517b`, 2026-06-13): build + **330 pass/1 skip/0 fail**; "Check for Updates…" smoke ✅; **risk gate
+  fired** — plain `xcodebuild build` left all 4 nested Sparkle Mach-Os **adhoc** (`--deep --strict`
+  passes anyway = notary-rejection trap) → **switched `notarize.sh` to Archive→Export
+  (`method=developer-id`)** + an `assert_devid_runtime` loop; re-audit = **all 8 nested binaries
+  Developer ID + `flags=0x10000(runtime)`**; `make-dmg.sh` repointed to `export/Conjoyn.app`; version
+  `1.0/100`. Keychain audit: M4 Pro holds the full **Developer ID Application** identity → complete
+  release Mac.
+- **Blockers:** none. **⏳ Owed:** (a) **backup #2** of the Sparkle private key (user task — second
+  out-of-repo location before the first public release); (b) the **actual Apple notary round-trip** is
+  not yet run (local audit passes → safe deliberate next step).
+- **Next:** (1) **Run `notarize.sh`** (real Apple submission) to prove the archive→export round-trip
+  end-to-end + produce the notarized app → then `make-dmg.sh`. (2) **Wave 3** per
+  `docs/plans/sparkle-auto-update.md`: write `01_Project/scripts/make-appcast.sh` (use `--account
+  conjoyn`) + the 100→101 local-HTTPS self-update dry run (needs the notarized+stapled DMG, so it
+  follows the notarize run). (3) **Wave 4** (host standup + publish) gated on the website.
+  Branch `feature/sparkle-update`. (4) Website copy + download link (point it at
   `04_Exports/Conjoyn.dmg`; appcast + raw DMG live on the same host — this is Sparkle Wave 4).
   (3) QL thumbnail fix — switch from FFmpeg to
   `QLThumbnailGenerator` (eager 74-item load is noticeable; also eases post-scan thumbnail/SRT I/O
@@ -162,6 +170,26 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-13 — Sparkle Wave 0 (EdDSA key) + Wave 2 (local verify), on the M4 Pro.** Git reconcile
+  found **nothing from the M1 Max** — both sync channels agreed (Syncthing excludes `.git`; origin
+  unchanged at `30b5e8e`; `SUPublicEDKey` still placeholder), so Wave 0 was never done there. M1 Max is
+  out of order/being reset → continued on the M4 Pro. **Wave 0 (`a53d080`):** no Conjoyn key existed
+  yet, so fresh `generate_keys --account conjoyn` here (the `--account` flag — plan's open question —
+  confirmed supported; this Mac already had a `penumbra` account) → **public key
+  `Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=`** in `Info.plist` (round-trips via `-p`); private key
+  in M4 Pro keychain + backup #1 `99-AUTH/conjoyn-sparkle-private.key` (chmod 600); **key custody moved
+  to the M4 Pro** (memory updated). Keychain audit confirms the full Developer ID Application identity is
+  present → M4 Pro is a complete release Mac. **Wave 2:** 2.1 build + **330 pass/1 skip/0 fail**; 2.2
+  "Check for Updates…" smoke ✅ (menu enabled, Sparkle sheet on click); **2.3 risk gate FIRED** — a plain
+  `xcodebuild build` re-signs only `Sparkle.framework`'s dylib + the app wrapper, leaving all 4 nested
+  Mach-Os (`Autoupdate`/`Updater`/`Installer.xpc`/`Downloader.xpc`) **adhoc** (`flags=0x10002(adhoc,
+  runtime)`); `codesign --deep --strict` passes anyway = the notary-rejection trap. **Fixed (`aeb517b`):
+  switched `notarize.sh` to Archive→Export (`method=developer-id`, family-proven Penumbra/CropBatch
+  path)** + an `assert_devid_runtime` loop auditing all 8 nested binaries; re-audited the export — **all
+  8 now Developer ID + `flags=0x10000(runtime)`**; `make-dmg.sh` repointed to `export/Conjoyn.app`;
+  `sign-bundled-binaries.sh` confirmed scoped to `Resources/Helpers` only. 2.4 version `1.0/100`. **Apple
+  notary submission NOT yet run** (local audit mirrors the gate → safe deliberate next step). Owed:
+  backup #2 of the key. Next: run `notarize.sh`, then Wave 3.
 - **2026-06-12e — Decided + planned Sparkle auto-update (no code).** Closed the open scope gap:
   **ship Conjoyn ONLY with auto-update** (first public DMG = first Sparkle build). Verified the
   2026-06-12d research against P2toMXF (verbatim `UpdaterController.swift` + `Commands`-struct menu),
