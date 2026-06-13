@@ -103,7 +103,7 @@
   (`ab6d140`, pushed `main`).** Hybrid: QuickLook-first (out-of-process system Thumbnails agent +
   system cache → instant re-scan, decode load leaves the app), FFmpeg first-frame kept as fallback;
   also dropped the unused last-frame extraction (row only showed `first ?? last`). User-confirmed
-  "definitely faster." 330 tests. Pattern → cookbook #94. (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
+  "definitely faster." 330 tests. Pattern → cookbook #95. (4) Optional DMG polish: custom background image. (5) Optional: decide the nil-date
   sort policy (keep `.distantPast` or switch to Finder "undated always last" — `TODO` in `orders(...)`).
 - **Ship artifact:** `04_Exports/Conjoyn.dmg` (27 MB, `source=Notarized Developer ID`). Rebuild any
   time with `01_Project/scripts/make-dmg.sh` (delegates to `notarize.sh` for the app, then wraps +
@@ -230,7 +230,7 @@
   "succeed" with the generic movie-file icon → would suppress the fallback); `import
   QuickLookThumbnailing` auto-links (no `project.yml`/xcodegen change). **330 pass / 1 skip / 0 fail**
   (integration test flipped to the new contract: `first` non-nil via QL-or-fallback, `last` nil).
-  **User-confirmed "definitely faster"** on a real card. Pattern → **cookbook #94**
+  **User-confirmed "definitely faster"** on a real card. Pattern → **cookbook #95**
   (`94-macos-quicklook-thumbnail-hybrid.md`). Push gotcha logged: `main` had no upstream → first
   `git push` silently no-op'd (tell: `## main` not `## main...origin/main`); fixed with `push -u`.
 - **2026-06-13e — Sparkle key backup #2: custody secured (last R1-risk owed item closed).** Located
@@ -341,7 +341,7 @@
   fallback) and `prewarmStartDates()` resolves all dates off-thread (`Task.detached .utility`,
   `Sendable`-only capture) after scan, bumping `@Published startDateRevision` to re-sort once warm
   (thumbnails — an `actor` + async FFmpeg — were never the blocker). nil-date policy = `.distantPast`
-  (Finder "always-last" left as a `TODO`). User: "works fantastic." **Patterns → cookbook #91, #92.**
+  (Finder "always-last" left as a `TODO`). User: "works fantastic." **Patterns → cookbook #92, #93** (master renumber; were #91, #92).
   **Merged to `main` (`feature/sortable-columns` `--no-ff`); 330 tests re-verified green.**
 - **2026-06-12 — Shipped the DMG wrapper (last release task). Conjoyn is now distributable.**
   Reconciled this Mac's git first (no `.git` — Syncthing excludes it; wired `origin`, spot-checked 3
