@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import HelpMenu
+import FeedbackKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -76,6 +77,19 @@ struct ConjoynApp: App {
         return content
     }()
 
+    /// Configuration for the in-app feedback sheet (Help › Send Feedback…). Posts to the shared
+    /// multi-app endpoint (`feedback-submit.php`, cookbook #49), keyed by `appID` — the server gates
+    /// on its own `ALLOWED_APPS`, so a real submission stays inert until `conjoyn` is allow-listed
+    /// server-side (App-Websites repo). Accent + recent-log tail are injected; FeedbackKit has no
+    /// coupling to Conjoyn's `Theme` or `DiagnosticLogger`. The `logProvider` reads on the main actor
+    /// (FeedbackKit only invokes it from its SwiftUI view body), so `assumeIsolated` is safe here.
+    private let feedbackConfig = FeedbackConfig(
+        appID: "conjoyn",
+        endpoint: URL(string: "https://apps.lucesumbrarum.com/feedback-submit.php")!,
+        accent: Theme.acc2,
+        logProvider: { MainActor.assumeIsolated { DiagnosticLogger.shared.recentTail(maxLines: 80) } }
+    )
+
     var body: some Scene {
         // Single-instance `Window` (not `WindowGroup`): Conjoyn shares one view model + queue, so a
         // second window/tab would only mirror the same state. `Window` removes "New Window" (⌘N) and
@@ -94,6 +108,7 @@ struct ConjoynApp: App {
         .commands {
             FileCommands(viewModel: viewModel)
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
+            FeedbackCommands(config: feedbackConfig)
             UpdaterCommands(updater: updaterController)
             AppearanceCommands(appearance: $appearance)
         }

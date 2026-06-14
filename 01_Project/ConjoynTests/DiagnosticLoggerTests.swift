@@ -128,4 +128,48 @@ final class DiagnosticLoggerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: rotatedURL.path),
                        "a small log must never rotate")
     }
+
+    // MARK: - recentTail (feedback log-attach)
+
+    func testRecentTailReturnsMostRecentLines() throws {
+        let logger = DiagnosticLogger(storageDirectory: tmpDir)
+        logger.log("alpha")
+        logger.log("bravo")
+        logger.log("charlie")
+
+        // maxLines large enough to include everything (banner + 3 lines).
+        let tail = try XCTUnwrap(logger.recentTail(maxLines: 10))
+        XCTAssertTrue(tail.contains("alpha") && tail.contains("bravo") && tail.contains("charlie"))
+        // The newest line is last in the returned text.
+        let a = try XCTUnwrap(tail.range(of: "alpha"))
+        let c = try XCTUnwrap(tail.range(of: "charlie"))
+        XCTAssertTrue(a.lowerBound < c.lowerBound, "tail must preserve chronological order")
+    }
+
+    func testRecentTailCapsAtMaxLines() throws {
+        let logger = DiagnosticLogger(storageDirectory: tmpDir)
+        for i in 1...20 { logger.log("line \(i)") }
+
+        let tail = try XCTUnwrap(logger.recentTail(maxLines: 3))
+        let lines = tail.split(separator: "\n")
+        XCTAssertEqual(lines.count, 3, "tail must return exactly maxLines lines")
+        // The last three writes survive; the banner + early lines are dropped.
+        XCTAssertTrue(tail.contains("line 20") && tail.contains("line 19") && tail.contains("line 18"))
+        XCTAssertFalse(tail.contains("session started"), "older lines beyond the cap are excluded")
+    }
+
+    func testRecentTailNilForNonPositiveMaxLines() throws {
+        let logger = DiagnosticLogger(storageDirectory: tmpDir)
+        logger.log("present")
+
+        XCTAssertNil(logger.recentTail(maxLines: 0))
+        XCTAssertNil(logger.recentTail(maxLines: -5))
+    }
+
+    func testRecentTailNilWhenFileMissing() throws {
+        let logger = DiagnosticLogger(storageDirectory: tmpDir)
+        try FileManager.default.removeItem(at: logURL)   // simulate a never-written / cleared log
+
+        XCTAssertNil(logger.recentTail(), "a missing log file must yield nil, not throw")
+    }
 }

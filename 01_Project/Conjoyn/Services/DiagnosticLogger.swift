@@ -81,6 +81,28 @@ final class DiagnosticLogger {
         appendLine(message)
     }
 
+    /// Returns the last `maxLines` lines of the current `diagnostic.log`, or `nil` if the file is
+    /// missing/empty. This is the read counterpart to `log()` — it feeds the feedback sheet's
+    /// "Attach recent log" toggle so a bug report can carry recent context.
+    ///
+    /// Reads **only the current generation**, not the rotated `diagnostic.log.1`: the freshest
+    /// lines are what a just-filed report needs, and bounding to one file keeps the read a single
+    /// cheap slurp. Like everything in this type it **never throws** — any failure yields `nil`
+    /// rather than disturbing the app it diagnoses. The returned text is sent verbatim, so callers
+    /// that forward it externally own any redaction; Conjoyn's lines are coarse event milestones
+    /// (job start / SUCCESS / FAILED / file names) with no secrets.
+    func recentTail(maxLines: Int = 80) -> String? {
+        guard maxLines > 0,
+              let url = logFileURL,
+              let contents = try? String(contentsOf: url, encoding: .utf8)
+        else { return nil }
+
+        let lines = contents.split(separator: "\n", omittingEmptySubsequences: true)
+        guard !lines.isEmpty else { return nil }
+
+        return lines.suffix(maxLines).joined(separator: "\n")
+    }
+
     // MARK: - File Writing
 
     private func appendLine(_ message: String) {
