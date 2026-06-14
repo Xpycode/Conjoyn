@@ -33,6 +33,13 @@
   `setup-notary-profile.sh` to recreate the per-Mac `conjoyn-notary` keychain profile. Gotchas in memory
   `dmg-recut-on-fresh-release-mac` (also: `brew install create-dmg`; `create-dmg`'s Finder AppleScript only
   runs in a GUI session → run the DMG step interactively with `SKIP_APP=1`).
+- **⟳ In flight: FeedbackKit (reusable in-app feedback/bug-report).** Standalone SPM package scaffolded
+  at `/Users/sim/ProgrammingProjects/zPackages/FeedbackKit` (own repo, local `4fddb9e`, not yet on
+  GitHub) — a drop-in "Send Feedback…" sheet that POSTs to the shared multi-app `feedback-submit.php`
+  (cookbook #49). Config-injected (no host-app `Theme` coupling), 9 tests green. **Next session = full
+  wire-up:** publish `Xpycode/FeedbackKit` + tag 0.1.0 → add SPM dep + a Help-menu item to Conjoyn
+  (`DiagnosticLogger` log-tail) → add `conjoyn` to `ALLOWED_APPS` in App-Websites → live test. Memory
+  `feedbackkit-in-app-feedback`.
 - **Sparkle Wave 4 is owned by a DIFFERENT repo** — `/Users/sim/ProgrammingProjects/3-Websites/App-Websites`
   (`APPS/Conjoyn/` is "planned, not yet added"). Within the Conjoyn repo, the release engineering is **done**
   (pipeline Apple-validated + self-update-proven through Wave 3; DMG matches `main`). The only thing left for
