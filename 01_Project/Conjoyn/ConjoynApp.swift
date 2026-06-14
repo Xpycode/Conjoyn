@@ -79,8 +79,8 @@ struct ConjoynApp: App {
 
     /// Configuration for the in-app feedback sheet (Help › Send Feedback…). Posts to the shared
     /// multi-app endpoint (`feedback-submit.php`, cookbook #49), keyed by `appID` — the server gates
-    /// on its own `ALLOWED_APPS`, so a real submission stays inert until `conjoyn` is allow-listed
-    /// server-side (App-Websites repo). Accent + recent-log tail are injected; FeedbackKit has no
+    /// on its own `ALLOWED_APPS`, which already allow-lists `conjoyn` (App-Websites repo, deployed +
+    /// gate-verified live). Accent + recent-log tail are injected; FeedbackKit has no
     /// coupling to Conjoyn's `Theme` or `DiagnosticLogger`. The `logProvider` reads on the main actor
     /// (FeedbackKit only invokes it from its SwiftUI view body), so `assumeIsolated` is safe here.
     private let feedbackConfig = FeedbackConfig(
