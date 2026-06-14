@@ -79,12 +79,12 @@ struct ConjoynApp: App {
 
     /// Drives all three "app citizenship" surfaces via AppCitizenshipKit: Help › Send Feedback…
     /// (FeedbackKit, posts to the shared `feedback-submit.php`, cookbook #49 — the server gates on
-    /// `ALLOWED_APPS`, which already allow-lists `conjoyn`), Help › Support Conjoyn (donate hub,
+    /// `ALLOWED_APPS`, which already allow-lists `conjoyn`), Help › Leave a Tip (the tip-jar hub,
     /// cookbook #100, `?app=conjoyn`), and a link-rich About panel. `appID` is the single slug used
-    /// for both feedback and donate. The endpoint + donate hub default to the shared lucesumbrarum
+    /// for both feedback and the tip jar. The endpoint + tip-jar hub default to the shared lucesumbrarum
     /// hosts, so only `appID`/`appName`/links are supplied. The `logProvider` reads on the main actor
     /// (FeedbackKit only invokes it from its SwiftUI view body), so `assumeIsolated` is safe here.
-    /// Website/Privacy point at the apps portal — live for donate/feedback today; the per-app
+    /// Website/Privacy point at the apps portal — live for the tip jar/feedback today; the per-app
     /// marketing page may lag, which is harmless (the About links just resolve once it ships).
     private let citizenship = CitizenshipConfig(
         appID: "conjoyn",
@@ -119,7 +119,7 @@ struct ConjoynApp: App {
             // declaration order, cookbook #104). The Feedback↔Support divider is emitted by
             // CitizenshipCommands itself, so it is not repeated here.
             CommandGroup(after: .help) { Divider() }
-            // One line for Send Feedback… + Support Conjoyn + the link-rich About panel.
+            // One line for Send Feedback… + Leave a Tip + the link-rich About panel.
             CitizenshipCommands(citizenship)
             UpdaterCommands(updater: updaterController)
             AppearanceCommands(appearance: $appearance)

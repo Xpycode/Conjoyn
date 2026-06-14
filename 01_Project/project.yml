@@ -29,7 +29,7 @@ packages:
   # AppCitizenshipKit bundles Feedback (re-exports FeedbackKit) + Tip Jar + About behind one config.
   AppCitizenshipKit:
     url: https://github.com/Xpycode/AppCitizenshipKit
-    from: "0.1.1"
+    from: "0.1.2"
 
 targets:
   Conjoyn:
