@@ -108,7 +108,12 @@ struct ConjoynApp: App {
         .commands {
             FileCommands(viewModel: viewModel)
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
+            // Separator between "Conjoyn Help" and "Send Feedback…". FeedbackCommands is a package
+            // type we can't edit, so the divider is its own after-`.help` group, declared between the
+            // two so it lands between their items (same-anchor groups order by declaration order).
+            CommandGroup(after: .help) { Divider() }
             FeedbackCommands(config: feedbackConfig)
+            DonateCommands()
             UpdaterCommands(updater: updaterController)
             AppearanceCommands(appearance: $appearance)
         }
@@ -173,6 +178,25 @@ struct FileCommands: Commands {
         CommandGroup(after: .newItem) {
             Button("Choose Folder\u{2026}") { viewModel.chooseSourceFolder() }
                 .keyboardShortcut("o", modifiers: [.command])
+        }
+    }
+}
+
+/// Adds **Help › Donate** after "Send Feedback…", opening the support page in the default browser.
+/// The same page is also a Help-window topic (`help-donate.md`); this is the menu-bar shortcut for it.
+/// No ellipsis: per the HIG that marks a command needing further in-app input (as "Send Feedback…"
+/// does), whereas this just hands off to the browser. The URL is the shared apps-portal donate page —
+/// live now, independent of the not-yet-deployed Conjoyn site — app-tagged so the page can show
+/// Conjoyn-specific context, matching the link the Conjoyn website itself uses.
+struct DonateCommands: Commands {
+    var body: some Commands {
+        CommandGroup(after: .help) {
+            Divider()
+            Button("Donate") {
+                if let url = URL(string: "https://apps.lucesumbrarum.com/donate.html?app=conjoyn") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
         }
     }
 }
