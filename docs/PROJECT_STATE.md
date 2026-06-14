@@ -21,28 +21,37 @@
   **`git-bootstrap` skill**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
-- **Phase:** implementation, 100% feature-complete. 1.0 shipped. **v1.0.1 shipped 2026-06-12c:**
-  sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
-  330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
+- **Phase:** implementation, 100% feature-complete. **Current version `1.0.1` / build 101** (real, set in
+  `project.yml` 2026-06-14 eve for the FeedbackKit fix — supersedes the earlier *narrative* "v1.0.1" of
+  2026-06-12c, which was sortable columns at the placeholder version; the binary was reset to `1.0`/100 by
+  the Sparkle baseline). 1.0-public still gated only on **Sparkle Wave 4** (website).
 - **Blockers:** none.
-- **✓ Ship artifact re-cut from current `main` 2026-06-14** (`04_Exports/Conjoyn.dmg`, 27 MB, **1.0/100**,
-  notary **Accepted**, stapled, `source=Notarized Developer ID`; `help-roadmap.md` bundled = confirms HEAD,
-  so it now carries light theme + single-window + diagnostic logging + Roadmap). No longer lags `main`.
+- **⚠ Ship artifact NOW LAGS `main` again by the feedback fix.** `04_Exports/Conjoyn.dmg` is the
+  **`1.0`/100** notarized build (re-cut 2026-06-14 day); `main` is now **`1.0.1`/101** (working in-app
+  feedback). Re-cut owed before any public ship. The 100 DMG (27 MB, notary **Accepted**, stapled,
+  `source=Notarized Developer ID`; `help-roadmap.md` bundled) carries light theme + single-window +
+  diagnostic logging + Roadmap but NOT the feedback fix.
   Two release-script fixes made it portable to a fresh release Mac (`22373d4`): `notarize.sh` archive now
   pins **Developer ID manual signing** (release-only Mac has no *Mac Development* cert), + new
   `setup-notary-profile.sh` to recreate the per-Mac `conjoyn-notary` keychain profile. Gotchas in memory
   `dmg-recut-on-fresh-release-mac` (also: `brew install create-dmg`; `create-dmg`'s Finder AppleScript only
   runs in a GUI session → run the DMG step interactively with `SKIP_APP=1`).
-- **✓ FeedbackKit (reusable in-app feedback) DONE + LIVE 2026-06-14.** The drop-in "Send Feedback…"
-  feature is wired end-to-end across 3 repos: **published** `Xpycode/FeedbackKit` (**private**) + tag
-  **`0.1.0`** (`4fddb9e`); **wired into Conjoyn** (`eede8ff`, pushed) — `project.yml` SPM dep (resolves
-  from the private repo via `gh`) + **Help › Send Feedback…** + new `DiagnosticLogger.recentTail(80)`
-  (the logger gained a read path) feeding the "Attach recent log" toggle, with the `@Sendable`→`@MainActor`
-  closure bridged by `MainActor.assumeIsolated`; **341 tests / 1 skip / 0 fail** (+4). **Backend deployed**
-  (App-Websites `e1ff415` → Strato): `ALLOWED_APPS` + dropdown + JS maps now list **conjoyn + manifest +
-  tachograph**. **Live gate verified** for all three via a consent-omitted probe (passes the app check,
-  creates no submission). Config-injected (no host-`Theme` coupling). **Owed (optional):** one full real
-  submit eyeball from the app. Memory `feedbackkit-in-app-feedback`. **Reusable by every app now.**
+- **✓ FeedbackKit (reusable in-app feedback) WORKING + PROVEN END-TO-END 2026-06-14 (eve).** Wired across
+  3 repos; backend deployed (App-Websites `e1ff415` → Strato; `ALLOWED_APPS` + dropdown + JS maps list
+  **conjoyn + manifest + tachograph**). **0.1.0 (`4fddb9e`) shipped NON-FUNCTIONAL** — structurally wired
+  (dep + Help › Send Feedback… + config) but the feature didn't work; **three layered bugs fixed
+  0.1.1→0.1.3:** (1) **sheet never presented** — `.sheet` was attached to a hidden `.background` anchor on
+  the *menu button*, outside any window's view hierarchy → now presents **imperatively** via a self-managed
+  `FeedbackPresenter` (`NSHostingController`+`NSWindow`, sheet on key window); (2) **Send looked dead** —
+  consent checkbox required (server-enforced) but its reason buried → highlight the consent row + hint in
+  accent when it's the sole blocker; (3) **server rejected with a log attached** — client validated raw
+  `body` but SENT `composedBody` (desc + `recentTail(80)` ≈ 5235 chars > the 5000 server cap) →
+  `composedBody` now self-caps, trimming the oldest log lines. **Conjoyn now on FeedbackKit `0.1.3`, app
+  bumped `1.0`/100 → `1.0.1`/101** (commits `c09331d`/`8c474f1`/`18fa704`, pushed). 341 app tests / 1 skip /
+  0 fail; 10 pkg tests. **Real in-app submit landed on the public board** (bug "fttttj" → 302 → green ✓ →
+  `apps.lucesumbrarum.com/feedback.html`, Conjoyn filter; email stripped to private log). Config-injected
+  (no host-`Theme` coupling). Memory `feedbackkit-in-app-feedback`. **Owed (optional):** delete the
+  `fttttj` test entry from the live board (`/admin`). **Reusable + working for every app now.**
 - **Sparkle Wave 4 is owned by a DIFFERENT repo** — `/Users/sim/ProgrammingProjects/3-Websites/App-Websites`
   (`APPS/Conjoyn/` is "planned, not yet added"). Within the Conjoyn repo, the release engineering is **done**
   (pipeline Apple-validated + self-update-proven through Wave 3; DMG matches `main`). The only thing left for
@@ -240,6 +249,28 @@
   `03_Screenshots/min-window-size_2026-06-10m/`.
 
 ## Recent (newest first)
+- **2026-06-14 (late eve) — FeedbackKit actually WORKS now: fixed 3 layered bugs, proven end-to-end; Conjoyn → 1.0.1/101.**
+  A status check turned into a bug hunt: the 2026-06-14 wire-up was structurally correct but **0.1.0 didn't
+  actually work**. Found + fixed three bugs, each hidden behind the previous, re-tagging the package each time:
+  **(1) 0.1.1 — sheet never presented:** `FeedbackCommands` attached `.sheet` to a hidden `.background`
+  anchor on the *menu button*, which lives outside any window's view hierarchy → present **imperatively** via
+  a self-managed `FeedbackPresenter` (`NSHostingController`+`NSWindow`, sheet on key window / standalone for
+  agent apps); `FeedbackView` gained injectable `onClose` (falls back to `\.dismiss`). **(2) 0.1.2 — Send
+  looked dead:** the consent checkbox is required (server-enforced) but the reason was buried in grey caption
+  → highlight the consent row + hint in accent when consent is the *sole* remaining blocker
+  (`consentIsOnlyBlocker` = speculative validate of a draft copy). User chose "keep required, make it obvious."
+  **(3) 0.1.3 — server rejected with a log attached:** client validated raw `body` but SENT `composedBody`
+  (desc + `recentTail(80)` ≈ 5235 chars > the 5000 server `body` cap) → `composedBody` now self-caps,
+  trimming the **oldest** log lines (most-recent tail kept + a `…(earlier log trimmed)` note); typed
+  description never truncated. **+1 pkg test → 10.** Bumped Conjoyn dep 0.1.0→0.1.3 and **app version
+  `1.0`/100 → `1.0.1`/101** (monotonic for Sparkle; 101 not yet distributed). 341 app tests / 1 skip / 0
+  fail throughout. **PROVEN END-TO-END:** a real in-app submit (bug "fttttj") → 302 → green "sent" → landed
+  on the **public board** (`apps.lucesumbrarum.com/feedback.html`, one unified list w/ per-item type badges,
+  no separate "bugs section"); email stripped to the private log (PII split). Conjoyn commits
+  `b5daa51`(comment)/`c09331d`/`8c474f1`/`18fa704`, all pushed; FeedbackKit tags 0.1.1/0.1.2/0.1.3 pushed.
+  **DMG now lags `main` again** (1.0/100 vs 1.0.1/101) — re-cut owed before public ship. **Owed (optional):**
+  delete the `fttttj` test entry from the live board (`/admin`). Lesson: "wired" ≠ "works" — verify the real
+  user flow. Memory `feedbackkit-in-app-feedback` updated.
 - **2026-06-14 (eve) — FeedbackKit full wire-up: in-app feedback live across 3 repos (`eede8ff`, pushed `main`).**
   Executed the parked wire-up. **Published** `Xpycode/FeedbackKit` (**private** — matches the app-family
   repos; SPM still resolves via the `gh` credential helper) + annotated tag **`0.1.0`** → `4fddb9e`.
