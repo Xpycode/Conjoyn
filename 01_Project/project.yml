@@ -13,8 +13,8 @@ settings:
     DEVELOPMENT_TEAM: FDMSRXXN73
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "1.0"          # public debut (was 0.1.0, never distributed)
-    CURRENT_PROJECT_VERSION: "100"    # monotonic integer == sparkle:version; grows 100→101→…
+    MARKETING_VERSION: "1.0.1"        # was 1.0/100 (never distributed); 1.0.1 fixes the feedback sheet
+    CURRENT_PROJECT_VERSION: "101"    # monotonic integer == sparkle:version; grows 100→101→…
     SWIFT_STRICT_CONCURRENCY: complete
 
 packages:
@@ -28,7 +28,7 @@ packages:
     from: "2.9.3"
   FeedbackKit:
     url: https://github.com/Xpycode/FeedbackKit
-    from: "0.1.0"
+    from: "0.1.1"
 
 targets:
   Conjoyn:
