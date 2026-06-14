@@ -26,9 +26,10 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.9.3"
-  FeedbackKit:
-    url: https://github.com/Xpycode/FeedbackKit
-    from: "0.1.3"
+  # AppCitizenshipKit bundles Feedback (re-exports FeedbackKit) + Tip Jar + About behind one config.
+  AppCitizenshipKit:
+    url: https://github.com/Xpycode/AppCitizenshipKit
+    from: "0.1.1"
 
 targets:
   Conjoyn:
@@ -43,7 +44,7 @@ targets:
       - package: swift-timecode
         product: SwiftTimecodeUI
       - package: Sparkle
-      - package: FeedbackKit
+      - package: AppCitizenshipKit
     sources:
       - path: Conjoyn
         excludes:

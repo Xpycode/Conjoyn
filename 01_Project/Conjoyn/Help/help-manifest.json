@@ -11,6 +11,6 @@
     { "id": "shortcuts",          "title": "Keyboard Shortcuts",       "markdownFile": "help-shortcuts.md",          "group": "Reference" },
     { "id": "troubleshooting",    "title": "Troubleshooting",          "markdownFile": "help-troubleshooting.md",    "group": "Reference" },
     { "id": "roadmap",            "title": "Roadmap",                  "markdownFile": "help-roadmap.md",            "group": "Reference" },
-    { "id": "donate",             "title": "Donate",                   "markdownFile": "help-donate.md",             "group": "Reference" }
+    { "id": "donate",             "title": "Leave a Tip",              "markdownFile": "help-donate.md",             "group": "Reference" }
   ]
 }

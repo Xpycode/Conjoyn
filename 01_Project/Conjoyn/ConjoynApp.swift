@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import HelpMenu
-import FeedbackKit
+import AppCitizenshipKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -77,16 +77,21 @@ struct ConjoynApp: App {
         return content
     }()
 
-    /// Configuration for the in-app feedback sheet (Help › Send Feedback…). Posts to the shared
-    /// multi-app endpoint (`feedback-submit.php`, cookbook #49), keyed by `appID` — the server gates
-    /// on its own `ALLOWED_APPS`, which already allow-lists `conjoyn` (App-Websites repo, deployed +
-    /// gate-verified live). Accent + recent-log tail are injected; FeedbackKit has no
-    /// coupling to Conjoyn's `Theme` or `DiagnosticLogger`. The `logProvider` reads on the main actor
+    /// Drives all three "app citizenship" surfaces via AppCitizenshipKit: Help › Send Feedback…
+    /// (FeedbackKit, posts to the shared `feedback-submit.php`, cookbook #49 — the server gates on
+    /// `ALLOWED_APPS`, which already allow-lists `conjoyn`), Help › Support Conjoyn (donate hub,
+    /// cookbook #100, `?app=conjoyn`), and a link-rich About panel. `appID` is the single slug used
+    /// for both feedback and donate. The endpoint + donate hub default to the shared lucesumbrarum
+    /// hosts, so only `appID`/`appName`/links are supplied. The `logProvider` reads on the main actor
     /// (FeedbackKit only invokes it from its SwiftUI view body), so `assumeIsolated` is safe here.
-    private let feedbackConfig = FeedbackConfig(
+    /// Website/Privacy point at the apps portal — live for donate/feedback today; the per-app
+    /// marketing page may lag, which is harmless (the About links just resolve once it ships).
+    private let citizenship = CitizenshipConfig(
         appID: "conjoyn",
-        endpoint: URL(string: "https://apps.lucesumbrarum.com/feedback-submit.php")!,
+        appName: "Conjoyn",
         accent: Theme.acc2,
+        websiteURL: URL(string: "https://apps.lucesumbrarum.com/conjoyn"),
+        privacyURL: URL(string: "https://apps.lucesumbrarum.com/privacy"),
         logProvider: { MainActor.assumeIsolated { DiagnosticLogger.shared.recentTail(maxLines: 80) } }
     )
 
@@ -108,12 +113,14 @@ struct ConjoynApp: App {
         .commands {
             FileCommands(viewModel: viewModel)
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
-            // Separator between "Conjoyn Help" and "Send Feedback…". FeedbackCommands is a package
-            // type we can't edit, so the divider is its own after-`.help` group, declared between the
-            // two so it lands between their items (same-anchor groups order by declaration order).
+            // Separator between "Conjoyn Help" and "Send Feedback…". HelpMenu's items and
+            // AppCitizenshipKit's FeedbackCommands are package types we can't edit, so the divider is
+            // its own after-`.help` group declared between them (same-anchor groups order by
+            // declaration order, cookbook #104). The Feedback↔Support divider is emitted by
+            // CitizenshipCommands itself, so it is not repeated here.
             CommandGroup(after: .help) { Divider() }
-            FeedbackCommands(config: feedbackConfig)
-            DonateCommands()
+            // One line for Send Feedback… + Support Conjoyn + the link-rich About panel.
+            CitizenshipCommands(citizenship)
             UpdaterCommands(updater: updaterController)
             AppearanceCommands(appearance: $appearance)
         }
@@ -178,25 +185,6 @@ struct FileCommands: Commands {
         CommandGroup(after: .newItem) {
             Button("Choose Folder\u{2026}") { viewModel.chooseSourceFolder() }
                 .keyboardShortcut("o", modifiers: [.command])
-        }
-    }
-}
-
-/// Adds **Help › Donate** after "Send Feedback…", opening the support page in the default browser.
-/// The same page is also a Help-window topic (`help-donate.md`); this is the menu-bar shortcut for it.
-/// No ellipsis: per the HIG that marks a command needing further in-app input (as "Send Feedback…"
-/// does), whereas this just hands off to the browser. The URL is the shared apps-portal donate page —
-/// live now, independent of the not-yet-deployed Conjoyn site — app-tagged so the page can show
-/// Conjoyn-specific context, matching the link the Conjoyn website itself uses.
-struct DonateCommands: Commands {
-    var body: some Commands {
-        CommandGroup(after: .help) {
-            Divider()
-            Button("Donate") {
-                if let url = URL(string: "https://apps.lucesumbrarum.com/donate.html?app=conjoyn") {
-                    NSWorkspace.shared.open(url)
-                }
-            }
         }
     }
 }
