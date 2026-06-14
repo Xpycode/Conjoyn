@@ -53,12 +53,20 @@ fi
 bold "==> Archiving Release (Developer ID, hardened runtime)…"
 rm -rf "$DERIVED"
 mkdir -p "$DERIVED"
+# Force Developer-ID manual signing on the archive itself. The export step below re-signs all
+# nested code with Developer ID regardless, but the archive's own build must still satisfy
+# code-signing for every target — and the default (automatic) style demands a "Mac Development"
+# cert that release-only Macs don't carry. Pinning Developer ID here makes the archive succeed on
+# any Mac that holds the Developer ID Application identity, with no per-Mac development cert.
 xcodebuild \
     -project "$PROJECT" \
     -scheme "$SCHEME" \
     -configuration Release \
     -destination 'generic/platform=macOS' \
     -archivePath "$ARCHIVE" \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="Developer ID Application" \
+    DEVELOPMENT_TEAM="${TEAM_ID}" \
     clean archive
 
 [ -d "$ARCHIVE" ] || { echo "error: archive did not produce $ARCHIVE" >&2; exit 1; }
