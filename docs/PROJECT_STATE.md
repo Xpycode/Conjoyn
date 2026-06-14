@@ -25,6 +25,19 @@
   sortable recordings columns merged to `main` (`feature/sortable-columns` `--no-ff`,
   330-test-verified) + **DMG re-cut** (fresh app build, both notary round-trips Accepted, stapled).
 - **Blockers:** none.
+- **✓ Ship artifact re-cut from current `main` 2026-06-14** (`04_Exports/Conjoyn.dmg`, 27 MB, **1.0/100**,
+  notary **Accepted**, stapled, `source=Notarized Developer ID`; `help-roadmap.md` bundled = confirms HEAD,
+  so it now carries light theme + single-window + diagnostic logging + Roadmap). No longer lags `main`.
+  Two release-script fixes made it portable to a fresh release Mac (`22373d4`): `notarize.sh` archive now
+  pins **Developer ID manual signing** (release-only Mac has no *Mac Development* cert), + new
+  `setup-notary-profile.sh` to recreate the per-Mac `conjoyn-notary` keychain profile. Gotchas in memory
+  `dmg-recut-on-fresh-release-mac` (also: `brew install create-dmg`; `create-dmg`'s Finder AppleScript only
+  runs in a GUI session → run the DMG step interactively with `SKIP_APP=1`).
+- **Sparkle Wave 4 is owned by a DIFFERENT repo** — `/Users/sim/ProgrammingProjects/3-Websites/App-Websites`
+  (`APPS/Conjoyn/` is "planned, not yet added"). Within the Conjoyn repo, the release engineering is **done**
+  (pipeline Apple-validated + self-update-proven through Wave 3; DMG matches `main`). The only thing left for
+  1.0-public — stand up `conjoyn.lucesumbrarum.com`, host `appcast.xml` + the raw DMG, publish the link — is a
+  **website session in App-Websites**, not Conjoyn work. Memory `wave4-lives-in-websites-repo`.
 - **✓ Light theme MERGED → `main` 2026-06-13f (`ebd260d`, `--no-ff`, pushed origin `4244ab2..ebd260d`).**
   Auto/Light/Dark via a top-level **Appearance** menu (Match System / Light / Dark), default **Dark** (no
   out-of-box change). All 13 `Theme` tokens made adaptive via dynamic `NSColor` (one chokepoint; 136 usages
