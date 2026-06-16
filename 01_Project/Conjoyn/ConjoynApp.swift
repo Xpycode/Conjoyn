@@ -103,7 +103,15 @@ struct ConjoynApp: App {
             ContentView()
                 .environmentObject(viewModel)
                 .environmentObject(viewModel.queue)
-                .preferredColorScheme(appearance.colorScheme)
+                // Drive appearance app-wide via `NSApp.appearance` (not `.preferredColorScheme`):
+                // on macOS `.preferredColorScheme(nil)` does NOT clear a previously-forced
+                // `NSWindow.appearance`, so Dark → Match System would stay dark (the Theme colors
+                // resolve against the window's stale `NSAppearance`). `NSApp.appearance = nil`
+                // reverts to the system cleanly. `initial: true` applies the persisted preference
+                // at launch too.
+                .onChange(of: appearance, initial: true) { _, pref in
+                    NSApplication.shared.appearance = pref.nsAppearance
+                }
         }
         // Native titlebar toolbar (App Shell Standard): `.hiddenTitleBar` + the `.toolbar` /
         // `.toolbarRole(.editor)` in ContentView put the source well + Scan in the system titlebar.
@@ -128,7 +136,7 @@ struct ConjoynApp: App {
 }
 
 /// User appearance preference, persisted via `@AppStorage`. `.auto` follows the system
-/// (`colorScheme == nil`); `.light`/`.dark` pin the window via `.preferredColorScheme`.
+/// (`nsAppearance == nil`); `.light`/`.dark` pin the app via `NSApplication.shared.appearance`.
 enum AppearancePreference: String, CaseIterable, Identifiable {
     case auto, light, dark
 
@@ -142,12 +150,14 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
         }
     }
 
-    /// `nil` = follow the system appearance.
-    var colorScheme: ColorScheme? {
+    /// The AppKit appearance to pin app-wide via `NSApplication.shared.appearance`; `nil` follows
+    /// the system. Driven through `NSApp.appearance` rather than SwiftUI's `.preferredColorScheme`
+    /// because the latter's `nil` case does not clear a previously-forced window appearance on macOS.
+    var nsAppearance: NSAppearance? {
         switch self {
         case .auto:  return nil
-        case .light: return .light
-        case .dark:  return .dark
+        case .light: return NSAppearance(named: .aqua)
+        case .dark:  return NSAppearance(named: .darkAqua)
         }
     }
 }
