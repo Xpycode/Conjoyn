@@ -80,13 +80,13 @@ final class ConversionViewModel: ObservableObject {
         }
         guard sortKey != .found else { return visible }   // discovery order — leave untouched
         // Decorate-sort-undecorate: resolve each group's sort fields once (the date resolve is the
-        // costly part), order the pairs, then drop back to groups.
-        let key = sortKey
-        let ascending = visible
-            .map { (group: $0, field: sortField(for: $0)) }
-            .sorted { Self.orders($0.field, before: $1.field, by: key) }
+        // costly part), let `ordered(_:)` apply the key + direction + undated-last policy, then drop
+        // back to groups.
+        return Self.ordered(visible.map { (group: $0, field: sortField(for: $0)) },
+                            field: { $0.field },
+                            by: sortKey,
+                            ascending: sortAscending)
             .map { $0.group }
-        return sortAscending ? ascending : ascending.reversed()
     }
     @Published private(set) var parseErrors: [ClipParseError] = []
     @Published private(set) var skippedFiles: [String] = []
@@ -214,18 +214,43 @@ final class ConversionViewModel: ObservableObject {
             return a.bytes == b.bytes ? tie() : a.bytes < b.bytes
         case .date:
             // Sorts by the *corrected* recording start, so the order matches the date each row shows.
-            //
-            // TODO(you): decide where *undated* recordings land. `resolvedStartDate` is `nil` only
-            // when every fallback failed (no SRT, unparseable filename, no embedded date, no
-            // filesystem date) — rare, but real on a stripped card. The `.distantPast` default below
-            // makes undated rows cluster at one end and **flip** with the sort direction (bottom when
-            // newest-first, top when oldest-first). The alternative — pin undated rows to the bottom
-            // *regardless* of direction (Finder's "—" behaviour) — can't be expressed through the
-            // outer reverse, so it would need handling right here. Replace the body with your policy.
+            // Undated rows (`date == nil`) are lifted out of this comparator entirely by `ordered(_:)`
+            // below — they never reach here in the list path, so the `?? .distantPast` is only a
+            // defensive fallback. The "undated always last" policy lives in `ordered(_:)`, which can
+            // see the sort *direction*; this comparator is direction-agnostic (ascending-only).
             let da = a.date ?? .distantPast
             let db = b.date ?? .distantPast
             return da == db ? tie() : da < db
         }
+    }
+
+    /// Full list ordering for `key` + direction. `orders(_:before:by:)` only sorts ascending and has
+    /// no notion of "undated"; this wrapper layers on (a) the descending reverse and (b) the
+    /// **undated-rows-always-last** policy — a recording with no resolvable date (no SRT, unparseable
+    /// filename, no embedded date, no filesystem date) stays pinned at the bottom in *both* sort
+    /// directions, mirroring Finder's "—" behaviour. That can't be expressed through the outer reverse
+    /// (which is all-or-nothing), so undated rows are partitioned out before the sort and re-appended
+    /// after. Generic over the row type so it stays unit-testable with bare `SortField`s yet also
+    /// drives `filteredGroups`' decorated `(group, field)` pairs — one tested code path.
+    static func ordered<Row>(_ rows: [Row],
+                             field: (Row) -> SortField,
+                             by key: SortKey,
+                             ascending: Bool) -> [Row] {
+        guard key != .found else { return rows }   // discovery order — never reordered
+
+        // Undated rows only exist for the date key (name/duration/size are non-optional). Split them
+        // off, keeping them in stable discovery order (`index`) among themselves.
+        let dated: [Row], undated: [Row]
+        if key == .date {
+            dated   = rows.filter { field($0).date != nil }
+            undated = rows.filter { field($0).date == nil }
+                          .sorted { field($0).index < field($1).index }
+        } else {
+            dated = rows; undated = []
+        }
+
+        let asc = dated.sorted { orders(field($0), before: field($1), by: key) }
+        return (ascending ? asc : asc.reversed()) + undated
     }
 
     // MARK: - Folder selection

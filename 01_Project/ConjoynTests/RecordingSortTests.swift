@@ -108,19 +108,48 @@ final class RecordingSortTests: XCTestCase {
         XCTAssertTrue(ConversionViewModel.orders(a, before: b, by: .found))
     }
 
-    // MARK: Comparator — undated rows (the nil-date policy)
+    // MARK: List ordering — undated rows (the nil-date policy: Finder "always last")
 
-    func testUndatedSortsAsDistantPast() {
-        // Current policy: nil → .distantPast, so an undated row precedes any dated row in ascending
-        // order (and lands last once filteredGroups reverses for newest-first).
-        let undated = field(1, date: nil)
-        let dated   = field(2, date: Date(timeIntervalSince1970: 1_000))
-        XCTAssertTrue(ConversionViewModel.orders(undated, before: dated, by: .date))
+    /// Undated rows (`date == nil`) are pinned to the **bottom in BOTH directions**, matching Finder's
+    /// "—" behaviour. This lives in `ordered(_:)`, not `orders(_:)`, because it needs the direction.
+    /// `index` doubles as the row identity here so we can assert position by id.
+
+    func testUndatedRowsLandLastWhenNewestFirst() {
+        // Descending (newest first): dated rows newest→oldest, then undated.
+        let rows = [field(1, date: nil),
+                    field(2, date: Date(timeIntervalSince1970: 1_000)),
+                    field(3, date: Date(timeIntervalSince1970: 9_000))]
+        let order = ConversionViewModel.ordered(rows, field: { $0 }, by: .date, ascending: false)
+                                       .map(\.index)
+        XCTAssertEqual(order, [3, 2, 1])   // newest, older, then undated last
     }
 
-    func testTwoUndatedFallBackToIndex() {
-        let a = field(4, date: nil)
-        let b = field(9, date: nil)
-        XCTAssertTrue(ConversionViewModel.orders(a, before: b, by: .date))
+    func testUndatedRowsStillLandLastWhenOldestFirst() {
+        // Ascending (oldest first): the undated row must NOT flip to the top — it stays at the bottom.
+        let rows = [field(1, date: nil),
+                    field(2, date: Date(timeIntervalSince1970: 1_000)),
+                    field(3, date: Date(timeIntervalSince1970: 9_000))]
+        let order = ConversionViewModel.ordered(rows, field: { $0 }, by: .date, ascending: true)
+                                       .map(\.index)
+        XCTAssertEqual(order, [2, 3, 1])   // oldest, newer, then undated last (not first)
+    }
+
+    func testMultipleUndatedKeepDiscoveryOrderAmongThemselves() {
+        let rows = [field(9, date: nil),
+                    field(4, date: nil),
+                    field(2, date: Date(timeIntervalSince1970: 1_000))]
+        let order = ConversionViewModel.ordered(rows, field: { $0 }, by: .date, ascending: false)
+                                       .map(\.index)
+        XCTAssertEqual(order, [2, 4, 9])   // dated first, then undated by ascending index (4 before 9)
+    }
+
+    func testNonDateSortsAreUnaffectedByPartition() {
+        // The undated-last split only applies to the date key; size/duration/name pass straight
+        // through orders() + the reverse.
+        let rows = [field(1, bytes: 1_000), field(2, bytes: 9_000), field(3, bytes: 5_000)]
+        let asc  = ConversionViewModel.ordered(rows, field: { $0 }, by: .size, ascending: true).map(\.index)
+        let desc = ConversionViewModel.ordered(rows, field: { $0 }, by: .size, ascending: false).map(\.index)
+        XCTAssertEqual(asc,  [1, 3, 2])
+        XCTAssertEqual(desc, [2, 3, 1])
     }
 }

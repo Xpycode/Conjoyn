@@ -53,7 +53,10 @@
   icon stays dark; SVG masters in `02_Design/app-icon/`. Cookbook #114.
 
 ## Backlog (all post-ship / optional)
-- nil-date sort policy: keep `.distantPast` or switch to Finder "undated always last" (`TODO` in `orders(…)`).
+- ~~nil-date sort policy~~ **DONE 2026-06-16** — chose Finder "undated always last" (bottom in **both**
+  directions). New pure generic `ConversionViewModel.ordered(_:field:by:ascending:)` partitions undated
+  rows out, sorts+reverses the dated, re-appends undated; `filteredGroups` routes through it. +2 tests
+  (343/1 skip/0 fail).
 - Optional DMG polish (custom background image).
 - Roadmap futures (not built): **watch-folder ingest** (spec v1 scope, never shipped — stale comment at
   `RecordGroup.swift:10`), **more camera families** (engine already camera-agnostic).
