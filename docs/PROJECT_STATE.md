@@ -16,19 +16,25 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete.** Version **1.0.1 / build 101** (monotonic for
-  Sparkle; 101 not yet distributed). **Tests: 341 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  Sparkle). **Tests: 343 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
 - **Blockers:** none.
+- **✓ Repo public + licensed** (2026-06-16) — `github.com/Xpycode/Conjoyn` flipped **private → public**
+  after a clean pre-public secrets scan (no keys/secrets in tree or history; only Sparkle *public* key;
+  `99-AUTH/` is outside the repo). Added `README.md` (overview/features/build-from-source/LGPL note/DJI
+  non-affiliation disclaimer) + `LICENSE.md` = **PolyForm Noncommercial 1.0.0** (source-available, **no
+  commercial/paid-app use**), licensor Luces Umbrarum. GitHub license chip may not auto-detect PolyForm.
 - **The ONE gate to 1.0-public = Sparkle Wave 4**, and it lives in a **different repo**
   (`3-Websites/App-Websites`, `APPS/Conjoyn/`), **not here.** It's a website session: stand up
   `conjoyn.lucesumbrarum.com`, host `appcast.xml` + the **raw** DMG (Strato: `lftp mirror -R` *without*
   `--delete`, chmod 644/755; enclosure → raw DMG URL, not the counted PHP endpoint; `curl -sI` verify),
   publish the link. Within *this* repo the release engineering is **done**. Memory `wave4-lives-in-websites-repo`.
-- **⚠ Ship artifact lags `main`.** `04_Exports/Conjoyn.dmg` is the **1.0/100** notarized build (Accepted,
-  stapled, `source=Notarized Developer ID`); `main` is **1.0.1/101** (+ FeedbackKit fix, light theme,
-  single-window, diagnostic logging, Roadmap/Donate topics). **Re-cut owed before any public ship** via
-  `01_Project/scripts/make-dmg.sh` (delegates to `notarize.sh`; `SKIP_APP=1` reuses a stapled app;
-  `create-dmg` needs a GUI session). The `conjoyn-notary` keychain profile is **per-Mac** — recreate via
-  `setup-notary-profile.sh` from `99-AUTH/` (memory `dmg-recut-on-fresh-release-mac`).
+- **✓ Ship artifact in sync with `main`** (re-cut 2026-06-16). `04_Exports/Conjoyn.dmg` is now the
+  **1.0.1/101** build (app + DMG both notary **Accepted**, double-stapled, `source=Notarized Developer
+  ID`, `/Applications` drop-link; verified version inside = 1.0.1/101; installs offline, 28 MB). Cut via
+  `01_Project/scripts/make-dmg.sh` on the release Mac (notary profile valid; `create-dmg` ran fine in the
+  GUI session). Re-cut again only if `main`'s app binary changes before publish. The `conjoyn-notary`
+  keychain profile is **per-Mac** — recreate via `setup-notary-profile.sh` from `99-AUTH/` (memory
+  `dmg-recut-on-fresh-release-mac`).
 - **Sparkle: complete through Wave 3** — pipeline Apple-notary-validated *and* self-update-proven
   end-to-end (`notarize.sh` archive→export, 8 nested Mach-Os Developer ID → `make-dmg.sh` →
   `make-appcast.sh`). Key custody = **3 verified-identical copies** (M4 Pro keychain `account=conjoyn`
