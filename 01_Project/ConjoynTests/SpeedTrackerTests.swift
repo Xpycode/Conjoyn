@@ -253,4 +253,32 @@ final class SpeedTrackerTests: XCTestCase {
         XCTAssertTrue(tracker.records.isEmpty)
         XCTAssertNil(tracker.currentSpeedWarning)
     }
+
+    // MARK: - Byte throughput (drives the whole-queue ETA's pending portion)
+
+    func testThroughputDefaultsWithoutHistory() {
+        let tracker = makeTracker()
+        XCTAssertEqual(tracker.throughputBytesPerSec(outputFormat: .mp4),
+                       SpeedTracker.defaultThroughputBytesPerSec, accuracy: 0.001,
+                       "no history → conservative default")
+    }
+
+    func testThroughputIsPooledNotAveragedRatios() {
+        let tracker = makeTracker()
+        // Two very different jobs: 100 MB in 1s (100 MB/s) and 100 MB in 9s (~11 MB/s).
+        // Pooled throughput = Σbytes/Σseconds = 200 MB / 10s = 20 MB/s — NOT the 55.5 MB/s you'd
+        // get by averaging the two per-job rates (the ratio-averaging fallacy this guards against).
+        tracker.recordConversion(bytesProcessed: 100_000_000, durationSeconds: 1, contentDurationSeconds: 60, outputFormat: .mp4)
+        tracker.recordConversion(bytesProcessed: 100_000_000, durationSeconds: 9, contentDurationSeconds: 60, outputFormat: .mp4)
+        XCTAssertEqual(tracker.throughputBytesPerSec(outputFormat: .mp4), 20_000_000, accuracy: 1,
+                       "Σbytes / Σseconds, not the mean of per-job rates")
+    }
+
+    func testThroughputFiltersByFormatThenFallsBack() {
+        let tracker = makeTracker()
+        tracker.recordConversion(bytesProcessed: 50_000_000, durationSeconds: 1, contentDurationSeconds: 60, outputFormat: .mov)
+        // No .mp4 records → falls back to all records (the lone .mov one) rather than the default.
+        XCTAssertEqual(tracker.throughputBytesPerSec(outputFormat: .mp4), 50_000_000, accuracy: 1,
+                       "no matching-format record → pooled over all records")
+    }
 }

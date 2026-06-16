@@ -76,6 +76,38 @@ final class QueueManagerTests: XCTestCase {
         return job
     }
 
+    /// A clip backed by a REAL zero-filled file of `sizeBytes` in `tmpDir`, so `DJIClip.totalFileSize`
+    /// reads a known nonzero size — the byte-weighted whole-queue ETA needs real sizes (the default
+    /// `makeClip` points at a non-existent path, so its `totalFileSize` is 0).
+    private func makeSizedClip(sizeBytes: Int, index: Int = 0, seconds: Double = 60) throws -> DJIClip {
+        let url = tmpDir.appendingPathComponent("sized-\(UUID().uuidString)-\(index).mp4")
+        try Data(count: sizeBytes).write(to: url)
+        return DJIClip(
+            videoURL: url,
+            index: index,
+            stem: "DJI_000\(index)",
+            duration: CMTime(seconds: seconds, preferredTimescale: 600),
+            streamInfo: nil
+        )
+    }
+
+    /// A job whose clips are real files summing to `totalBytes`, for the size-weighted ETA tests.
+    private func makeSizedJob(
+        outputName: String,
+        status: JobStatus = .pending,
+        totalBytes: Int
+    ) throws -> ConversionJob {
+        var job = ConversionJob(
+            folderName: "100MEDIA",
+            sourceFolderURL: tmpDir,
+            clips: [try makeSizedClip(sizeBytes: totalBytes, index: 0)],
+            settings: ConversionSettings(),
+            destinationURL: tmpDir.appendingPathComponent(outputName)
+        )
+        job.status = status
+        return job
+    }
+
     // MARK: - Enqueue → persist → reload round-trip (keystone)
 
     func testEnqueuePersistReloadRoundTrip() throws {
@@ -417,10 +449,11 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(remaining!, 200, accuracy: 0.5)
     }
 
-    func testRemainingQueueSecondsAddsPendingJobs() {
+    func testRemainingQueueSecondsAddsPendingJobs() throws {
         let manager = makeManager()
-        manager.addJob(makeJob(outputName: "Active.mp4"))
-        manager.addJob(makeJob(outputName: "Waiting.mp4"))   // stays pending
+        let bytes = 12 * 1024 * 1024   // 12 MiB per job; real files so totalSourceBytes is nonzero
+        manager.addJob(try makeSizedJob(outputName: "Active.mp4", totalBytes: bytes))
+        manager.addJob(try makeSizedJob(outputName: "Waiting.mp4", totalBytes: bytes))  // stays pending
         let start = Date(timeIntervalSinceReferenceDate: 1_000)
         manager.jobs[0].status = .active
         manager.jobs[0].progress = 0.5
@@ -432,6 +465,64 @@ final class QueueManagerTests: XCTestCase {
         let remaining = manager.remainingQueueSeconds(at: start.addingTimeInterval(60))
         XCTAssertNotNil(remaining)
         XCTAssertGreaterThan(remaining!, 60)
+    }
+
+    /// The whole-queue ETA must weigh pending jobs by their byte size (jobs run sequentially and the
+    /// join is I/O-bound), so doubling a pending job's bytes roughly doubles the time it contributes.
+    func testRemainingQueueSecondsWeightsPendingBySize() throws {
+        let base = 10 * 1024 * 1024   // 10 MiB
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+
+        func total(pendingBytes: Int) throws -> TimeInterval {
+            // A fresh storage dir per manager — sharing one would let queue.json persistence leak
+            // stale jobs from a prior call into this manager's pending set.
+            let manager = QueueManager(storageDirectory: tmpDir.appendingPathComponent(UUID().uuidString))
+            manager.addJob(try makeSizedJob(outputName: "Active.mp4", totalBytes: base))
+            manager.addJob(try makeSizedJob(outputName: "Pending.mp4", totalBytes: pendingBytes))
+            manager.jobs[0].status = .active
+            manager.jobs[0].progress = 0.5
+            manager.jobs[0].startedAt = start
+            manager.currentJobId = manager.jobs[0].id
+            manager.isProcessing = true
+            return try XCTUnwrap(manager.remainingQueueSeconds(at: start.addingTimeInterval(60)))
+        }
+
+        // Active contributes a fixed ~60s; only the pending portion scales with bytes.
+        let small = try total(pendingBytes: base)
+        let large = try total(pendingBytes: base * 2)
+        let smallPending = small - 60
+        let largePending = large - 60
+        XCTAssertEqual(largePending, smallPending * 2, accuracy: smallPending * 0.05,
+                       "doubling pending bytes ~doubles its ETA contribution")
+    }
+
+    // MARK: - Failure hardening (retry classification + staged move)
+
+    func testRetriableJoinErrorClassification() {
+        // Transient I/O hiccups → retry.
+        XCTAssertTrue(QueueManager.isRetriableJoinError(FFmpegWrapper.FFmpegError.conversionFailed("Error closing file: Input/output error")))
+        XCTAssertTrue(QueueManager.isRetriableJoinError(StreamParameterGuard.GuardError.probeFailed("exit code 1 for DJI_0108.MP4")))
+        // A Foundation file-I/O error (e.g. during the move) is unknown → treat as transient.
+        XCTAssertTrue(QueueManager.isRetriableJoinError(CocoaError(.fileWriteVolumeReadOnly)))
+
+        // Deterministic errors → never retry.
+        XCTAssertFalse(QueueManager.isRetriableJoinError(FFmpegWrapper.FFmpegError.cancelled))
+        XCTAssertFalse(QueueManager.isRetriableJoinError(FFmpegWrapper.FFmpegError.ffmpegNotFound))
+        XCTAssertFalse(QueueManager.isRetriableJoinError(FFmpegWrapper.FFmpegError.invalidInput("Nothing to export")))
+        XCTAssertFalse(QueueManager.isRetriableJoinError(StreamParameterGuard.GuardError.incompatible("codec mismatch")))
+        XCTAssertFalse(QueueManager.isRetriableJoinError(StreamParameterGuard.GuardError.noVideoStream("DJI_0001.MP4")))
+    }
+
+    func testMoveIntoPlaceReplacesExistingDestination() async throws {
+        let src = tmpDir.appendingPathComponent("staged.mp4")
+        let dest = tmpDir.appendingPathComponent("final.mp4")
+        try Data("joined".utf8).write(to: src)
+        try Data("stale".utf8).write(to: dest)   // a pre-existing file must be replaced
+
+        try await QueueManager.moveIntoPlace(from: src, to: dest)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: src.path), "source consumed by the move")
+        XCTAssertEqual(try String(contentsOf: dest, encoding: .utf8), "joined", "destination holds the moved file")
     }
 
     // MARK: - Job-level aggregates

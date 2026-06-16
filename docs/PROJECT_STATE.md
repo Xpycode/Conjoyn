@@ -28,8 +28,8 @@
   `conjoyn.lucesumbrarum.com`, host `appcast.xml` + the **raw** DMG (Strato: `lftp mirror -R` *without*
   `--delete`, chmod 644/755; enclosure → raw DMG URL, not the counted PHP endpoint; `curl -sI` verify),
   publish the link. Within *this* repo the release engineering is **done**. Memory `wave4-lives-in-websites-repo`.
-- **✓ Ship artifact in sync with `main`** (re-cut 2026-06-16). `04_Exports/Conjoyn.dmg` is now the
-  **1.0.1/101** build (app + DMG both notary **Accepted**, double-stapled, `source=Notarized Developer
+- **DMG lags `main`** (since 2026-06-16 PM-2 — console/ETA/failure-hardening landed after the re-cut). Last
+  re-cut `04_Exports/Conjoyn.dmg` is the **1.0.1/101** build (app + DMG both notary **Accepted**, double-stapled, `source=Notarized Developer
   ID`, `/Applications` drop-link; verified version inside = 1.0.1/101; installs offline, 28 MB). Cut via
   `01_Project/scripts/make-dmg.sh` on the release Mac (notary profile valid; `create-dmg` ran fine in the
   GUI session). Re-cut again only if `main`'s app binary changes before publish. The `conjoyn-notary`
@@ -72,6 +72,20 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-16 (PM-2)** — **3 user-found issues fixed on real footage** (on `main`, **not yet committed/pushed** at
+  time of writing; 349 tests/1 skip/0 fail, +6). **(1) Console multi-line select + Copy All** — lines were
+  separate `Text` views (`.textSelection` can't cross siblings); now one `Text` from a tinted `AttributedString`
+  (drag-select + ⌘A + ⌘C all work, per-line colour kept) + a **Copy All** button. **(2) Whole-queue ETA fixed** —
+  was `contentDuration ÷ speedMultiplier` (wrong for I/O-bound `-c copy`; 15× default + average-of-ratios bug);
+  now **bytes ÷ throughput** measured **live off the running job** (fallback: pooled history → conservative
+  default), so pending jobs are **size-weighted** (a 50 GB split ≈ 2.5× a 20 GB one). **(3) Two real failures
+  diagnosed = NOT app bugs** — transient external-USB I/O under sustained load (volume healthy: APFS, 293 GB free;
+  "failed" source reads + ffprobes clean now). **Hardening shipped:** delete partial output on failure (only files
+  *we* wrote this attempt); **stage join on internal temp → move to destination** (external drive does only
+  sequential source reads + 1 write, killing the read/write/faststart contention; off-main move; auto-skips when
+  temp==dest volume); **auto-retry once** on transient errors (`conversionFailed`/`probeFailed`/unknown, never on
+  deterministic ones). **DMG now lags `main`** again (these changes not in the 1.0.1/101 artifact). Version
+  unchanged. *Owed:* real-footage eyeball of the staged-move multi-GB path.
 - **2026-06-16** — Doc reconcile + **4 UI changes** (all on `main`, pushed, eyeballed): File-menu
   **Choose Source / Destination Folder** split (`24d14b2`); **Match-System appearance fix** (`feb3c43`,
   cookbook #113); **runtime light/dark Dock-icon switch** in the Appearance menu (`945ff4d`, new light

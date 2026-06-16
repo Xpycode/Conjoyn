@@ -31,6 +31,12 @@ final class SpeedTracker: ObservableObject {
     /// Concat `-c copy` is I/O-bound and typically far faster than realtime; 15x is intentionally low.
     private static let defaultSpeedMultiplier = 15.0  // 15x realtime
 
+    /// Conservative default join throughput (bytes/sec) when no history exists — roughly a sustained
+    /// external-drive read (~120 MiB/s). Used only for the whole-queue ETA's pending portion; the
+    /// live rate measured from the running job supersedes it within seconds, so it merely colours
+    /// the very first estimate on a fresh install.
+    static let defaultThroughputBytesPerSec: Double = 120 * 1024 * 1024
+
     /// Threshold below which we warn about slow speed (as fraction of expected).
     private static let slowSpeedThreshold = 0.3  // Warn if < 30% of expected speed
 
@@ -165,6 +171,27 @@ final class SpeedTracker: ObservableObject {
             clips: job.clips,
             outputFormat: job.settings.outputContainer
         )
+    }
+
+    /// Pooled join throughput in bytes/sec from history (`Σbytes / Σseconds` — the statistically
+    /// correct aggregate, unlike averaging per-job speed *ratios*, which over-weights small fast
+    /// jobs). `-c copy` is I/O-bound, so a byte-throughput predicts join time far better than a
+    /// content-duration multiplier across mixed resolutions/bitrates. Prefers ≥3 recent
+    /// matching-format records, then all matching, then all records, then the conservative default.
+    func throughputBytesPerSec(outputFormat: ConversionSettings.OutputContainer) -> Double {
+        func pooled(_ recs: [ConversionSpeedRecord]) -> Double? {
+            let bytes = recs.reduce(Int64(0)) { $0 + $1.bytesProcessed }
+            let secs = recs.reduce(0.0) { $0 + $1.durationSeconds }
+            guard bytes > 0, secs > 0 else { return nil }
+            return Double(bytes) / secs
+        }
+
+        let recentCutoff = Date().addingTimeInterval(-7 * 24 * 3600)
+        let recentMatching = records.filter { $0.date > recentCutoff && $0.outputFormat == outputFormat }
+        if recentMatching.count >= 3, let throughput = pooled(recentMatching) { return throughput }
+        if let throughput = pooled(records.filter { $0.outputFormat == outputFormat }) { return throughput }
+        if let throughput = pooled(records) { return throughput }
+        return Self.defaultThroughputBytesPerSec
     }
 
     /// Gets the expected speed multiplier based on history.

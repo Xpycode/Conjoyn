@@ -788,6 +788,25 @@ struct ConsoleSection: View {
         queue.consoleLog.isEmpty ? [] : queue.consoleLog.split(separator: "\n")
     }
 
+    /// The whole log as a single AttributedString, each line tinted by `lineColor`,
+    /// so SwiftUI renders it as one selectable `Text` (drag/⌘A spans all lines).
+    private var attributedLog: AttributedString {
+        var out = AttributedString()
+        for (i, line) in lines.enumerated() {
+            var run = AttributedString(line)
+            run.foregroundColor = lineColor(line)
+            out += run
+            if i < lines.count - 1 { out += AttributedString("\n") }
+        }
+        return out
+    }
+
+    private func copyAll() {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(queue.consoleLog, forType: .string)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -802,6 +821,9 @@ struct ConsoleSection: View {
                 }
                 Spacer()
                 if isOpen, !lines.isEmpty {
+                    Button("Copy All") { copyAll() }
+                        .buttonStyle(.cjGhost)
+                        .font(.system(size: 11))
                     Button("Clear") { queue.clearConsole() }
                         .buttonStyle(.cjGhost)
                         .font(.system(size: 11))
@@ -816,21 +838,22 @@ struct ConsoleSection: View {
             if isOpen {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 0) {
                             if lines.isEmpty {
                                 Text("— idle —")
                                     .foregroundStyle(Theme.txt3)
-                            }
-                            ForEach(lines.indices, id: \.self) { i in
-                                Text(lines[i])
-                                    .foregroundStyle(lineColor(lines[i]))
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                // One Text from an AttributedString so selection can
+                                // span every line (separate Text views can't cross-select).
+                                Text(attributedLog)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
                             }
                             Color.clear.frame(height: 1).id("console-bottom")
                         }
                         .font(.system(size: 11, design: .monospaced))
                         .lineSpacing(4)
-                        .textSelection(.enabled)
                         .padding(.horizontal, 16)
                         .padding(.top, 4)
                         .padding(.bottom, 10)

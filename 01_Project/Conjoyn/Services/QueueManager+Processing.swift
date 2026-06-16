@@ -126,50 +126,69 @@ extension QueueManager {
         let totalBytes = job.clips.reduce(Int64(0)) { $0 + $1.totalFileSize }
         let contentDuration = job.totalContentDurationSeconds
 
-        do {
-            updateJob(jobId) { $0.status = .active }
+        // One automatic retry: a transient I/O failure on an external/USB drive (the failure mode
+        // seen at the tail of a long batch) usually succeeds on a second pass. `processConcatenateJob`
+        // deletes its own partial output before throwing, so each attempt starts clean.
+        let maxAttempts = 2
+        var attempt = 1
+        while true {
+            do {
+                updateJob(jobId) { j in
+                    j.status = .active
+                    if attempt > 1 { j.progress = 0 }
+                }
 
-            let outputFiles = try await processConcatenateJob(job, jobId: jobId)
+                let outputFiles = try await processConcatenateJob(job, jobId: jobId)
 
-            // Store actual output URLs for verification (may differ due to conflict resolution).
-            updateJob(jobId) { j in
-                j.actualOutputURLs = outputFiles
-                j.status = .completed
-                j.progress = 1.0
-            }
+                // Store actual output URLs for verification (may differ due to conflict resolution).
+                updateJob(jobId) { j in
+                    j.actualOutputURLs = outputFiles
+                    j.status = .completed
+                    j.progress = 1.0
+                }
 
-            // Auto source↔target verification (fast tier). This MUST run here — before the
-            // enclosing scope exits — because the source security-scoped access opened above is
-            // released by the `defer` at the top of `processJob` only once this function returns.
-            // `await` suspends without unwinding the scope, so the `defer` has NOT fired yet and the
-            // verifier inherits live source access (no re-resolve needed on the auto path). The fast
-            // tier's ffprobe work runs inside the verifier's own off-main `Process`, so the main
-            // actor isn't blocked; the `await` simply preserves strict job ordering.
-            await autoVerifyJoin(jobId: jobId)
+                // Auto source↔target verification (fast tier). This MUST run here — before the
+                // enclosing scope exits — because the source security-scoped access opened above is
+                // released by the `defer` at the top of `processJob` only once this function returns.
+                // `await` suspends without unwinding the scope, so the `defer` has NOT fired yet and the
+                // verifier inherits live source access (no re-resolve needed on the auto path). The fast
+                // tier's ffprobe work runs inside the verifier's own off-main `Process`, so the main
+                // actor isn't blocked; the `await` simply preserves strict job ordering.
+                await autoVerifyJoin(jobId: jobId)
 
-            // Record the join speed for future estimates.
-            let elapsed = Date().timeIntervalSince(startTime)
-            if elapsed > 0 {
-                speedTracker.recordConversion(
-                    bytesProcessed: totalBytes,
-                    durationSeconds: elapsed,
-                    contentDurationSeconds: contentDuration,
-                    outputFormat: job.settings.outputContainer
-                )
+                // Record the join speed for future estimates.
+                let elapsed = Date().timeIntervalSince(startTime)
+                if elapsed > 0 {
+                    speedTracker.recordConversion(
+                        bytesProcessed: totalBytes,
+                        durationSeconds: elapsed,
+                        contentDurationSeconds: contentDuration,
+                        outputFormat: job.settings.outputContainer
+                    )
 
-                let speedMultiplier = contentDuration / elapsed
-                log("SUCCESS: \(job.displayName) - \(String(format: "%.1fx", speedMultiplier)) realtime")
-            } else {
-                log("SUCCESS: \(job.displayName)")
-            }
+                    let speedMultiplier = contentDuration / elapsed
+                    log("SUCCESS: \(job.displayName) - \(String(format: "%.1fx", speedMultiplier)) realtime")
+                } else {
+                    log("SUCCESS: \(job.displayName)")
+                }
+                break
 
-        } catch {
-            // Distinguish cancellation from an actual error.
-            if let idx = jobIndex(for: jobId), jobs[idx].status == .cancelled {
-                log("Job cancelled: \(job.displayName)")
-            } else {
+            } catch {
+                // Distinguish cancellation from an actual error.
+                if let idx = jobIndex(for: jobId), jobs[idx].status == .cancelled {
+                    log("Job cancelled: \(job.displayName)")
+                    break
+                }
+
+                if attempt < maxAttempts, Self.isRetriableJoinError(error) {
+                    log("Transient error on \(job.displayName) (attempt \(attempt)/\(maxAttempts)) — retrying: \(error.localizedDescription)")
+                    attempt += 1
+                    continue
+                }
+
                 updateJob(jobId) { $0.status = .failed(error.localizedDescription) }
                 log("FAILED: \(job.displayName) - \(error.localizedDescription)")
+                break
             }
         }
 
@@ -186,6 +205,7 @@ extension QueueManager {
         let totalBytes = job.clips.reduce(Int64(0)) { $0 + $1.totalFileSize }
         let totalDuration = job.totalContentDurationSeconds
         let segments = job.clips.map(\.videoURL)
+        let finalURL = job.destinationURL
 
         // Task 2.8: resolve the recording-start wall-clock for the group and stamp it on the output.
         // One resolved value drives both the `creation_time` date atoms and the `tmcd` start
@@ -193,35 +213,67 @@ extension QueueManager {
         // and the param guard are untouched — FFmpeg writes the metadata during the mux.
         let metadata = resolveJoinMetadata(for: job)
 
-        try await ffmpeg.mergeClips(
-            segments,
-            to: job.destinationURL,
-            metadata: metadata,
-            totalFrames: job.estimatedFrameCount,
-            progress: { [weak self] progress, _ in
-                Task { @MainActor in
-                    self?.updateJob(jobId) { $0.progress = progress }
+        // Stage the join on the temp volume (typically the internal SSD): ffmpeg writes the output
+        // and runs `+faststart` there, so the (often external/USB) destination drive does only
+        // sequential source reads during the join — then one sequential copy lands the finished file.
+        // This removes the simultaneous read+write+faststart-rewrite contention on a single external
+        // drive that flakes under a long batch (the observed faststart "re-open / I/O error"). When
+        // temp and destination share a volume, staging buys nothing and would double the write, so we
+        // write straight to the destination.
+        let tempDir = TempDirectoryManager.shared.effectiveTempDirectory
+        let staged = !DiskSpace.sameVolume(tempDir, finalURL.deletingLastPathComponent())
+        let writeURL = staged
+            ? tempDir.appendingPathComponent("conjoyn-join-\(jobId.uuidString).\(finalURL.pathExtension)")
+            : finalURL
+
+        // Track whether we've written to the *destination* this attempt, so the failure path deletes
+        // only our own partial — never a pre-existing good file we haven't touched yet (staging keeps
+        // the destination untouched until the move).
+        var destinationTouched = !staged
+
+        do {
+            defer { if staged { try? FileManager.default.removeItem(at: writeURL) } }
+
+            try await ffmpeg.mergeClips(
+                segments,
+                to: writeURL,
+                metadata: metadata,
+                totalFrames: job.estimatedFrameCount,
+                progress: { [weak self] progress, _ in
+                    Task { @MainActor in
+                        self?.updateJob(jobId) { $0.progress = progress }
+                    }
+                },
+                logHandler: { [weak self] message in
+                    Task { @MainActor in
+                        self?.log(message)
+                    }
+                },
+                metricsHandler: { [weak self] metrics in
+                    Task { @MainActor in
+                        // Surface ffmpeg's live metrics (speed=) to the active queue row, then run the
+                        // slow-speed check off the same sample.
+                        self?.activeMetrics = metrics
+                        self?.checkForSlowSpeed(
+                            metrics: metrics,
+                            totalBytes: totalBytes,
+                            totalDuration: totalDuration,
+                            outputPath: writeURL
+                        )
+                    }
                 }
-            },
-            logHandler: { [weak self] message in
-                Task { @MainActor in
-                    self?.log(message)
-                }
-            },
-            metricsHandler: { [weak self] metrics in
-                Task { @MainActor in
-                    // Surface ffmpeg's live metrics (speed=) to the active queue row, then run the
-                    // slow-speed check off the same sample.
-                    self?.activeMetrics = metrics
-                    self?.checkForSlowSpeed(
-                        metrics: metrics,
-                        totalBytes: totalBytes,
-                        totalDuration: totalDuration,
-                        outputPath: job.destinationURL
-                    )
-                }
+            )
+
+            if staged {
+                log("Moving joined file to destination → \(finalURL.lastPathComponent)")
+                destinationTouched = true
+                try await Self.moveIntoPlace(from: writeURL, to: finalURL)
             }
-        )
+        } catch {
+            // Delete our own partial output so a truncated file never masquerades as a finished join.
+            if destinationTouched { try? FileManager.default.removeItem(at: finalURL) }
+            throw error
+        }
 
         // Task 3.3: stitch the per-segment `.SRT` sidecars into one continuous, re-timed sidecar
         // next to the joined video. **Non-fatal:** the lossless video join has already succeeded, so
@@ -229,7 +281,42 @@ extension QueueManager {
         // segment's duration via ffprobe (synchronous + blocking), so it runs off the main actor.
         await stitchSRTSidecar(for: job)
 
-        return [job.destinationURL]
+        return [finalURL]
+    }
+
+    /// Replaces `dest` with `src`, running the (potentially multi-GB, blocking) file move off the
+    /// main actor. Cross-volume moves fall back to copy-then-delete inside Foundation, so this is how
+    /// a job staged on the temp volume lands at its destination in one sequential write.
+    nonisolated static func moveIntoPlace(from src: URL, to dest: URL) async throws {
+        try await Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            if fm.fileExists(atPath: dest.path) {
+                try fm.removeItem(at: dest)
+            }
+            try fm.moveItem(at: src, to: dest)
+        }.value
+    }
+
+    /// Whether a failed join is worth one automatic retry. A transient I/O hiccup on an external/USB
+    /// drive — an ffmpeg runtime failure (`conversionFailed`, e.g. the faststart re-open) or an
+    /// ffprobe exit code (`probeFailed`) — usually succeeds on a second pass. Deterministic errors
+    /// (a genuine parameter mismatch, a missing binary, malformed input) never will, so retrying them
+    /// only wastes a full attempt. Unknown errors (e.g. a Foundation file-I/O error during the move)
+    /// are treated as transient.
+    static func isRetriableJoinError(_ error: Error) -> Bool {
+        if let e = error as? FFmpegWrapper.FFmpegError {
+            switch e {
+            case .conversionFailed: return true
+            case .cancelled, .ffmpegNotFound, .invalidInput: return false
+            }
+        }
+        if let e = error as? StreamParameterGuard.GuardError {
+            switch e {
+            case .probeFailed: return true
+            case .noVideoStream, .malformedProbeOutput, .incompatible: return false
+            }
+        }
+        return true
     }
 
     /// Builds the `JoinMetadata` (creation_time + start timecode) for a job by resolving the
@@ -349,25 +436,47 @@ extension QueueManager {
     /// `nil` when nothing is running so the footer readout stays hidden between batches.
     ///
     /// The active job uses the live `elapsed / progress` extrapolation (`ProgressMetrics`) once it's
-    /// past 5%; before that it falls back to the historical `currentJobEstimate`. Pending jobs always
-    /// use `getTotalQueueEstimate()` (SpeedTracker history). The split keeps the live countdown
-    /// history-independent while still giving a whole-batch number on a fresh install.
+    /// past 5%; before that it falls back to the historical `currentJobEstimate`.
+    ///
+    /// Pending jobs are estimated by **bytes ÷ throughput**, not content-duration × a speed
+    /// multiplier: jobs run sequentially and the join is `-c copy` (I/O-bound), so each pending job's
+    /// run-time scales with the bytes it must copy, and a larger split correctly weighs proportionally
+    /// more. The throughput is taken from the **live rate measured off the active job**
+    /// (`activeBytes × progress / elapsed`) when available — so the whole-queue number reflects this
+    /// card's real speed within seconds — falling back to recorded history, then a conservative
+    /// default. This keeps the readout history-independent yet accurate on a fresh install.
     func remainingQueueSeconds(at referenceDate: Date) -> TimeInterval? {
         guard isProcessing else { return nil }
 
         var total: TimeInterval = 0
+        var liveThroughput: Double?   // bytes/sec, measured from the active job
 
         if let active = jobs.first(where: { $0.id == currentJobId }) {
             let metrics = ProgressMetrics(progress: active.progress, startTime: active.startedAt)
             if let live = metrics.estimatedRemainingSeconds(at: referenceDate) {
                 total += live
+                let elapsed = metrics.elapsedSeconds(at: referenceDate)
+                let activeBytes = active.totalSourceBytes
+                if elapsed > 0, active.progress > 0, activeBytes > 0 {
+                    liveThroughput = Double(activeBytes) * active.progress / elapsed
+                }
             } else if let estimate = currentJobEstimate {
                 total += estimate.estimatedSeconds
             }
         }
 
-        if let pending = getTotalQueueEstimate() {
-            total += pending.estimatedSeconds
+        let pendingBytes = jobs
+            .filter { $0.status == .pending }
+            .reduce(Int64(0)) { $0 + $1.totalSourceBytes }
+        if pendingBytes > 0 {
+            let format = jobs.first(where: { $0.id == currentJobId })?.settings.outputContainer
+                ?? jobs.first(where: { $0.status == .pending })?.settings.outputContainer
+            let throughput = liveThroughput
+                ?? format.map { speedTracker.throughputBytesPerSec(outputFormat: $0) }
+                ?? SpeedTracker.defaultThroughputBytesPerSec
+            if throughput > 0 {
+                total += Double(pendingBytes) / throughput
+            }
         }
 
         return total > 0 ? total : nil
