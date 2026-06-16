@@ -42,8 +42,15 @@
   FeedbackKit dep (now transitive via ACK). ACK was generalized from this app's own #102/#104 patterns.
   Memory `feedbackkit-in-app-feedback`. *Optional owed:* delete the `fttttj` test entry (`/admin`);
   eyeball the live ACK menu/About surfaces.
-- **✓ Light theme** — default Dark; Appearance menu (Match System / Light / Dark). Intentionally
-  diverges from the App Shell Standard (dark-only) — flagged.
+- **✓ Light theme** — default Dark; **Appearance** menu (Match System / Light / Dark). Intentionally
+  diverges from the App Shell Standard (dark-only) — flagged. **Match-System revert fixed 2026-06-16**
+  (`feb3c43`): driven via `NSApplication.shared.appearance`, not `.preferredColorScheme` (whose `nil`
+  doesn't clear a forced `NSWindow.appearance` on macOS) — cookbook #113.
+- **✓ App icon — runtime light/dark Dock switch** (2026-06-16, `945ff4d`) — Appearance menu has a 2nd
+  "App Icon" section (Match System / Light / Dark) below a divider. macOS can't vary the *bundle* icon
+  by appearance (actool drops dark renditions as "unassigned children"), so `AppIconController` sets
+  `NSApp.applicationIconImage` at runtime (`.auto` tracks `effectiveAppearance` via KVO). Bundle/Finder
+  icon stays dark; SVG masters in `02_Design/app-icon/`. *Cookbook follow-up not yet written.*
 
 ## Backlog (all post-ship / optional)
 - nil-date sort policy: keep `.distantPast` or switch to Finder "undated always last" (`TODO` in `orders(…)`).
@@ -54,10 +61,12 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-06-16** — Doc reconcile (no code): git already clean (`main == origin/main`), logged the
-  **AppCitizenshipKit migration** that landed 2026-06-14 but went unrecorded — `CitizenshipCommands`
-  replaces the split FeedbackKit + Donate wiring (`8d8ccad`), ACK bumped to 0.1.2 (`9c216ea`). Version
-  unchanged 1.0.1/101.
+- **2026-06-16** — Doc reconcile + **4 UI changes** (all on `main`, pushed, eyeballed): File-menu
+  **Choose Source / Destination Folder** split (`24d14b2`); **Match-System appearance fix** (`feb3c43`,
+  cookbook #113); **runtime light/dark Dock-icon switch** in the Appearance menu (`945ff4d`, new light
+  variant). AM: logged the **AppCitizenshipKit migration** that landed 2026-06-14 but went unrecorded
+  (`CitizenshipCommands` replaces split FeedbackKit + Donate, `8d8ccad`/`9c216ea`). Version unchanged
+  1.0.1/101; no engine/test change.
 - **2026-06-14** — Donate surface (Help topic + menu item, `8584ab3`; cookbook #104). Earlier same day:
   FeedbackKit fixed (0.1.0 broken → 0.1.3 works, proven end-to-end), app → 1.0.1/101; DMG re-cut from
   `main` (1.0/100); two fresh-release-Mac script fixes (`22373d4`).
