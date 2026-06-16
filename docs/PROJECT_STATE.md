@@ -58,6 +58,8 @@
   rows out, sorts+reverses the dated, re-appends undated; `filteredGroups` routes through it. +2 tests
   (343/1 skip/0 fail).
 - Optional DMG polish (custom background image).
+- **Localization / i18n** (raised 2026-06-16, "for later") — app is English-only; no `.lproj` /
+  String Catalog. Future: extract UI strings → `Localizable.xcstrings`, add target languages.
 - Roadmap futures (not built): **watch-folder ingest** (spec v1 scope, never shipped — stale comment at
   `RecordGroup.swift:10`), **more camera families** (engine already camera-agnostic).
 - Footage-gated: 2.2/2.3 reader polish, 2.7 TS-remux fallback, Apple `Keys` creationdate atom (6.3).
