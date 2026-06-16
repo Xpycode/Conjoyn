@@ -174,17 +174,21 @@ struct AppearanceCommands: Commands {
     }
 }
 
-/// Adds **File › Choose Folder…** (⌘O), right after "New Window". Calls the same
-/// `chooseSourceFolder()` path the toolbar Scan button uses — opens the media-folder picker and
-/// scans. A `Commands` struct bound to the App's `@StateObject` view model (same pattern as
-/// `UpdaterCommands`) so the action always targets the live view model.
+/// Adds **File › Choose Source Folder…** (⌘O) and **File › Choose Destination Folder…**, right
+/// after "New Window". Each calls the same view-model path its on-screen path well uses:
+/// `chooseSourceFolder()` (the source/media picker the toolbar Scan also drives) and
+/// `chooseOutputFolder()` (the Output-bar picker — so the menu inherits its "re-point pending
+/// jobs?" prompt for free). Source/destination match the path-well placeholders ("No source
+/// selected" / "No destination"). A `Commands` struct bound to the App's `@StateObject` view model
+/// (same pattern as `UpdaterCommands`) so the actions always target the live view model.
 struct FileCommands: Commands {
     @ObservedObject var viewModel: ConversionViewModel
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
-            Button("Choose Folder\u{2026}") { viewModel.chooseSourceFolder() }
+            Button("Choose Source Folder\u{2026}") { viewModel.chooseSourceFolder() }
                 .keyboardShortcut("o", modifiers: [.command])
+            Button("Choose Destination Folder\u{2026}") { viewModel.chooseOutputFolder() }
         }
     }
 }
