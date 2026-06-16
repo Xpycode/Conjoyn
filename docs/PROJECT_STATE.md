@@ -34,10 +34,14 @@
   `make-appcast.sh`). Key custody = **3 verified-identical copies** (M4 Pro keychain `account=conjoyn`
   + `99-AUTH/conjoyn-sparkle-private.key` + password manager). Public key
   `Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=`. The M4 Pro is the complete release Mac.
-- **✓ In-app feedback (FeedbackKit 0.1.3)** — Help › Send Feedback…, proven end-to-end to the public
-  board. Memory `feedbackkit-in-app-feedback`. *Optional owed:* delete the `fttttj` test entry (`/admin`).
-- **✓ Donate** (2026-06-14) — Help-window topic + Help-menu item, both → live
-  `apps.lucesumbrarum.com/donate.html?app=conjoyn`. Cookbook #104.
+- **✓ App-citizenship surfaces via AppCitizenshipKit 0.1.2** (2026-06-14, logged 2026-06-16) — one
+  `CitizenshipCommands(citizenship)` now drives **Send Feedback…** (FeedbackKit, re-exported; posts to
+  the shared `feedback-submit.php`, server gates on `ALLOWED_APPS` ⊇ `conjoyn`), **Leave a Tip** (was
+  "Donate"/"Support" — tip-jar framing, `?app=conjoyn`), and a **link-rich About panel**. Replaced the
+  hand-assembled `FeedbackCommands` + local `DonateCommands` struct; `project.yml` drops the direct
+  FeedbackKit dep (now transitive via ACK). ACK was generalized from this app's own #102/#104 patterns.
+  Memory `feedbackkit-in-app-feedback`. *Optional owed:* delete the `fttttj` test entry (`/admin`);
+  eyeball the live ACK menu/About surfaces.
 - **✓ Light theme** — default Dark; Appearance menu (Match System / Light / Dark). Intentionally
   diverges from the App Shell Standard (dark-only) — flagged.
 
@@ -50,6 +54,10 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-16** — Doc reconcile (no code): git already clean (`main == origin/main`), logged the
+  **AppCitizenshipKit migration** that landed 2026-06-14 but went unrecorded — `CitizenshipCommands`
+  replaces the split FeedbackKit + Donate wiring (`8d8ccad`), ACK bumped to 0.1.2 (`9c216ea`). Version
+  unchanged 1.0.1/101.
 - **2026-06-14** — Donate surface (Help topic + menu item, `8584ab3`; cookbook #104). Earlier same day:
   FeedbackKit fixed (0.1.0 broken → 0.1.3 works, proven end-to-end), app → 1.0.1/101; DMG re-cut from
   `main` (1.0/100); two fresh-release-Mac script fixes (`22373d4`).
