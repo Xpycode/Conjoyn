@@ -553,3 +553,22 @@ append, ordering, injected dir, rotation, `.1` replacement, and the no-rotate-be
 rotation is exercised by pre-seeding an oversized log so the test never writes a real megabyte. Full
 suite 337 / 1 skip / 0 fail. Owed: one live eyeball that the real file materializes on a join
 (verifies the bundle version stamp outside the test host). Shipped in `5a11fc6`.
+
+### 2026-06-16 - Public source under PolyForm Noncommercial 1.0.0
+
+**Decision:** Make `github.com/Xpycode/Conjoyn` **public** and license it under the **PolyForm
+Noncommercial License 1.0.0** (`LICENSE.md`), with a `README.md`. Source is visible/forkable for
+non-commercial purposes; **commercial use — selling it or shipping it in a paid app — is prohibited.**
+Licensor: Luces Umbrarum. Done after a pre-public secrets scan (no keys/secrets in tree or history;
+only the Sparkle *public* key is committed; `99-AUTH/` lives outside the repo; the only hardcoded value
+is the non-secret Team ID `FDMSRXXN73`).
+**Rationale:** The goal was "source-available so people can learn from it, but nobody can build a paid
+app from it." That is by definition **not** an OSI open-source license (all of which permit commercial
+use). PolyForm Noncommercial is purpose-built for software (unlike CC BY-NC), plain-English, and
+simpler than BUSL (no change-date machinery) — it states the non-commercial restriction directly. The
+alternatives were rejected: All-Rights-Reserved (too restrictive — bars even non-commercial study),
+BUSL (auto-converts to OSS later, not wanted), CC BY-NC (CC advises against it for code).
+**Consequences:** The repo and its full history are now publicly visible — irreversible in practice
+(caching/indexing). The bundled FFmpeg is LGPL-clean (verified: no `--enable-gpl`/`nonfree`/`version3`),
+so the README's licensing claim holds and direct distribution is unaffected. GitHub's license detector
+may not show a PolyForm chip; the file is present and binding regardless.
