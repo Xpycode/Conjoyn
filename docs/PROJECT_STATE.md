@@ -50,7 +50,7 @@
   "App Icon" section (Match System / Light / Dark) below a divider. macOS can't vary the *bundle* icon
   by appearance (actool drops dark renditions as "unassigned children"), so `AppIconController` sets
   `NSApp.applicationIconImage` at runtime (`.auto` tracks `effectiveAppearance` via KVO). Bundle/Finder
-  icon stays dark; SVG masters in `02_Design/app-icon/`. *Cookbook follow-up not yet written.*
+  icon stays dark; SVG masters in `02_Design/app-icon/`. Cookbook #114.
 
 ## Backlog (all post-ship / optional)
 - nil-date sort policy: keep `.distantPast` or switch to Finder "undated always last" (`TODO` in `orders(…)`).
