@@ -69,6 +69,11 @@ struct ConjoynApp: App {
     /// User-chosen appearance (View › Appearance). Persisted; defaults to Dark so the
     /// out-of-box look matches the dark-first FCP design. `.auto` follows the system.
     @AppStorage("appearancePreference") private var appearance: AppearancePreference = .dark
+    /// User-chosen Dock icon appearance (View › Appearance › App Icon), independent of the UI
+    /// theme above. Persisted; `.auto` follows the system. Driven at runtime by `iconController`
+    /// because macOS can't vary the bundle icon by appearance — see `AppIconController`.
+    @AppStorage("iconPreference") private var iconPreference: IconPreference = .auto
+    @StateObject private var iconController = AppIconController()
 
     private let helpContent: HelpContent = {
         let content = (try? HelpContent(manifest: "help-manifest", in: .main))
@@ -112,6 +117,11 @@ struct ConjoynApp: App {
                 .onChange(of: appearance, initial: true) { _, pref in
                     NSApplication.shared.appearance = pref.nsAppearance
                 }
+                // Dock-icon swap is runtime-only (macOS ignores appearance-variant bundle icons):
+                // `.task` does the initial apply + installs the effective-appearance observer once;
+                // `.onChange` handles later menu picks. See `AppIconController`.
+                .task { iconController.start(with: iconPreference) }
+                .onChange(of: iconPreference) { _, pref in iconController.update(pref) }
         }
         // Native titlebar toolbar (App Shell Standard): `.hiddenTitleBar` + the `.toolbar` /
         // `.toolbarRole(.editor)` in ContentView put the source well + Scan in the system titlebar.
@@ -130,7 +140,7 @@ struct ConjoynApp: App {
             // One line for Send Feedback… + Leave a Tip + the link-rich About panel.
             CitizenshipCommands(citizenship)
             UpdaterCommands(updater: updaterController)
-            AppearanceCommands(appearance: $appearance)
+            AppearanceCommands(appearance: $appearance, iconPreference: $iconPreference)
         }
     }
 }
@@ -162,13 +172,15 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
     }
 }
 
-/// Adds a top-level **Appearance** menu with Match System / Light / Dark radio items directly under it
-/// (`.inline` picker, no nested submenu). A `Commands` struct (not an inline closure) bound to
-/// the App's `@AppStorage` so the checkmark + `.preferredColorScheme` stay in sync — same
-/// pattern as `UpdaterCommands` (closures let the binding go stale). The `EmptyView` label
-/// suppresses a redundant "Appearance" section header inside the same-named menu.
+/// Adds a top-level **Appearance** menu with two `.inline` radio sections: the UI **theme**
+/// (Match System / Light / Dark) and, below a divider, the **App Icon** (Match System / Light /
+/// Dark). A `Commands` struct (not an inline closure) bound to the App's `@AppStorage` so the
+/// checkmarks stay in sync — same pattern as `UpdaterCommands` (closures let the binding go
+/// stale). The theme picker's `EmptyView` label suppresses a redundant header inside the
+/// same-named menu; the icon picker keeps an "App Icon" label so the second section reads clearly.
 struct AppearanceCommands: Commands {
     @Binding var appearance: AppearancePreference
+    @Binding var iconPreference: IconPreference
 
     var body: some Commands {
         CommandMenu("Appearance") {
@@ -178,6 +190,17 @@ struct AppearanceCommands: Commands {
                 }
             } label: {
                 EmptyView()
+            }
+            .pickerStyle(.inline)
+
+            Divider()
+
+            Picker(selection: $iconPreference) {
+                ForEach(IconPreference.allCases) { pref in
+                    Text(pref.title).tag(pref)
+                }
+            } label: {
+                Text("App Icon")
             }
             .pickerStyle(.inline)
         }
