@@ -145,6 +145,7 @@ extension QueueManager {
         updateJob(jobId) { j in
             j.verificationStatus = .verifying
             j.verificationProgress = 0
+            j.isDeepVerifying = false
         }
         sourceTargetVerifier.resetCancellation()
 
@@ -165,6 +166,7 @@ extension QueueManager {
         updateJob(jobId) { j in
             j.sourceTargetResult = result
             j.verificationStatus = mapStatus(result)
+            j.isDeepVerifying = false
         }
         logVerdict(result, jobName: job.displayName)
 
@@ -215,6 +217,7 @@ extension QueueManager {
         updateJob(jobId) { j in
             j.verificationStatus = .verifying
             j.verificationProgress = 0
+            j.isDeepVerifying = true
         }
         sourceTargetVerifier.resetCancellation()
 
@@ -235,6 +238,7 @@ extension QueueManager {
         updateJob(jobId) { j in
             j.sourceTargetResult = result
             j.verificationStatus = mapStatus(result)
+            j.isDeepVerifying = false
         }
         logVerdict(result, jobName: job.displayName)
 

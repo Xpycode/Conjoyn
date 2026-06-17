@@ -104,23 +104,38 @@
   slower than the 70 MB/s history) now honestly raises the estimate and converges as the drive warms, instead
   of trusting a steady-state average (+1 test `testRemainingQueueSecondsUsesObservedSessionPaceForPending`).
   **(b) Console hang FIXED** — the PM-2 single-`AttributedString` `.textSelection` `Text` re-laid-out *all*
-  up-to-5 000 lines on every streamed line → main thread pegged at 99% CPU when the console was opened during
-  a batch. Now renders only the **last 300 lines** (`ConsoleSection.maxRenderedLines`; header shows
-  "N lines · showing last 300"); **Copy All** still copies the full log. **351 tests/1 skip/0 fail.** *Owed:*
-  live-queue eyeball of the adaptive countdown + console. **DMG/`main` unaffected** (fixes not yet committed).
+  up-to-5 000 lines on every streamed line → main thread pegged at 99% CPU. **Final form (2026-06-17 eve):
+  line-by-line, uncapped, in a `LazyVStack`** — lazy layout bounds cost to the visible rows, so the full log
+  scrolls without hanging; per-line selection (the accepted trade), **Copy All** still copies the full log.
+  (Superseded the interim 300-line cap.) **351 tests/1 skip/0 fail.** **Committed `d995624` (ETA + console),
+  pushed; DMG still = shipped 1.0.2.** *Owed:* live-queue eyeball of the adaptive ETA in a current build.
 - Footage-gated: 2.2/2.3 reader polish, 2.7 TS-remux fallback, Apple `Keys` creationdate atom (6.3).
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-06-17 (PM-2)** — **Post-ship eyeball → ETA + console fixes (UNCOMMITTED).** Live GUI self-update
+- **2026-06-17 (eve / PM-3)** — **Post-ship polish, mostly committed.** **(1)** Console finalized
+  **line-by-line + uncapped** (`LazyVStack`; supersedes the 300-cap) — committed with the PM-2 ETA fixes
+  as `d995624`. **(2) Segmented footer outcome bar** (`381ff89`, eyeballed): a *stopped* queue no longer
+  reads as green success — new `cancelledCount` + `CJBarSegment`/`CJQueueOutcomeBar` (green done / red
+  failed / amber stopped / orange active / empty pending); green ✓ only when `failed==0 && cancelled==0`.
+  **(3) Stale-build false alarm** (not a bug): user's "regressions" were a **Jun 13 / 1.0.1 `_run`
+  snapshot synced from a release Mac** being launched instead of a current build (`04_Exports/` syncs,
+  `.git` doesn't). Fixed the local-build path (Developer ID manual signing on a Mac without a Mac
+  Development cert) + overwrote `_run`. *Lesson:* short literals vanish from `strings` via Swift
+  small-string inlining — verify builds with a long literal + binary mtime. **(4) Deep-verify label**:
+  transient `ConversionJob.isDeepVerifying` drives **"Verifying (byte-exact)…"** in the row + detail +
+  seal tooltip during the Tier-2 hash (auto-escalation or manual) — committed this session. **(5)** Confirmed
+  verification "very quick" is **by design** (fast Tier 0+1 ffprobe check, auto-escalates to byte-exact on
+  anomaly). **351 tests/1 skip/0 fail; `main == origin/main`; DMG/appcast still = shipped 1.0.2.**
+- **2026-06-17 (PM-2)** — **Post-ship eyeball → ETA + console fixes (committed `d995624`).** Live GUI self-update
   confirmed. A real 60-job 4K run surfaced + fixed: **(1)** whole-queue ETA oscillation (live-throughput
   sample off the active job's join-only `progress`, collapsing during the un-tracked staged-move/verify
   tail) → dropped the live override; **(2)** ETA now **extrapolates from this run's observed pace**
   (`sessionBytesDone/Seconds`, reset per batch) so a cold start honestly raises the estimate — user's idea,
   ground-truthed against the log (first file 5.9 min/1.7× realtime vs 13-min run, ~10-min est); **(3)**
-  console hang (99% CPU — PM-2 single-`AttributedString` `Text` over up-to-5 000 lines) → render last 300,
-  Copy All still full. **351 tests/1 skip/0 fail.** 3 source files + 2 tests uncommitted; `main` + shipped
-  1.0.2 DMG/appcast untouched. *Next:* live-queue eyeball, then one commit. See backlog ✓ ETA / console.
+  console hang (99% CPU — PM-2 single-`AttributedString` `Text` over up-to-5 000 lines) → reverted to
+  line-by-line uncapped (`LazyVStack`), Copy All still full. **351 tests/1 skip/0 fail.** Committed eve as
+  `d995624` (+2 tests), pushed; `main` + shipped 1.0.2 DMG/appcast untouched. See backlog ✓ ETA / console.
 - **2026-06-17** — **SHIPPED Sparkle Wave 4 → 1.0-public is LIVE.** Git reconcile first (pre-flight's
   "1 unpushed" was a stale pre-fetch snapshot; `main == origin/main`, clean). Then closed the last gate:
   bumped **1.0.1/101 → 1.0.2/102** (`54f69b3`; the live download DMG predated the PM-2 fixes by ~11 h, so

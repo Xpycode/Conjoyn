@@ -292,7 +292,7 @@ private struct QueueRow: View {
 
                 HStack(spacing: 4) {
                     if job.status == .completed {
-                        VerificationSeal(status: job.verificationStatus)
+                        VerificationSeal(status: job.verificationStatus, isDeep: job.isDeepVerifying)
                     }
                     if isFailedOrCancelled {
                         Button { queue.retryJob(job.id) } label: {
@@ -383,15 +383,21 @@ private struct QueueRow: View {
         }
     }
 
+    /// While verifying, distinguish the fast structural check from the escalated byte-exact hash
+    /// (which takes far longer) so a deep-checking job doesn't read as stuck.
+    private var verifyingLabel: String {
+        job.isDeepVerifying ? "Verifying (byte-exact)…" : "Verifying…"
+    }
+
     private var statusText: String {
         switch job.status {
         case .pending:   return "Queued"
         case .preparing: return "Preparing…"
         case .active:
-            if job.verificationStatus == .verifying { return "Verifying…" }
+            if job.verificationStatus == .verifying { return verifyingLabel }
             return job.clips.count == 1 ? "Processing…" : "Joining…"
         case .completed:
-            return job.verificationStatus == .verifying ? "Verifying…" : "Done"
+            return job.verificationStatus == .verifying ? verifyingLabel : "Done"
         case .failed:    return "Failed"
         case .cancelled: return "Stopped"
         }
@@ -631,7 +637,9 @@ private struct TimecodeDisclosurePanel: View {
             label("Verify")
             if flagged.isEmpty {
                 Text(job.verificationStatus == .verifying
-                     ? "Checking output against sources…"
+                     ? (job.isDeepVerifying
+                        ? "Byte-exact hashing output against sources…"
+                        : "Checking output against sources…")
                      : "No issues flagged.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.txt3)
@@ -680,6 +688,7 @@ private struct TimecodeDisclosurePanel: View {
 /// language: a single SF Symbol in a Theme tint, with the reason in its `.help()` tooltip.
 private struct VerificationSeal: View {
     let status: VerificationStatus
+    var isDeep: Bool = false
 
     @State private var spin = false
 
@@ -713,7 +722,9 @@ private struct VerificationSeal: View {
         case .failed(let reason):
             return ("xmark.seal.fill", Theme.bad, reason)
         case .verifying:
-            return ("arrow.triangle.2.circlepath", Theme.acc1, "Verifying output against sources…")
+            return ("arrow.triangle.2.circlepath", Theme.acc1,
+                    isDeep ? "Verifying (byte-exact hash) output against sources…"
+                           : "Verifying output against sources…")
         case .unverified:
             return ("questionmark.circle", Theme.txt3, "Not yet verified.")
         }

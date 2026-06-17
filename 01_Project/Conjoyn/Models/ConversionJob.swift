@@ -111,6 +111,11 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     var verificationResult: VerificationResult?
     var sourceTargetResult: SourceTargetResult?
     var verificationProgress: Double = 0.0  // 0.0 to 1.0
+    /// True while the *byte-exact* (Tier-2 hash) pass is running — set when the fast verify
+    /// auto-escalates on an anomaly, or when "Thorough verify" is invoked manually. Transient
+    /// (not in `CodingKeys`): drives the row's "Verifying (byte-exact)…" label so a job that
+    /// suddenly takes minutes reads as "deep-checking", not stuck.
+    var isDeepVerifying: Bool = false
 
     // Actual output files created (may differ from expected due to conflict resolution).
     // Stored as path strings for Codable conformance.
