@@ -884,8 +884,25 @@ struct FooterBar: View {
     private var total: Int { queue.jobs.count }
     private var done: Int { queue.completedCount }
     private var failed: Int { queue.failedCount }
+    private var cancelled: Int { queue.cancelledCount }
     private var allFinished: Bool {
         total > 0 && queue.jobs.allSatisfy(\.status.isFinished) && !queue.isProcessing
+    }
+
+    /// Composition of the footer outcome bar, laid left→right: completed (green), failed (red),
+    /// cancelled/stopped (amber), then the active job's live partial (running orange) while
+    /// processing. The pending remainder is the empty track. Widths are absolute fractions of total.
+    private var outcomeSegments: [CJBarSegment] {
+        guard total > 0 else { return [] }
+        let t = Double(total)
+        var segs: [CJBarSegment] = []
+        if done > 0      { segs.append(CJBarSegment(fraction: Double(done) / t, color: Theme.ok)) }
+        if failed > 0    { segs.append(CJBarSegment(fraction: Double(failed) / t, color: Theme.bad)) }
+        if cancelled > 0 { segs.append(CJBarSegment(fraction: Double(cancelled) / t, color: Theme.acc1)) }
+        if queue.isProcessing, let active = queue.activeJob {
+            segs.append(CJBarSegment(fraction: active.progress / t, color: Theme.acc2))
+        }
+        return segs
     }
 
     var body: some View {
@@ -908,9 +925,20 @@ struct FooterBar: View {
                     if total == 0 {
                         Text("Queue empty")
                     } else if allFinished {
-                        Text("✓ \(done) of \(total) joined, \(failed) failed")
-                            .foregroundStyle(failed == 0 ? Theme.ok : Theme.bad)
-                            .fontWeight(.semibold)
+                        if failed == 0 && cancelled == 0 {
+                            // Clean finish: every job joined. Green success styling.
+                            Text("✓ \(done) of \(total) joined, \(failed) failed")
+                                .foregroundStyle(Theme.ok)
+                                .fontWeight(.semibold)
+                        } else {
+                            // Stopped early and/or with failures — no green ✓ success styling.
+                            // Amber if only stopped; red once anything actually failed.
+                            (Text("\(done) of \(total) joined")
+                                + (cancelled > 0 ? Text(" · \(cancelled) stopped") : Text(""))
+                                + (failed > 0 ? Text(" · \(failed) failed") : Text("")))
+                                .foregroundStyle(failed > 0 ? Theme.bad : Theme.acc1)
+                                .fontWeight(.semibold)
+                        }
                     } else {
                         (Text("\(done)").bold().foregroundStyle(Theme.txt)
                             + Text(" of ")
@@ -935,10 +963,7 @@ struct FooterBar: View {
                     }
                 }
 
-                CJProgressBar(
-                    fraction: queue.overallProgress,
-                    fill: allFinished && failed == 0 ? .done : .running
-                )
+                CJQueueOutcomeBar(segments: outcomeSegments)
 
                 if queue.isProcessing {
                     Button("Stop") { queue.stopAllProcessing() }

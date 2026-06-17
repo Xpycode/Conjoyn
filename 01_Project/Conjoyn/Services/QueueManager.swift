@@ -139,6 +139,13 @@ final class QueueManager: ObservableObject {
         jobs.filter { if case .failed = $0.status { return true } else { return false } }.count
     }
 
+    /// Number of jobs cancelled by **Stop** (distinct from `failed` — stopping is not an error).
+    /// Used by the footer outcome bar to render a stopped-early queue as part-done / part-stopped
+    /// rather than a full green "done".
+    var cancelledCount: Int {
+        jobs.filter { $0.status == .cancelled }.count
+    }
+
     /// The currently active job (if any).
     var activeJob: ConversionJob? {
         jobs.first { $0.status == .active || $0.status == .preparing }

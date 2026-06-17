@@ -63,16 +63,17 @@
   icon stays dark; SVG masters in `02_Design/app-icon/`. Cookbook #114.
 
 ## Backlog (all post-ship / optional)
-- **Footer progress bar misreads a *stopped* queue as success** (found 2026-06-17, real 60-job run).
-  After **Stop** with jobs still incomplete, the footer shows green **"✓ 36 of 60 joined, 0 failed"**
-  with a **fully-filled green bar** — indistinguishable from a clean 60/60 finish. **Cause:** stopped
-  jobs are stored as `.cancelled`, and `Status.isFinished` returns `true` for `.cancelled`
-  (`ConversionJob.swift:44`), so both `overallProgress` (`QueueManager.swift:150`, counts finished →
-  fraction = 1.0) and `allFinished` (`QueuePanel.swift:887`) treat 60/60 as done → the success branch
-  (green ✓ text + `.done` green fill, `QueuePanel.swift:910-940`). **Fix idea (user's):** segmented
-  bar — green = completed, muted/orange segment = cancelled/stopped, remainder empty; and drop the
-  green ✓ / "0 failed" success styling when any job was cancelled (distinguish "all succeeded" from
-  "stopped early").
+- **✓ Footer progress bar misread a *stopped* queue as success — FIXED 2026-06-17** (found + fixed,
+  real 60-job run, eyeball-confirmed). Was: after **Stop** with jobs incomplete, the footer showed
+  green **"✓ 36 of 60 joined, 0 failed"** + a **full green bar**, indistinguishable from a clean
+  finish (stopped jobs are `.cancelled`, `Status.isFinished` true for `.cancelled` → both
+  `overallProgress` and `allFinished` treated 60/60 as done → success branch). **Fix:** new
+  `QueueManager.cancelledCount`; new `CJBarSegment` + `CJQueueOutcomeBar` (segmented composition bar
+  — green=completed, red=failed, amber=cancelled/stopped, orange=live-active, empty=pending; leaves
+  the single-fill `CJProgressBar` and its 3 other call sites untouched); footer only shows the green
+  ✓ success styling when `failed == 0 && cancelled == 0`, otherwise neutral amber/red text with
+  "· N stopped" / "· N failed". The filled width while processing still equals the old
+  `overallProgress`, so progress math is unchanged — only colour composition is added.
 - ~~nil-date sort policy~~ **DONE 2026-06-16** — chose Finder "undated always last" (bottom in **both**
   directions). New pure generic `ConversionViewModel.ordered(_:field:by:ascending:)` partitions undated
   rows out, sorts+reverses the dated, re-appends undated; `filteredGroups` routes through it. +2 tests

@@ -232,6 +232,38 @@ struct CJProgressBar: View {
     }
 }
 
+/// One coloured slice of a `CJQueueOutcomeBar`. `fraction` is an **absolute** width (0…1 of the
+/// track); slices are laid end-to-end in order.
+struct CJBarSegment {
+    let fraction: Double
+    let color: Color
+}
+
+/// Composition bar for the queue footer: lays coloured segments left→right over the recessed track,
+/// leaving the pending remainder empty. Unlike `CJProgressBar` (one fill) this shows the *makeup* of
+/// the queue — completed / failed / cancelled / live-active — so a stopped-early run reads as
+/// part-green / part-amber instead of a misleading full green "done".
+struct CJQueueOutcomeBar: View {
+    let segments: [CJBarSegment]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.recessed(0.35))
+                HStack(spacing: 0) {
+                    ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
+                        Rectangle()
+                            .fill(seg.color)
+                            .frame(width: max(0, min(1, seg.fraction)) * geo.size.width)
+                    }
+                }
+                .clipShape(Capsule())
+            }
+        }
+        .frame(height: 5)
+    }
+}
+
 // MARK: Wells
 
 /// Dark inset "well" showing a path, per `styles.css .cj-sourcewell` — icon + path + trailing
