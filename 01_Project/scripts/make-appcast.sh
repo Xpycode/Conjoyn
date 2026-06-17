@@ -27,6 +27,14 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"          # …/01_Project
 ACCOUNT="${SPARKLE_ACCOUNT:-conjoyn}"                  # EdDSA keychain account (Wave 0)
 FEED_HOST="${FEED_HOST:-https://conjoyn.lucesumbrarum.com}"   # no trailing slash; we add it below
 
+# Signing key. By default the private key is read from the login keychain under the `conjoyn`
+# account (Wave 0) — the custody Mac (M4 Pro). This is a multi-Mac project, though, and the key is
+# also backed up to <ProgrammingProjects>/99-AUTH/ (Syncthing-replicated, out of every git tree).
+# On a Mac without the keychain entry, set SPARKLE_ED_KEY_FILE to that backup to sign with the file
+# instead of mutating the keychain, e.g.:
+#   SPARKLE_ED_KEY_FILE="$HOME/ProgrammingProjects/99-AUTH/conjoyn-sparkle-private.key" ./make-appcast.sh
+ED_KEY_FILE="${SPARKLE_ED_KEY_FILE:-}"
+
 # The app make-dmg.sh consumed — authoritative for the version that's inside the DMG.
 EXPORT_APP="${PROJECT_DIR}/build/notarize/export/Conjoyn.app"
 OUT_DIR="${PROJECT_DIR}/../04_Exports"
@@ -65,7 +73,17 @@ echo "  staged $(basename "$STAGED_DMG") (${DMG_LEN} bytes)"
 
 # --- 3. generate (auto length + EdDSA sign) --------------------------------
 bold "==> Running generate_appcast (auto length + EdDSA sign)…"
-"$GEN" --account "$ACCOUNT" --download-url-prefix "${FEED_HOST}/" "$APPCAST_DIR"
+# Default to the keychain account (custody Mac). If SPARKLE_ED_KEY_FILE is set, sign from that file
+# backup instead — for Macs that don't hold the keychain entry. No keychain probe either way.
+if [ -n "$ED_KEY_FILE" ]; then
+    [ -f "$ED_KEY_FILE" ] || die "SPARKLE_ED_KEY_FILE set but no file at: $ED_KEY_FILE"
+    SIGN_ARGS=(--ed-key-file "$ED_KEY_FILE")
+    echo "  signing via key file ${ED_KEY_FILE}"
+else
+    SIGN_ARGS=(--account "$ACCOUNT")
+    echo "  signing via keychain account '${ACCOUNT}'"
+fi
+"$GEN" "${SIGN_ARGS[@]}" --download-url-prefix "${FEED_HOST}/" "$APPCAST_DIR"
 APPCAST="${APPCAST_DIR}/appcast.xml"
 [ -f "$APPCAST" ] || die "generate_appcast did not write $APPCAST"
 
