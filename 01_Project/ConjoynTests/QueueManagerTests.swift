@@ -387,6 +387,77 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(manager.statusSummary, "1 job waiting")
     }
 
+    /// The footer outcome bar paints completed jobs by verification tier, not merely "joined", so a
+    /// joined-but-still-verifying file reads amber (awaiting) rather than a premature green. Green is
+    /// reserved for a passed verification (a passing-but-flagged `warning` still counts as green);
+    /// a verify failure rides the red failure segment. `completedCount` is the sum of the three tiers.
+    func testCompletedJobsBucketByVerificationTier() throws {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Verified.mp4"))
+        manager.addJob(makeJob(outputName: "Verifying.mp4"))
+        manager.addJob(makeJob(outputName: "Unverified.mp4"))
+        manager.addJob(makeJob(outputName: "Flagged.mp4"))
+        manager.addJob(makeJob(outputName: "VerifyFailed.mp4"))
+
+        for i in manager.jobs.indices { manager.jobs[i].status = .completed }
+        manager.jobs[0].verificationStatus = .verified
+        manager.jobs[1].verificationStatus = .verifying
+        manager.jobs[2].verificationStatus = .unverified
+        manager.jobs[3].verificationStatus = .warning("minor delta")
+        manager.jobs[4].verificationStatus = .failed("hash mismatch")
+
+        XCTAssertEqual(manager.completedCount, 5, "all five joins finished")
+        // Green only for a passed (or passed-but-flagged) check.
+        XCTAssertEqual(manager.verifiedCount, 2, "verified + warning are the green tier")
+        // Amber: still being checked OR written but not yet checked — never a premature green.
+        XCTAssertEqual(manager.awaitingVerificationCount, 2, "verifying + unverified are amber")
+        // Red: a check that actually failed.
+        XCTAssertEqual(manager.verifyFailedCount, 1, "a verify failure is the red tier")
+        XCTAssertEqual(
+            manager.verifiedCount + manager.awaitingVerificationCount + manager.verifyFailedCount,
+            manager.completedCount,
+            "the three verification tiers partition the completed jobs"
+        )
+    }
+
+    /// The row's single bar folds verification into the produce pipeline: produce (join+move, via
+    /// `progress`) fills `[0, producePortion]`, then verify (`verificationProgress`) fills the rest,
+    /// so the bar hits 100% only once verified — and the produce→verify hand-off is continuous (no
+    /// backward jump).
+    func testLifecycleFractionFoldsVerifyIntoOneContinuousBar() throws {
+        let p = ConversionJob.producePortion
+        var job = makeJob(outputName: "Flight.mp4")
+
+        // Pending: empty track.
+        XCTAssertEqual(job.lifecycleFraction, 0, accuracy: 0.0001)
+
+        // Producing (join/move) caps at the produce slice so verify has headroom.
+        job.status = .active
+        job.progress = 0.5
+        XCTAssertEqual(job.lifecycleFraction, 0.5 * p, accuracy: 0.0001)
+        job.progress = 1.0
+        XCTAssertEqual(job.lifecycleFraction, p, accuracy: 0.0001,
+                       "produce tops out at producePortion, not 1.0")
+
+        // Verify begins exactly where produce ended — continuous, no jump.
+        job.status = .completed
+        job.verificationStatus = .verifying
+        job.verificationProgress = 0
+        XCTAssertEqual(job.lifecycleFraction, p, accuracy: 0.0001,
+                       "verify starts at the produce hand-off point")
+        job.verificationProgress = 1.0
+        XCTAssertEqual(job.lifecycleFraction, 1.0, accuracy: 0.0001,
+                       "a full verify reaches 100%")
+
+        // A passed verification (terminal) shows full; the green is the bar's fill, this is the width.
+        job.verificationStatus = .verified
+        XCTAssertEqual(job.lifecycleFraction, 1.0, accuracy: 0.0001)
+
+        // A hard join failure fills the whole track (painted red by the fill).
+        job.status = .failed("boom")
+        XCTAssertEqual(job.lifecycleFraction, 1.0, accuracy: 0.0001)
+    }
+
     func testOverallProgressCountsFinishedPlusActive() throws {
         let manager = makeManager()
         manager.addJob(makeJob(outputName: "A.mp4"))
@@ -576,6 +647,32 @@ final class QueueManagerTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: src.path), "source consumed by the move")
         XCTAssertEqual(try String(contentsOf: dest, encoding: .utf8), "joined", "destination holds the moved file")
+    }
+
+    func testMoveIntoPlaceStreamsProgressAndCopiesBytesIntact() async throws {
+        // Multi-chunk payload (>8 MB chunk size) so the streamed copy reports several fractions.
+        let payload = Data((0..<(20 * 1024 * 1024)).map { UInt8($0 & 0xFF) })
+        let src = tmpDir.appendingPathComponent("staged-big.mp4")
+        let dest = tmpDir.appendingPathComponent("final-big.mp4")
+        try payload.write(to: src)
+
+        // @Sendable progress sink (the callback fires on the detached copy task).
+        final class Sink: @unchecked Sendable {
+            private let lock = NSLock()
+            private(set) var values: [Double] = []
+            func record(_ v: Double) { lock.lock(); values.append(v); lock.unlock() }
+        }
+        let sink = Sink()
+
+        try await QueueManager.moveIntoPlace(from: src, to: dest) { sink.record($0) }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: src.path), "source consumed by the move")
+        XCTAssertEqual(try Data(contentsOf: dest), payload, "every byte copied intact")
+
+        let values = sink.values
+        XCTAssertGreaterThan(values.count, 2, "progress reported across multiple chunks")
+        XCTAssertEqual(values.last, 1.0, "progress ends at 1.0")
+        XCTAssertEqual(values, values.sorted(), "progress is monotonically non-decreasing")
     }
 
     // MARK: - Job-level aggregates

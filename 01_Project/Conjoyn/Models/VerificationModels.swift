@@ -54,6 +54,21 @@ enum VerificationStatus: Equatable, Codable, Sendable {
         }
     }
 
+    /// Coarse outcome bucket shared by every progress surface (the per-job bar, the row status
+    /// text, and the footer outcome bar) so "green = verified byte-for-byte" is defined in exactly
+    /// one place and the surfaces can't drift apart. A finished file is `verified` only once the
+    /// check passes (a passing-but-flagged `warning` still counts); while it's still being checked
+    /// it reads `working` (amber, *not* a premature green); a check failure reads `failed` (red).
+    enum OutcomeTier { case verified, working, failed }
+
+    var outcomeTier: OutcomeTier {
+        switch self {
+        case .verified, .warning:     return .verified
+        case .verifying, .unverified: return .working
+        case .failed:                 return .failed
+        }
+    }
+
     // MARK: - Codable (custom for associated value)
 
     private enum CodingKeys: String, CodingKey {

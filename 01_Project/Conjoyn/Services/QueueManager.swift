@@ -146,6 +146,18 @@ final class QueueManager: ObservableObject {
         jobs.filter { $0.status == .cancelled }.count
     }
 
+    /// Of the **completed** (joined) jobs, how many fall into each verification tier. The footer
+    /// outcome bar paints by tier so a joined-but-still-verifying file reads amber, not a premature
+    /// green — `green = verified`, matching the per-job bar. `completedCount` (= "joined") is the sum
+    /// of all three.
+    var verifiedCount: Int { completedCount(inTier: .verified) }
+    var awaitingVerificationCount: Int { completedCount(inTier: .working) }
+    var verifyFailedCount: Int { completedCount(inTier: .failed) }
+
+    private func completedCount(inTier tier: VerificationStatus.OutcomeTier) -> Int {
+        jobs.filter { $0.status == .completed && $0.verificationStatus.outcomeTier == tier }.count
+    }
+
     /// The currently active job (if any).
     var activeJob: ConversionJob? {
         jobs.first { $0.status == .active || $0.status == .preparing }

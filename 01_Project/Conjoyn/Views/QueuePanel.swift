@@ -279,7 +279,7 @@ private struct QueueRow: View {
                 if job.status == .pending {
                     Color.clear.frame(height: 5)
                 } else {
-                    CJProgressBar(fraction: barFraction, fill: barFill)
+                    CJProgressBar(fraction: job.lifecycleFraction, fill: barFill)
                 }
 
                 Text(statusText)
@@ -367,19 +367,17 @@ private struct QueueRow: View {
         return nil
     }
 
-    private var barFraction: Double {
-        switch job.status {
-        case .completed: return 1
-        case .pending:   return 0
-        default:         return job.progress
-        }
-    }
-
     private var barFill: CJProgressBar.Fill {
-        switch job.status {
-        case .completed: return .done
-        case .failed:    return .failed
-        default:         return .running
+        // A hard failure of the join itself is always red.
+        if case .failed = job.status { return .failed }
+        // Otherwise the *verification* outcome — not merely a written file — gates the green "done"
+        // colour. A join that finished but is still being verified (or is moving/stitching, where the
+        // status is .active and verification hasn't started) stays orange, so green always means
+        // "verified byte-for-byte", never just "the file exists".
+        switch job.verificationStatus.outcomeTier {
+        case .failed:   return .failed
+        case .verified: return .done
+        case .working:  return .running
         }
     }
 
@@ -395,6 +393,7 @@ private struct QueueRow: View {
         case .preparing: return "Preparing…"
         case .active:
             if job.verificationStatus == .verifying { return verifyingLabel }
+            if job.isFinishing { return "Finishing…" }
             return job.clips.count == 1 ? "Processing…" : "Joining…"
         case .completed:
             return job.verificationStatus == .verifying ? verifyingLabel : "Done"
@@ -411,7 +410,15 @@ private struct QueueRow: View {
         switch job.status {
         case .pending:   return Theme.txt2
         case .preparing, .active: return Theme.acc1
-        case .completed: return Theme.ok
+        case .completed:
+            // The join is written, but "Done" green is reserved for a passed verification — mirror
+            // the bar via the shared tier, so a still-verifying row shows the same amber as
+            // "Joining…" (acc1) rather than a premature green that out-races the orange bar.
+            switch job.verificationStatus.outcomeTier {
+            case .verified: return Theme.ok
+            case .working:  return Theme.acc1
+            case .failed:   return Theme.bad
+            }
         case .failed:    return Theme.bad
         case .cancelled: return Theme.txt2
         }
@@ -658,12 +665,13 @@ private struct TimecodeDisclosurePanel: View {
                 .padding(.leading, 80)
         }
 
-        VStack(alignment: .leading, spacing: 2) {
-            Button("Thorough verify (byte-exact)") {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
                 queue.verifyJobThorough(jobId: job.id)
+            } label: {
+                Label("Thorough verify (byte-exact)", systemImage: "checkmark.shield")
             }
-            .buttonStyle(.cjGhost)
-            .font(.system(size: 11))
+            .buttonStyle(.cjStandard)
             .disabled(job.verificationStatus == .verifying)
 
             Text("Hashes kept streams (v:0/a:0) end-to-end.")
@@ -900,15 +908,23 @@ struct FooterBar: View {
         total > 0 && queue.jobs.allSatisfy(\.status.isFinished) && !queue.isProcessing
     }
 
-    /// Composition of the footer outcome bar, laid left→right: completed (green), failed (red),
+    /// Composition of the footer outcome bar, laid left→right: verified (green), joined-but-still-
+    /// verifying (amber-orange, matching the per-job bar — *not* a premature green), failed (red),
     /// cancelled/stopped (amber), then the active job's live partial (running orange) while
     /// processing. The pending remainder is the empty track. Widths are absolute fractions of total.
     private var outcomeSegments: [CJBarSegment] {
         guard total > 0 else { return [] }
         let t = Double(total)
         var segs: [CJBarSegment] = []
-        if done > 0      { segs.append(CJBarSegment(fraction: Double(done) / t, color: Theme.ok)) }
-        if failed > 0    { segs.append(CJBarSegment(fraction: Double(failed) / t, color: Theme.bad)) }
+        let verified = queue.verifiedCount
+        let awaiting = queue.awaitingVerificationCount
+        // Green only for verified files; everything still being checked rides the same orange the
+        // per-job bar uses (acc2), so the footer can't claim "done" before verification finishes.
+        if verified > 0  { segs.append(CJBarSegment(fraction: Double(verified) / t, color: Theme.ok)) }
+        if awaiting > 0  { segs.append(CJBarSegment(fraction: Double(awaiting) / t, color: Theme.acc2)) }
+        // A red join-failure and a red verify-failure both belong in the failure segment.
+        let failedTotal = failed + queue.verifyFailedCount
+        if failedTotal > 0 { segs.append(CJBarSegment(fraction: Double(failedTotal) / t, color: Theme.bad)) }
         if cancelled > 0 { segs.append(CJBarSegment(fraction: Double(cancelled) / t, color: Theme.acc1)) }
         if queue.isProcessing, let active = queue.activeJob {
             segs.append(CJBarSegment(fraction: active.progress / t, color: Theme.acc2))

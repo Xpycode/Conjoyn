@@ -117,6 +117,41 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     /// suddenly takes minutes reads as "deep-checking", not stuck.
     var isDeepVerifying: Bool = false
 
+    /// True during the post-join *finishing* tail — the staged cross-volume move of the joined file
+    /// into its destination (and the SRT sidecar stitch). Transient (not in `CodingKeys`): drives the
+    /// row's "Finishing…" label so the full progress bar during a multi-GB move reads as "finalizing
+    /// the file", not a stuck "Joining…". The ffmpeg join is done by the time this is set.
+    var isFinishing: Bool = false
+
+    /// Fraction of the bar's track allocated to *producing* the file (join + optional cross-volume
+    /// move). The remainder is the verification tail. Produce keeps its own internal byte-weighting
+    /// inside `progress` (join/move = 50/50 when staged, 100/0 when not), so this only decides the
+    /// produce-vs-verify split. Verify is normally an ffprobe check of seconds, so it gets a thin
+    /// tail; a long byte-exact escalation is surfaced by the row's "Verifying (byte-exact)…" label
+    /// and the expanded detail bar rather than by widening this slice.
+    static let producePortion: Double = 0.85
+
+    /// The unified 0…1 fill for the row's single progress bar, telling one story across the whole
+    /// lifecycle: produce (join + move, via `progress`) fills `[0, producePortion]`, then verification
+    /// (`verificationProgress`) fills `[producePortion, 1]` — so the bar reaches 100% (and the green of
+    /// `barFill`) only once the bytes are verified, never merely written. Produce caps at
+    /// `producePortion` while active so the hand-off into the verify slice is continuous, with no
+    /// backward jump. Kept on the model (not the view) so the phase math is unit-testable.
+    var lifecycleFraction: Double {
+        let p = Self.producePortion
+        switch status {
+        case .pending: return 0
+        case .failed:  return 1                       // full track, painted red by the bar's fill
+        case .completed, .active, .preparing, .cancelled:
+            if verificationStatus == .verifying {
+                return p + verificationProgress * (1 - p)
+            }
+            // A finished job with verification in a terminal state (or none pending) shows full;
+            // a still-producing/stopped job caps at the produce slice.
+            return status == .completed ? 1 : progress * p
+        }
+    }
+
     // Actual output files created (may differ from expected due to conflict resolution).
     // Stored as path strings for Codable conformance.
     private var actualOutputPathStrings: [String] = []

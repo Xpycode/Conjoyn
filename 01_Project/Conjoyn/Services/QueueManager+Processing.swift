@@ -149,6 +149,7 @@ extension QueueManager {
                     j.actualOutputURLs = outputFiles
                     j.status = .completed
                     j.progress = 1.0
+                    j.isFinishing = false
                 }
 
                 // Auto source↔target verification (fast tier). This MUST run here — before the
@@ -193,7 +194,10 @@ extension QueueManager {
                     continue
                 }
 
-                updateJob(jobId) { $0.status = .failed(error.localizedDescription) }
+                updateJob(jobId) { j in
+                    j.status = .failed(error.localizedDescription)
+                    j.isFinishing = false
+                }
                 log("FAILED: \(job.displayName) - \(error.localizedDescription)")
                 break
             }
@@ -233,6 +237,12 @@ extension QueueManager {
             ? tempDir.appendingPathComponent("conjoyn-join-\(jobId.uuidString).\(finalURL.pathExtension)")
             : finalURL
 
+        // When staged, the row's progress bar is split: the ffmpeg join fills the first half and the
+        // cross-volume move the second. Both shuttle ~the same byte count across the slow external
+        // link (join writes the joined file; the move copies it to the destination), so a 50/50 split
+        // is the honest byte-for-byte share. Unstaged jobs have no move, so the join fills the bar.
+        let joinPortion = staged ? 0.5 : 1.0
+
         // Track whether we've written to the *destination* this attempt, so the failure path deletes
         // only our own partial — never a pre-existing good file we haven't touched yet (staging keeps
         // the destination untouched until the move).
@@ -248,7 +258,7 @@ extension QueueManager {
                 totalFrames: job.estimatedFrameCount,
                 progress: { [weak self] progress, _ in
                     Task { @MainActor in
-                        self?.updateJob(jobId) { $0.progress = progress }
+                        self?.updateJob(jobId) { $0.progress = progress * joinPortion }
                     }
                 },
                 logHandler: { [weak self] message in
@@ -271,10 +281,19 @@ extension QueueManager {
                 }
             )
 
+            // The ffmpeg join (incl. +faststart) is done; what remains — the staged cross-volume
+            // move and the SRT stitch — isn't progress-tracked, so flag the job as "finishing" to
+            // relabel the (still-full) bar from "Joining…" to "Finishing…".
+            updateJob(jobId) { $0.isFinishing = true }
+
             if staged {
                 log("Moving joined file to destination → \(finalURL.lastPathComponent)")
                 destinationTouched = true
-                try await Self.moveIntoPlace(from: writeURL, to: finalURL)
+                try await Self.moveIntoPlace(from: writeURL, to: finalURL) { [weak self] fraction in
+                    Task { @MainActor in
+                        self?.updateJob(jobId) { $0.progress = joinPortion + fraction * (1 - joinPortion) }
+                    }
+                }
             }
         } catch {
             // Delete our own partial output so a truncated file never masquerades as a finished join.
@@ -291,16 +310,56 @@ extension QueueManager {
         return [finalURL]
     }
 
-    /// Replaces `dest` with `src`, running the (potentially multi-GB, blocking) file move off the
-    /// main actor. Cross-volume moves fall back to copy-then-delete inside Foundation, so this is how
-    /// a job staged on the temp volume lands at its destination in one sequential write.
-    nonisolated static func moveIntoPlace(from src: URL, to dest: URL) async throws {
+    /// Replaces `dest` with `src` by **streaming** the bytes across (reporting `progress` 0…1), then
+    /// deleting `src` — a progress-reporting move. This is how a job staged on the temp volume lands at
+    /// its (cross-volume) destination in one sequential write; the byte-level progress drives the queue
+    /// row's "Finishing…" bar so a multi-GB move climbs instead of sitting at a frozen full bar.
+    ///
+    /// Safety: `src` is removed only **after** every byte is written and `fsync`'d to `dest`. A failure
+    /// mid-copy therefore throws with `src` intact and only a partial `dest` on disk — which the caller
+    /// (`processConcatenateJob`) deletes via its `destinationTouched` cleanup. The original source
+    /// segments are never touched (this copies the staged join, not the inputs). Runs off the main
+    /// actor because the copy is large and blocking.
+    nonisolated static func moveIntoPlace(
+        from src: URL,
+        to dest: URL,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws {
         try await Task.detached(priority: .utility) {
             let fm = FileManager.default
             if fm.fileExists(atPath: dest.path) {
                 try fm.removeItem(at: dest)
             }
-            try fm.moveItem(at: src, to: dest)
+
+            // Size the source for the progress denominator. If it's unknown or zero, there's nothing
+            // meaningful to stream — fall back to a plain (atomic) move and report completion.
+            let totalBytes = ((try? fm.attributesOfItem(atPath: src.path))?[.size] as? NSNumber)?.int64Value ?? 0
+            guard totalBytes > 0 else {
+                try fm.moveItem(at: src, to: dest)
+                progress?(1.0)
+                return
+            }
+
+            guard fm.createFile(atPath: dest.path, contents: nil) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            let input = try FileHandle(forReadingFrom: src)
+            let output = try FileHandle(forWritingTo: dest)
+            defer { try? input.close(); try? output.close() }
+
+            let chunkSize = 8 * 1024 * 1024   // 8 MB — ~25 UI updates/sec at typical drive speeds
+            var copied: Int64 = 0
+            progress?(0)
+            while let chunk = try input.read(upToCount: chunkSize), !chunk.isEmpty {
+                try output.write(contentsOf: chunk)
+                copied += Int64(chunk.count)
+                progress?(min(1.0, Double(copied) / Double(totalBytes)))
+            }
+            try output.synchronize()   // flush to disk before we trust the copy enough to delete src
+
+            // Move semantics: drop the staged source only once the destination is safely on disk.
+            try fm.removeItem(at: src)
+            progress?(1.0)
         }.value
     }
 
