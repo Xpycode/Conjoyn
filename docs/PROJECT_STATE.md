@@ -16,7 +16,11 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
-  (monotonic for Sparkle). **Tests: 351 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  (monotonic for Sparkle). **Tests: 354 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+- **✓ Post-ship verification-honesty polish committed `e90f838` (2026-06-18), pushed.** Five
+  eyeball-confirmed fixes (see the 2026-06-18 Recent entry) — Debug-local only; shipped 1.0.2/102 DMG +
+  appcast untouched, so the **live download still predates these fixes** (re-cut owed only if/when a new
+  build ships).
 - **Blockers:** none. **🎉 1.0-public is LIVE** — the last gate (Sparkle Wave 4) is closed.
 - **✓ Repo public + licensed** (2026-06-16) — `github.com/Xpycode/Conjoyn` flipped **private → public**
   after a clean pre-public secrets scan (no keys/secrets in tree or history; only Sparkle *public* key;
@@ -113,6 +117,21 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-18** — **Post-ship UI-honesty polish (full day, committed `e90f838` + pushed).** Five eyeball-confirmed fixes
+  on real `2CULL` footage. **(1)** Thorough-verify control `.cjGhost`→`.cjStandard` (visible filled
+  button + `checkmark.shield`). **(2)** Bar lifecycle: new transient `ConversionJob.isFinishing` →
+  "Finishing…" label for the move tail; `barFill` gates green on `verificationStatus == .verified`.
+  **(3)** `moveIntoPlace` → streamed 8 MB-chunk copy with `progress` + fsync-before-delete; composite
+  bar `joinPortion = staged ? 0.5 : 1.0`. **(4) Green-only-when-verified extended to text + footer:**
+  new `VerificationStatus.outcomeTier` (verified/working/failed) = **single source of truth**, routed
+  through `barFill`, `statusColor`, and the footer (`verifiedCount`/`awaitingVerificationCount`/
+  `verifyFailedCount`); verifying now reads **amber** everywhere, green only at the seal. **(5) Verify
+  folded into the single bar:** `ConversionJob.lifecycleFraction` (+`producePortion=0.85`) — produce
+  fills `[0,0.85]`, verify fills `[0.85,1]`, produce caps at 0.85 for a jump-free hand-off; phase math
+  on the model = unit-testable; detail keeps its own verify bar. Weighting = cost-weighted (rejected
+  equal thirds: move=0 unstaged, fast verify=seconds → would lurch). **+3 tests this day**
+  (move-bytes-intact, tier-buckets, lifecycle-fraction). Full suite **354/1 skip/0 fail**. Debug-local;
+  **1.0.2/102 DMG + appcast untouched.** Committed `e90f838` (code+tests) + a docs commit, pushed.
 - **2026-06-17 (eve / PM-3)** — **Post-ship polish, mostly committed.** **(1)** Console finalized
   **line-by-line + uncapped** (`LazyVStack`; supersedes the 300-cap) — committed with the PM-2 ETA fixes
   as `d995624`. **(2) Segmented footer outcome bar** (`381ff89`, eyeballed): a *stopped* queue no longer
