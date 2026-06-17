@@ -15,26 +15,29 @@
   blind**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
-- **Phase:** implementation — **100% feature-complete.** Version **1.0.1 / build 101** (monotonic for
-  Sparkle). **Tests: 343 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-- **Blockers:** none.
+- **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
+  (monotonic for Sparkle). **Tests: 343 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+- **Blockers:** none. **🎉 1.0-public is LIVE** — the last gate (Sparkle Wave 4) is closed.
 - **✓ Repo public + licensed** (2026-06-16) — `github.com/Xpycode/Conjoyn` flipped **private → public**
   after a clean pre-public secrets scan (no keys/secrets in tree or history; only Sparkle *public* key;
   `99-AUTH/` is outside the repo). Added `README.md` (overview/features/build-from-source/LGPL note/DJI
   non-affiliation disclaimer) + `LICENSE.md` = **PolyForm Noncommercial 1.0.0** (source-available, **no
   commercial/paid-app use**), licensor Luces Umbrarum. GitHub license chip may not auto-detect PolyForm.
-- **The ONE gate to 1.0-public = Sparkle Wave 4**, and it lives in a **different repo**
-  (`3-Websites/App-Websites`, `APPS/Conjoyn/`), **not here.** It's a website session: stand up
-  `conjoyn.lucesumbrarum.com`, host `appcast.xml` + the **raw** DMG (Strato: `lftp mirror -R` *without*
-  `--delete`, chmod 644/755; enclosure → raw DMG URL, not the counted PHP endpoint; `curl -sI` verify),
-  publish the link. Within *this* repo the release engineering is **done**. Memory `wave4-lives-in-websites-repo`.
-- **DMG lags `main`** (since 2026-06-16 PM-2 — console/ETA/failure-hardening landed after the re-cut). Last
-  re-cut `04_Exports/Conjoyn.dmg` is the **1.0.1/101** build (app + DMG both notary **Accepted**, double-stapled, `source=Notarized Developer
-  ID`, `/Applications` drop-link; verified version inside = 1.0.1/101; installs offline, 28 MB). Cut via
-  `01_Project/scripts/make-dmg.sh` on the release Mac (notary profile valid; `create-dmg` ran fine in the
-  GUI session). Re-cut again only if `main`'s app binary changes before publish. The `conjoyn-notary`
-  keychain profile is **per-Mac** — recreate via `setup-notary-profile.sh` from `99-AUTH/` (memory
-  `dmg-recut-on-fresh-release-mac`).
+- **✓ Sparkle Wave 4 DONE — live auto-update feed** (2026-06-17). `appcast.xml` (EdDSA-signed, build
+  102) hosted at `https://conjoyn.lucesumbrarum.com/appcast.xml`; raw enclosure
+  `…/Conjoyn-1.0.2.dmg` (29,487,589 B) + release notes `…/Conjoyn-1.0.2.html` (`sparkle:releaseNotesLink`)
+  beside it; counted human download `dl.php?app=conjoyn` → refreshed to 1.0.2. Deployed from the website
+  repo (`3-Websites/App-Websites`, `APPS/Conjoyn/`, `./deploy.sh` = `lftp mirror -R` no `--delete` → 644;
+  `counts.json` preserved). **Verified live**: appcast 200, enclosure 200 w/ exact `Content-Length` match,
+  `sign_update --verify` on the downloaded bytes = exit 0, dl.php 302 → 1.0.2. Mechanism itself was already
+  proven end-to-end in Wave 3 (100→101 over HTTPS); only the literal GUI click-through on the *live* feed is
+  un-run (optional). Memory `wave4-lives-in-websites-repo`.
+- **DMG = current `main` (1.0.2/102)** — re-cut on the M1 Max (`make-dmg.sh`, notary **Accepted**,
+  double-stapled, `source=Notarized Developer ID`, `/Applications` drop-link; version inside = 1.0.2/102;
+  29 MB, installs offline). Incorporates the 2026-06-16 PM-2 fixes (console copy / bytes-ETA / join
+  hardening). The `conjoyn-notary` keychain profile is **per-Mac** — recreate via `setup-notary-profile.sh`
+  from `99-AUTH/` (memory `dmg-recut-on-fresh-release-mac`). The EdDSA private key is **not** in the M1 Max
+  keychain — `make-appcast.sh` now signs via `SPARKLE_ED_KEY_FILE=…/99-AUTH/conjoyn-sparkle-private.key`.
 - **Sparkle: complete through Wave 3** — pipeline Apple-notary-validated *and* self-update-proven
   end-to-end (`notarize.sh` archive→export, 8 nested Mach-Os Developer ID → `make-dmg.sh` →
   `make-appcast.sh`). Key custody = **3 verified-identical copies** (M4 Pro keychain `account=conjoyn`
@@ -72,6 +75,17 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-17** — **SHIPPED Sparkle Wave 4 → 1.0-public is LIVE.** Git reconcile first (pre-flight's
+  "1 unpushed" was a stale pre-fetch snapshot; `main == origin/main`, clean). Then closed the last gate:
+  bumped **1.0.1/101 → 1.0.2/102** (`54f69b3`; the live download DMG predated the PM-2 fixes by ~11 h, so
+  re-cut from current `main`), re-cut the notarized DMG on the M1 Max (notary **Accepted**, double-stapled,
+  1.0.2/102), generated the EdDSA-signed `appcast.xml` + `Conjoyn-1.0.2.html` release notes, deployed all to
+  Strato `/CONJOYN/` (`deploy.sh`, no `--delete` → `counts.json` safe), refreshed the human download to 1.0.2.
+  **Verified live**: appcast/enclosure/notes all 200, exact `Content-Length` match, `sign_update --verify` on
+  the served bytes = exit 0, `dl.php` 302 → 1.0.2. Enhanced `make-appcast.sh` to sign via
+  `SPARKLE_ED_KEY_FILE` (M1 Max lacks the keychain key; `e844259`). Website files committed (`4c1f852`).
+  *Note:* the shell's git tooling semantically split commits — a pre-existing `apps.json` edit shipped as its
+  own `c236287` ("add Magpie to roster"). *Owed (optional):* live GUI Check-for-Updates click-through.
 - **2026-06-16 (PM-2)** — **3 user-found issues fixed on real footage** (on `main`, **not yet committed/pushed** at
   time of writing; 349 tests/1 skip/0 fail, +6). **(1) Console multi-line select + Copy All** — lines were
   separate `Text` views (`.textSelection` can't cross siblings); now one `Text` from a tinted `AttributedString`
