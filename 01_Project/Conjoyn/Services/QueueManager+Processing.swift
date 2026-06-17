@@ -15,6 +15,10 @@ extension QueueManager {
     func processQueue() async {
         guard !isProcessing else { return }
         isProcessing = true
+        // Fresh batch → forget the previous run's observed pace so the ETA reflects this run's
+        // conditions (cold drive, contention) rather than a stale measurement.
+        sessionBytesDone = 0
+        sessionSecondsDone = 0
         preventSleep()
 
         log("=== Queue processing started ===")
@@ -165,6 +169,9 @@ extension QueueManager {
                         contentDurationSeconds: contentDuration,
                         outputFormat: job.settings.outputContainer
                     )
+                    // Feed this run's observed pace so the whole-queue ETA tracks current conditions.
+                    sessionBytesDone += totalBytes
+                    sessionSecondsDone += elapsed
 
                     let speedMultiplier = contentDuration / elapsed
                     log("SUCCESS: \(job.displayName) - \(String(format: "%.1fx", speedMultiplier)) realtime")
@@ -441,25 +448,32 @@ extension QueueManager {
     /// Pending jobs are estimated by **bytes ÷ throughput**, not content-duration × a speed
     /// multiplier: jobs run sequentially and the join is `-c copy` (I/O-bound), so each pending job's
     /// run-time scales with the bytes it must copy, and a larger split correctly weighs proportionally
-    /// more. The throughput is taken from the **live rate measured off the active job**
-    /// (`activeBytes × progress / elapsed`) when available — so the whole-queue number reflects this
-    /// card's real speed within seconds — falling back to recorded history, then a conservative
-    /// default. This keeps the readout history-independent yet accurate on a fresh install.
+    /// more. The throughput is, in order of preference:
+    ///   1. **this batch's observed pace** (`sessionBytesDone / sessionSecondsDone`) once any job has
+    ///      completed this run — so a run that starts slow (cold external drive) honestly raises its
+    ///      estimate and converges as the drive warms, exactly like a download manager extrapolating
+    ///      from bytes-so-far;
+    ///   2. the **persisted steady-state rate** (`SpeedTracker.throughputBytesPerSec`) before the first
+    ///      job of the run completes;
+    ///   3. a conservative default on a fresh install.
+    ///
+    /// We deliberately do **not** derive a *per-tick live* rate from the active job. Its `progress`
+    /// covers only the fast ffmpeg-join phase (which, since the staged-move hardening, writes to the
+    /// internal SSD), so a live `activeBytes × progress / elapsed` sample reads ~10× too fast mid-join
+    /// and then *collapses* toward zero during the un-tracked staged-move + auto-verify tail (progress
+    /// frozen at 1.0 while elapsed climbs) — which made this readout swing between minutes and hours as
+    /// each job crossed phases. The per-job session pace, by contrast, is measured over the **full**
+    /// wall-clock of *completed* jobs (`recordConversion`/`sessionSecondsDone` time join → move →
+    /// verify), so it's both adaptive and stable.
     func remainingQueueSeconds(at referenceDate: Date) -> TimeInterval? {
         guard isProcessing else { return nil }
 
         var total: TimeInterval = 0
-        var liveThroughput: Double?   // bytes/sec, measured from the active job
 
         if let active = jobs.first(where: { $0.id == currentJobId }) {
             let metrics = ProgressMetrics(progress: active.progress, startTime: active.startedAt)
             if let live = metrics.estimatedRemainingSeconds(at: referenceDate) {
                 total += live
-                let elapsed = metrics.elapsedSeconds(at: referenceDate)
-                let activeBytes = active.totalSourceBytes
-                if elapsed > 0, active.progress > 0, activeBytes > 0 {
-                    liveThroughput = Double(activeBytes) * active.progress / elapsed
-                }
             } else if let estimate = currentJobEstimate {
                 total += estimate.estimatedSeconds
             }
@@ -469,9 +483,12 @@ extension QueueManager {
             .filter { $0.status == .pending }
             .reduce(Int64(0)) { $0 + $1.totalSourceBytes }
         if pendingBytes > 0 {
+            let sessionThroughput = sessionSecondsDone > 0
+                ? Double(sessionBytesDone) / sessionSecondsDone
+                : nil
             let format = jobs.first(where: { $0.id == currentJobId })?.settings.outputContainer
                 ?? jobs.first(where: { $0.status == .pending })?.settings.outputContainer
-            let throughput = liveThroughput
+            let throughput = sessionThroughput
                 ?? format.map { speedTracker.throughputBytesPerSec(outputFormat: $0) }
                 ?? SpeedTracker.defaultThroughputBytesPerSec
             if throughput > 0 {

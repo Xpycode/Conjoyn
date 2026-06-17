@@ -16,7 +16,7 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
-  (monotonic for Sparkle). **Tests: 343 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  (monotonic for Sparkle). **Tests: 351 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
 - **Blockers:** none. **🎉 1.0-public is LIVE** — the last gate (Sparkle Wave 4) is closed.
 - **✓ Repo public + licensed** (2026-06-16) — `github.com/Xpycode/Conjoyn` flipped **private → public**
   after a clean pre-public secrets scan (no keys/secrets in tree or history; only Sparkle *public* key;
@@ -30,8 +30,9 @@
   repo (`3-Websites/App-Websites`, `APPS/Conjoyn/`, `./deploy.sh` = `lftp mirror -R` no `--delete` → 644;
   `counts.json` preserved). **Verified live**: appcast 200, enclosure 200 w/ exact `Content-Length` match,
   `sign_update --verify` on the downloaded bytes = exit 0, dl.php 302 → 1.0.2. Mechanism itself was already
-  proven end-to-end in Wave 3 (100→101 over HTTPS); only the literal GUI click-through on the *live* feed is
-  un-run (optional). Memory `wave4-lives-in-websites-repo`.
+  proven end-to-end in Wave 3 (100→101 over HTTPS). **Live GUI Check-for-Updates click-through CONFIRMED
+  2026-06-17** ("You're up to date! conjoyn 1.0.2 is currently the newest version available") — last optional
+  gate closed. Memory `wave4-lives-in-websites-repo`.
 - **DMG = current `main` (1.0.2/102)** — re-cut on the M1 Max (`make-dmg.sh`, notary **Accepted**,
   double-stapled, `source=Notarized Developer ID`, `/Applications` drop-link; version inside = 1.0.2/102;
   29 MB, installs offline). Incorporates the 2026-06-16 PM-2 fixes (console copy / bytes-ETA / join
@@ -49,8 +50,8 @@
   "Donate"/"Support" — tip-jar framing, `?app=conjoyn`), and a **link-rich About panel**. Replaced the
   hand-assembled `FeedbackCommands` + local `DonateCommands` struct; `project.yml` drops the direct
   FeedbackKit dep (now transitive via ACK). ACK was generalized from this app's own #102/#104 patterns.
-  Memory `feedbackkit-in-app-feedback`. *Optional owed:* delete the `fttttj` test entry (`/admin`);
-  eyeball the live ACK menu/About surfaces.
+  Memory `feedbackkit-in-app-feedback`. *Optional owed:* eyeball the live ACK menu/About surfaces.
+  (`fttttj` test feedback entry **deleted** 2026-06-17.)
 - **✓ Light theme** — default Dark; **Appearance** menu (Match System / Light / Dark). Intentionally
   diverges from the App Shell Standard (dark-only) — flagged. **Match-System revert fixed 2026-06-16**
   (`feb3c43`): driven via `NSApplication.shared.appearance`, not `.preferredColorScheme` (whose `nil`
@@ -62,6 +63,16 @@
   icon stays dark; SVG masters in `02_Design/app-icon/`. Cookbook #114.
 
 ## Backlog (all post-ship / optional)
+- **Footer progress bar misreads a *stopped* queue as success** (found 2026-06-17, real 60-job run).
+  After **Stop** with jobs still incomplete, the footer shows green **"✓ 36 of 60 joined, 0 failed"**
+  with a **fully-filled green bar** — indistinguishable from a clean 60/60 finish. **Cause:** stopped
+  jobs are stored as `.cancelled`, and `Status.isFinished` returns `true` for `.cancelled`
+  (`ConversionJob.swift:44`), so both `overallProgress` (`QueueManager.swift:150`, counts finished →
+  fraction = 1.0) and `allFinished` (`QueuePanel.swift:887`) treat 60/60 as done → the success branch
+  (green ✓ text + `.done` green fill, `QueuePanel.swift:910-940`). **Fix idea (user's):** segmented
+  bar — green = completed, muted/orange segment = cancelled/stopped, remainder empty; and drop the
+  green ✓ / "0 failed" success styling when any job was cancelled (distinguish "all succeeded" from
+  "stopped early").
 - ~~nil-date sort policy~~ **DONE 2026-06-16** — chose Finder "undated always last" (bottom in **both**
   directions). New pure generic `ConversionViewModel.ordered(_:field:by:ascending:)` partitions undated
   rows out, sorts+reverses the dated, re-appends undated; `filteredGroups` routes through it. +2 tests
@@ -70,11 +81,45 @@
 - **Localization / i18n** (raised 2026-06-16, "for later") — app is English-only; no `.lproj` /
   String Catalog. Future: extract UI strings → `Localizable.xcstrings`, add target languages.
 - Roadmap futures (not built): **watch-folder ingest** (spec v1 scope, never shipped — stale comment at
-  `RecordGroup.swift:10`), **more camera families** (engine already camera-agnostic).
+  `RecordGroup.swift:10`), **more camera families** (engine already camera-agnostic). User's target test
+  set (footage to be collected later, 2026-06-17): **GoPro 11 / 7 / 5 + DJI Osmo Action.** On the in-app
+  Roadmap as "More camera families" (GoPro + Osmo Action named generically; telemetry/sidecar handling
+  may trail the video join per brand).
+- **✓ ETA accuracy — whole-queue "time left" oscillation FIXED** (found + fixed 2026-06-17, real 60-job
+  4K card eyeball). Footer swung wildly: "~3 min left" mid-join → "~3h 43m" while a job was *Verifying…* →
+  "~2 min" on the next fast job. **Cause:** `remainingQueueSeconds` derived a *live* throughput from the
+  active job (`activeBytes × progress / elapsed`) for the pending estimate — but `progress` covers only the
+  fast ffmpeg join (internal-SSD write); the PM-2 **cross-volume staged move + auto-verify** tail isn't
+  progress-tracked, so the live sample read ~10× too fast mid-join and *collapsed* toward zero during
+  verify (progress frozen at 1.0, elapsed climbing), blowing the pending term up to hours. **Fix:** dropped
+  the live-throughput override; the pending portion now uses `SpeedTracker.throughputBytesPerSec` (already
+  correct — `recordConversion` times the full join→move→verify wall-clock). Active job keeps its own
+  `elapsed/progress` countdown. +1 regression test (`testRemainingQueueSecondsPendingStableAcrossActiveJobPhase`
+  asserts the pending estimate is phase-independent). **Two follow-ups from the same eyeball** (run finished
+  ~13 min vs ~10 est — oscillation gone, 9→10 stable): **(a) ETA now extrapolates from THIS run's observed
+  pace** — `QueueManager.sessionBytesDone/sessionSecondsDone` accumulate per completed job (full
+  join→move→verify wall-clock), reset each batch; pending = bytes ÷ session-pace, falling back to
+  `throughputBytesPerSec` only until job #1 finishes, then default. A cold start (first file ~6 min, 10×
+  slower than the 70 MB/s history) now honestly raises the estimate and converges as the drive warms, instead
+  of trusting a steady-state average (+1 test `testRemainingQueueSecondsUsesObservedSessionPaceForPending`).
+  **(b) Console hang FIXED** — the PM-2 single-`AttributedString` `.textSelection` `Text` re-laid-out *all*
+  up-to-5 000 lines on every streamed line → main thread pegged at 99% CPU when the console was opened during
+  a batch. Now renders only the **last 300 lines** (`ConsoleSection.maxRenderedLines`; header shows
+  "N lines · showing last 300"); **Copy All** still copies the full log. **351 tests/1 skip/0 fail.** *Owed:*
+  live-queue eyeball of the adaptive countdown + console. **DMG/`main` unaffected** (fixes not yet committed).
 - Footage-gated: 2.2/2.3 reader polish, 2.7 TS-remux fallback, Apple `Keys` creationdate atom (6.3).
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-17 (PM-2)** — **Post-ship eyeball → ETA + console fixes (UNCOMMITTED).** Live GUI self-update
+  confirmed. A real 60-job 4K run surfaced + fixed: **(1)** whole-queue ETA oscillation (live-throughput
+  sample off the active job's join-only `progress`, collapsing during the un-tracked staged-move/verify
+  tail) → dropped the live override; **(2)** ETA now **extrapolates from this run's observed pace**
+  (`sessionBytesDone/Seconds`, reset per batch) so a cold start honestly raises the estimate — user's idea,
+  ground-truthed against the log (first file 5.9 min/1.7× realtime vs 13-min run, ~10-min est); **(3)**
+  console hang (99% CPU — PM-2 single-`AttributedString` `Text` over up-to-5 000 lines) → render last 300,
+  Copy All still full. **351 tests/1 skip/0 fail.** 3 source files + 2 tests uncommitted; `main` + shipped
+  1.0.2 DMG/appcast untouched. *Next:* live-queue eyeball, then one commit. See backlog ✓ ETA / console.
 - **2026-06-17** — **SHIPPED Sparkle Wave 4 → 1.0-public is LIVE.** Git reconcile first (pre-flight's
   "1 unpushed" was a stale pre-fetch snapshot; `main == origin/main`, clean). Then closed the last gate:
   bumped **1.0.1/101 → 1.0.2/102** (`54f69b3`; the live download DMG predated the PM-2 fixes by ~11 h, so

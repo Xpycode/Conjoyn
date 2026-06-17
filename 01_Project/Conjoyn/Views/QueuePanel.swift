@@ -788,19 +788,6 @@ struct ConsoleSection: View {
         queue.consoleLog.isEmpty ? [] : queue.consoleLog.split(separator: "\n")
     }
 
-    /// The whole log as a single AttributedString, each line tinted by `lineColor`,
-    /// so SwiftUI renders it as one selectable `Text` (drag/⌘A spans all lines).
-    private var attributedLog: AttributedString {
-        var out = AttributedString()
-        for (i, line) in lines.enumerated() {
-            var run = AttributedString(line)
-            run.foregroundColor = lineColor(line)
-            out += run
-            if i < lines.count - 1 { out += AttributedString("\n") }
-        }
-        return out
-    }
-
     private func copyAll() {
         let pb = NSPasteboard.general
         pb.clearContents()
@@ -838,17 +825,22 @@ struct ConsoleSection: View {
             if isOpen {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             if lines.isEmpty {
                                 Text("— idle —")
                                     .foregroundStyle(Theme.txt3)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             } else {
-                                // One Text from an AttributedString so selection can
-                                // span every line (separate Text views can't cross-select).
-                                Text(attributedLog)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .textSelection(.enabled)
+                                // One Text per line: lazy layout means only the visible
+                                // rows are measured, so the full (uncapped) log scrolls
+                                // without pegging the main thread. Selection is per-line
+                                // (siblings can't cross-select); use Copy All for the lot.
+                                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                    Text(line)
+                                        .foregroundStyle(lineColor(line))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .textSelection(.enabled)
+                                }
                             }
                             Color.clear.frame(height: 1).id("console-bottom")
                         }

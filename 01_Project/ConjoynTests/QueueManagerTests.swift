@@ -496,6 +496,59 @@ final class QueueManagerTests: XCTestCase {
                        "doubling pending bytes ~doubles its ETA contribution")
     }
 
+    /// Regression (2026-06-17): the whole-queue ETA must not swing when the active job crosses from
+    /// its fast ffmpeg-join phase into the un-progress-tracked staged-move/verify tail. Previously the
+    /// pending estimate borrowed a *live* throughput sampled off the active job (`activeBytes ×
+    /// progress / elapsed`), which collapsed toward zero while "Verifying…" (progress frozen at 1.0,
+    /// elapsed climbing) and blew the readout up to hours, then crashed back to minutes on the next
+    /// fast job. The pending portion is now driven only by historical effective throughput, so it is
+    /// identical regardless of the active job's phase.
+    func testRemainingQueueSecondsPendingStableAcrossActiveJobPhase() throws {
+        let base = 10 * 1024 * 1024
+        let start = Date(timeIntervalSinceReferenceDate: 1_000)
+
+        func total(activeProgress: Double) throws -> TimeInterval {
+            let manager = QueueManager(storageDirectory: tmpDir.appendingPathComponent(UUID().uuidString))
+            manager.addJob(try makeSizedJob(outputName: "Active.mp4", totalBytes: base))
+            manager.addJob(try makeSizedJob(outputName: "Pending.mp4", totalBytes: base * 4))  // stays pending
+            manager.jobs[0].status = .active
+            manager.jobs[0].progress = activeProgress
+            manager.jobs[0].startedAt = start
+            manager.currentJobId = manager.jobs[0].id
+            manager.isProcessing = true
+            return try XCTUnwrap(manager.remainingQueueSeconds(at: start.addingTimeInterval(60)))
+        }
+
+        // Mid-join: 60s elapsed at 50% → active contributes ~60s on top of the pending estimate.
+        let midJoin = try total(activeProgress: 0.5)
+        // Verifying: progress frozen at 1.0 → active contributes 0; only the pending estimate remains.
+        let verifying = try total(activeProgress: 1.0)
+
+        // The pending portion is identical in both — the readout no longer collapses/explodes by phase.
+        XCTAssertEqual(midJoin - 60, verifying, accuracy: max(verifying * 0.01, 0.5),
+                       "pending ETA must not depend on the active job's phase")
+        XCTAssertGreaterThan(verifying, 0)
+    }
+
+    /// The pending estimate must extrapolate from **this run's observed pace** once a job has
+    /// completed — a slow run (cold drive) should read slower than the optimistic steady-state
+    /// default, exactly as the user asked ("first file's bytes/time → remaining bytes").
+    func testRemainingQueueSecondsUsesObservedSessionPaceForPending() throws {
+        let manager = QueueManager(storageDirectory: tmpDir.appendingPathComponent(UUID().uuidString))
+        let pendingBytes = 100 * 1024 * 1024   // 100 MiB still pending
+        manager.addJob(try makeSizedJob(outputName: "Pending.mp4", totalBytes: pendingBytes))
+        manager.jobs[0].status = .pending
+        manager.isProcessing = true
+        // Simulate one completed job this run at a slow ~10 MiB/s observed pace.
+        manager.sessionBytesDone = Int64(50 * 1024 * 1024)
+        manager.sessionSecondsDone = 5                      // 50 MiB in 5s → 10 MiB/s
+
+        // 100 MiB ÷ 10 MiB/s = ~10s — far above the ~0.8s the 120 MiB/s default would predict.
+        let remaining = try XCTUnwrap(manager.remainingQueueSeconds(at: Date()))
+        XCTAssertEqual(remaining, 10, accuracy: 1.0,
+                       "pending ETA should extrapolate from the observed session pace, not the default")
+    }
+
     // MARK: - Failure hardening (retry classification + staged move)
 
     func testRetriableJoinErrorClassification() {

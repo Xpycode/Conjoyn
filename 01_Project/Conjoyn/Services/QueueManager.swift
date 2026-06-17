@@ -39,6 +39,14 @@ final class QueueManager: ObservableObject {
     @Published var isProcessing = false
     @Published var restoredJobCount: Int = 0
 
+    /// Effective join throughput observed during the **current** batch — Σ(source bytes) ÷ Σ(wall-clock
+    /// spanning join + staged move + verify) of jobs completed this run. Drives the whole-queue ETA so a
+    /// run that starts slow (e.g. a cold external drive) honestly raises its estimate and converges as the
+    /// drive warms up, instead of trusting the persisted steady-state `SpeedTracker` average. Both reset
+    /// to zero at the start of each batch (`processQueue`).
+    var sessionBytesDone: Int64 = 0
+    var sessionSecondsDone: TimeInterval = 0
+
     /// Console log lines — stored as an array to enable efficient trimming.
     /// Use `consoleLog` for display (joins lines).
     private var consoleLines: [String] = []
