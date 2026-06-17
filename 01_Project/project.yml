@@ -13,8 +13,8 @@ settings:
     DEVELOPMENT_TEAM: FDMSRXXN73
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "1.0.1"        # was 1.0/100 (never distributed); 1.0.1 fixes the feedback sheet
-    CURRENT_PROJECT_VERSION: "101"    # monotonic integer == sparkle:version; grows 100→101→…
+    MARKETING_VERSION: "1.0.2"        # 1.0.1 (101) never publicly shipped via Sparkle; 1.0.2 = first appcast release (incl. PM-2 console/ETA/join-hardening fixes)
+    CURRENT_PROJECT_VERSION: "102"    # monotonic integer == sparkle:version; grows 100→101→102→…
     SWIFT_STRICT_CONCURRENCY: complete
 
 packages:
