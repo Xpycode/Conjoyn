@@ -572,3 +572,38 @@ BUSL (auto-converts to OSS later, not wanted), CC BY-NC (CC advises against it f
 (caching/indexing). The bundled FFmpeg is LGPL-clean (verified: no `--enable-gpl`/`nonfree`/`version3`),
 so the README's licensing claim holds and direct distribution is unaffected. GitHub's license detector
 may not show a PolyForm chip; the file is present and binding regardless.
+
+### 2026-06-18 - Watch-folder engine architecture (Wave 5A–5C)
+
+**Decision:** Build the watch-folder as a **pure decision core + thin imperative shell**, with four
+load-bearing sub-decisions. **(1) Idempotency via a persisted SHA-256 fingerprint ledger.** Dedup keys
+on a process-stable fingerprint of each group's ordered `stem|index|variantSuffix` — *not* the queue's
+existing unfinished-job check (`ConversionViewModel.swift:351`, which sees only in-flight jobs) and
+*not* `DJIClip.id` (a fresh UUID per parse). The fingerprint is inserted at *enqueue* time and the
+ledger loads its set from disk at init. **(2) Pure `WatchFolderReconciler` + `@MainActor
+WatchFolderCoordinator`** — all "is this group ready / should it re-enqueue" logic is static and
+side-effect-free; the shell only feeds it samples and routes its output to `QueueManager.addJob`.
+**(3) Plain `bookmarkData()` + TCC, not security-scoped bookmarks.** App Sandbox is disabled, so
+`.withSecurityScope` is a no-op; a plain bookmark remembers the folder, and the real gate for a
+background SD-card read is `NSRemovableVolumesUsageDescription` (TCC), which no bookmark can satisfy.
+**(4) FSEvents `latency` *is* the debounce, and rediscover ≠ re-sample** — an FSEvents change re-runs
+the heavy ffprobe discovery; the poll timer does cheap `stat`-only re-sampling of the cached groups.
+**Rationale:** (1) A watch-folder fires repeatedly while a card's joined files stay on disk; without a
+*persistent* ledger that survives relaunch it re-joins forever, and keying on the per-parse UUID would
+silently fail to match across rescans — the stable fingerprint *is* the mechanism, not an optimization.
+(2) Mirrors the codebase's existing instinct (pure `FileStabilityGate`/`CompleteSetGate`, pure
+`ordered(_:)` sort helpers) — the brain is unit-testable by replaying a "filling folder" with no
+FSEvents, ffmpeg, or `QueueManager`. (3) Sandbox-off changes the access model entirely (memory
+`sandbox-off-tcc-is-real-gate`); leaning on scope would be cargo-culted ceremony while the actual
+SD-card denial went unaddressed. (4) ffprobe-per-clip every 0.75 s would peg CPU + spin the disk
+forever while idle; FSEvents already coalesces, so a second debounce layer is redundant.
+**Consequences:** Engine complete on branch `feature/wave5-watch-folder` (5A `3478261`, 5B `87e5de1`,
+5C `aa010fb`); full suite **446/1 skip/0 fail** (+86). **Two bugs caught in review + regression-tested:**
+the ledger set was first an empty-at-launch in-memory mirror (re-introduced the re-join-forever loop
+after relaunch — fixed by sourcing `ProcessedGroupLedger.allFingerprints` from disk), and discovery ran
+on every poll (fixed by the rediscover/re-sample split). The policy predicates (`isSettled`,
+`isComplete`) ship with a strict-reading default in a flagged `// Policy block — yours to tune`, contract
+pinned by tests. **5D UI is designed + approved but deferred** (no build that session): a "Watch Folder"
+`CommandMenu`, a footer status readout, and the watch-folder's **own** output-folder picker (replacing
+the coordinator's v1 next-to-source `destinationURL` placeholder). 5E real-footage + real-SD-card TCC
+eyeball follows 5D. Engine-only; shipped 1.0.2/102 untouched.
