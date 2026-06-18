@@ -59,6 +59,13 @@ struct ProcessedGroupLedger: Sendable {
         fingerprints.contains(Self.fingerprint(for: group))
     }
 
+    /// The full set of recorded fingerprints. Lets a caller (e.g. `WatchFolderCoordinator`) hand
+    /// the durable, relaunch-restored processed set to the pure `WatchFolderReconciler` without the
+    /// ledger having to expose its storage. Loaded from disk at `init`, so it survives relaunch —
+    /// which is what keeps an already-joined group (whose source clips remain on the card) from
+    /// being re-enqueued after a restart.
+    var allFingerprints: Set<String> { fingerprints }
+
     /// Records the group's fingerprint and persists the updated ledger to disk.
     mutating func insert(_ group: RecordGroup) {
         fingerprints.insert(Self.fingerprint(for: group))
