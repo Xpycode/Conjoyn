@@ -28,6 +28,9 @@ final class SourceTargetVerifier: @unchecked Sendable {
         /// Per-segment probed stream params (already on `DJIClip.streamInfo`), in source order.
         /// Used by the codec-param identity check; `nil` entries are tolerated as "unknown".
         let sourceParams: [StreamParameterGuard.SegmentStreamInfo?]
+        /// The start timecode the join stamped onto the output `tmcd` (what was passed to ffmpeg's
+        /// `-timecode`). `nil` when no timecode was applied → the write-back check is skipped.
+        let appliedTimecode: String?
     }
 
     typealias ProgressHandler = @Sendable (Double) -> Void
@@ -191,6 +194,14 @@ final class SourceTargetVerifier: @unchecked Sendable {
         let outputParams = try? ffmpeg.probeStreamInfo(input.outputURL)
         checks.append(make(.codecParams, "Codec parameters",
                            compareCodecParams(sources: input.sourceParams, output: outputParams)))
+
+        // Timecode write-back: the output's `tmcd` must match the start timecode the join stamped.
+        // A *metadata* check (Conjoyn's headline date/timecode fix), independent of the source↔output
+        // *media* comparison — so a media-perfect join with a lost/wrong tmcd still reads as failed.
+        // Skipped entirely when no timecode was applied.
+        if let tcCheck = await checkTimecodeWriteback(input, logHandler: logHandler) {
+            checks.append(tcCheck)
+        }
 
         // A/V drift (only when audio is kept).
         if input.hasAudio {
@@ -372,6 +383,56 @@ final class SourceTargetVerifier: @unchecked Sendable {
         return Int((seconds * 1000.0).rounded())
     }
 
+    // MARK: - Timecode write-back (metadata)
+
+    /// Re-reads the output's start timecode and compares it to what the join stamped. Returns `nil`
+    /// (no check) when no timecode was applied. Reads via **ffprobe** (the `tmcd` stream tag ffmpeg's
+    /// `-timecode` writes) — the same mechanism the rest of the verifier uses, and robust to how
+    /// ffmpeg attaches the tmcd format description (AVFoundation's `SourceTimecodeReader` chokes on
+    /// muxed tmcd tracks with "sample buffer lacks a format description"). The "proven wrong vs
+    /// couldn't check" split:
+    ///   - probe ok + tag present → compare the value (`compareTimecode`).
+    ///   - probe ok + **no** tag although we stamped one → the stamp was lost → `.fail`.
+    ///   - probe failed (no ffprobe / unreadable) → couldn't run cleanly → `.warning`.
+    private func checkTimecodeWriteback(
+        _ input: SourceTargetInput,
+        logHandler: LogHandler?
+    ) async -> VerificationCheck? {
+        guard let assigned = input.appliedTimecode else { return nil }
+
+        let (readBack, probeOK) = await readOutputTimecode(url: input.outputURL)
+        guard probeOK else {
+            logHandler?("Timecode write-back: could not probe output timecode")
+            return make(.timecodeWriteback, "Timecode write-back",
+                        .warning("could not read output timecode (probe failed)"))
+        }
+
+        let outcome = compareTimecode(assigned: assigned, readBack: readBack)
+        logHandler?("Timecode write-back: \(outcome.detail ?? "match")")
+        return make(.timecodeWriteback, "Timecode write-back", outcome)
+    }
+
+    /// Reads the output's start timecode via ffprobe — the `tmcd` stream tag `-timecode` writes
+    /// (`stream_tags=timecode`). Returns the first non-empty tag value and whether the probe itself
+    /// succeeded. `(nil, true)` = probe ran but the file carries no timecode tag (a genuine "stamp
+    /// lost" the comparator turns into a fail); `(nil, false)` = the probe couldn't run (→ warning).
+    private func readOutputTimecode(url: URL) async -> (value: String?, probeOK: Bool) {
+        guard let ffprobe = ffprobePath else { return (nil, false) }
+        let args = [
+            "-v", "error",
+            "-show_entries", "stream_tags=timecode",
+            "-of", "csv=p=0",
+            url.path,
+        ]
+        let run = await runCapturingStdout(at: ffprobe, arguments: args)
+        guard run.exitCode == 0 else { return (nil, false) }
+        let value = run.stdout
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty }
+        return (value, true)
+    }
+
     // MARK: - Pure comparators (process-free, unit-tested)
 
     /// Output packet count must equal the sum of the sources, exactly. A `-1` (probe failure) in
@@ -476,6 +537,37 @@ final class SourceTargetVerifier: @unchecked Sendable {
             }
         }
         return .pass
+    }
+
+    /// Output `tmcd` start timecode must match what the join stamped. **Separator-insensitive** (a
+    /// drop-frame readback formats `;` before the frames; DJI is non-drop, so the join always *writes*
+    /// `:`) and compared **field-by-field**, so `01:02:03:04` and `01:02:03;04` count as equal. The
+    /// "proven wrong vs couldn't check" split is preserved:
+    ///   - `readBack == nil` (output has no tmcd though one was stamped) → `.fail` (stamp lost).
+    ///   - either side unparseable → `.warning` (couldn't compare cleanly — never a false `.fail`).
+    ///   - fields equal → `.pass`; fields differ → `.fail`.
+    func compareTimecode(assigned: String, readBack: String?) -> CheckOutcome {
+        guard let readBack else {
+            return .fail("output has no tmcd track — assigned \(assigned) was not written")
+        }
+        guard let a = Self.timecodeFields(assigned) else {
+            return .warning("could not parse assigned timecode '\(assigned)'")
+        }
+        guard let b = Self.timecodeFields(readBack) else {
+            return .warning("could not parse output timecode '\(readBack)'")
+        }
+        if a == b { return .pass }
+        return .fail("output tmcd \(readBack) ≠ assigned \(assigned)")
+    }
+
+    /// Splits "HH:MM:SS:FF" / "HH:MM:SS;FF" into its four integer fields, accepting either `:` or `;`
+    /// as a separator (separator-insensitive). `nil` unless it parses to exactly four integers.
+    static func timecodeFields(_ tc: String) -> [Int]? {
+        let parts = tc.split(whereSeparator: { $0 == ":" || $0 == ";" })
+        guard parts.count == 4 else { return nil }
+        let ints = parts.compactMap { Int($0) }
+        guard ints.count == 4 else { return nil }
+        return ints
     }
 
     // MARK: - Dedicated stdout + exit-code runner

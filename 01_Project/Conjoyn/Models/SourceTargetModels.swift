@@ -55,6 +55,7 @@ struct VerificationCheck: Codable, Sendable, Equatable {
         case duration       // Tier 1: output duration ≈ Σ(source durations), ±1 frame.
         case avDrift        // Tier 1: output v:0 vs a:0 duration within tolerance.
         case codecParams    // Tier 1: codec params identical across segments + output.
+        case timecodeWriteback  // Tier 1 (metadata): output `tmcd` matches the assigned start timecode.
         case hashMatch      // Tier 2: per-stream packet MD5 matches.
     }
 

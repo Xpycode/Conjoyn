@@ -263,7 +263,8 @@ extension QueueManager {
             sourceSegments: job.clips.map(\.videoURL),
             outputURL: job.actualOutputURLs.first ?? job.destinationURL,
             hasAudio: job.clips.first?.streamInfo?.audio != nil,
-            sourceParams: job.clips.map(\.streamInfo)
+            sourceParams: job.clips.map(\.streamInfo),
+            appliedTimecode: job.appliedTimecode
         )
     }
 
@@ -274,7 +275,11 @@ extension QueueManager {
         // the join is lossless regardless of Tier 1 container-metadata discrepancies.
         if result.tier == .thorough {
             let hashPassed = result.checks.first { $0.kind == .hashMatch }?.severity == .pass
-            if hashPassed { return .verified }
+            // The byte-exact hash forgives Tier-1 *container-metadata* deltas (packet/duration/codec
+            // counts that are byte-irrelevant once the media proves identical) — but it can say
+            // nothing about the `tmcd`, so a timecode write-back failure must still sink the seal.
+            let tcWriteBackFailed = result.checks.first { $0.kind == .timecodeWriteback }?.severity == .fail
+            if hashPassed && !tcWriteBackFailed { return .verified }
         }
         if result.passed { return .verified }
         if result.hasWarning { return .warning(result.summary) }

@@ -224,6 +224,11 @@ extension QueueManager {
         // and the param guard are untouched — FFmpeg writes the metadata during the mux.
         let metadata = resolveJoinMetadata(for: job)
 
+        // Record exactly what we're about to stamp onto the output `tmcd`, so the post-join
+        // write-back verification can re-read the output and confirm the stamp landed. `nil` when no
+        // timecode is applied → the write-back check is skipped (nothing to verify against).
+        updateJob(jobId) { $0.appliedTimecode = metadata.timecode }
+
         // Stage the join on the temp volume (typically the internal SSD): ffmpeg writes the output
         // and runs `+faststart` there, so the (often external/USB) destination drive does only
         // sequential source reads during the join — then one sequential copy lands the finished file.

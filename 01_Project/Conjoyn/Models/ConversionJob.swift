@@ -106,6 +106,13 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     // Manual timecode override — session-only, intentionally excluded from CodingKeys.
     var timecodeStringOverride: String? = nil
 
+    /// The start timecode actually stamped onto the output `tmcd` track during the join — the exact
+    /// string `resolveJoinMetadata` handed to ffmpeg's `-timecode`. `nil` when nothing was stamped
+    /// (the `preserveTimecode` toggle was off, or no recording-start signal resolved). Persisted (in
+    /// `CodingKeys`) so the write-back verification can re-read the output's `tmcd` and confirm it
+    /// matches what was assigned — including on a manual thorough re-verify after relaunch.
+    var appliedTimecode: String? = nil
+
     // Verification state.
     var verificationStatus: VerificationStatus = .unverified
     var verificationResult: VerificationResult?
@@ -339,6 +346,6 @@ struct ConversionJob: Identifiable, Codable, Sendable {
         case destinationPathString, createdAt, status, progress, startedAt
         case sourceBookmarkData, outputBookmarkData
         case verificationStatus, verificationResult, sourceTargetResult, verificationProgress
-        case actualOutputPathStrings
+        case actualOutputPathStrings, appliedTimecode
     }
 }

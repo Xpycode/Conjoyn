@@ -193,6 +193,40 @@ final class SourceTargetVerifierTests: XCTestCase {
         XCTAssertEqual(verifier.classifyHashLines(sourceLines: ["x"], outputLines: []).severity, .fail)
     }
 
+    // MARK: - compareTimecode (write-back: separator-insensitive, proven-wrong vs couldn't-check)
+
+    func testTimecodeExactMatchPasses() {
+        XCTAssertEqual(verifier.compareTimecode(assigned: "01:02:03:04", readBack: "01:02:03:04").severity, .pass)
+    }
+
+    func testTimecodeSeparatorInsensitiveMatchPasses() {
+        // A drop-frame readback formats ';' before the frames; same fields → still a pass.
+        XCTAssertEqual(verifier.compareTimecode(assigned: "01:02:03:04", readBack: "01:02:03;04").severity, .pass)
+    }
+
+    func testTimecodeMismatchFails() {
+        let outcome = verifier.compareTimecode(assigned: "01:02:03:04", readBack: "01:02:03:05")
+        XCTAssertEqual(outcome.severity, .fail)
+    }
+
+    func testTimecodeMissingTrackFails() {
+        // We stamped one, but the output carries no tmcd at all → the stamp was lost.
+        XCTAssertEqual(verifier.compareTimecode(assigned: "01:02:03:04", readBack: nil).severity, .fail)
+    }
+
+    func testTimecodeUnparseableIsWarningNotFail() {
+        // Couldn't compare cleanly ≠ proven wrong → warning, never a false fail.
+        XCTAssertEqual(verifier.compareTimecode(assigned: "garbage", readBack: "01:02:03:04").severity, .warning)
+        XCTAssertEqual(verifier.compareTimecode(assigned: "01:02:03:04", readBack: "00:00").severity, .warning)
+    }
+
+    func testTimecodeFieldsParsing() {
+        XCTAssertEqual(SourceTargetVerifier.timecodeFields("12:34:56:78"), [12, 34, 56, 78])
+        XCTAssertEqual(SourceTargetVerifier.timecodeFields("12:34:56;78"), [12, 34, 56, 78])
+        XCTAssertNil(SourceTargetVerifier.timecodeFields("12:34:56"))      // too few fields
+        XCTAssertNil(SourceTargetVerifier.timecodeFields("aa:bb:cc:dd"))   // non-numeric
+    }
+
     // MARK: - Pinned tolerance constants (a refactor must not silently change these)
 
     func testToleranceConstantsArePinned() {
@@ -277,7 +311,8 @@ final class SourceTargetVerifierIntegrationTests: XCTestCase {
             sourceSegments: sources,
             outputURL: output,
             hasAudio: false,
-            sourceParams: sources.map { try? ffmpeg.probeStreamInfo($0) }
+            sourceParams: sources.map { try? ffmpeg.probeStreamInfo($0) },
+            appliedTimecode: nil
         )
     }
 
