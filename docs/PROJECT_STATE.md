@@ -16,7 +16,7 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
-  (monotonic for Sparkle). **Tests: 354 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  (monotonic for Sparkle). **Tests: 360 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
 - **✓ Post-ship verification-honesty polish committed `e90f838` (2026-06-18), pushed.** Five
   eyeball-confirmed fixes (see the 2026-06-18 Recent entry) — Debug-local only; shipped 1.0.2/102 DMG +
   appcast untouched, so the **live download still predates these fixes** (re-cut owed only if/when a new
@@ -117,6 +117,21 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-18 (PM)** — **Timecode write-back verification** (ported the one reusable idea from TCE's
+  ladder; audit found Conjoyn already equals/exceeds TCE on media integrity). Conjoyn's headline
+  date/timecode fix was **stamped but never verified** — now the output's `tmcd` is re-read and
+  compared to the assigned TC. New persisted `ConversionJob.appliedTimecode`; new
+  `VerificationCheck.Kind.timecodeWriteback` wired into `runTier0And1` (runs in fast **and** thorough
+  tiers); pure `compareTimecode`/`timecodeFields` (separator-insensitive `:`/`;`, drop-frame-aware);
+  mismatch/missing = `.fail`, unparseable = `.warning`. **`mapStatus` fix:** a passing byte-exact hash
+  no longer masks a TC write-back fail (the hash can't speak to the `tmcd`). **+6 tests → 360/1 skip/0
+  fail.** Zero UI work (seal/chip row iterates checks generically). **Live eyeball on real `2CULL`
+  footage caught a read-path bug the units couldn't:** the `tmcd` was written fine, but the AVFoundation
+  reader (`SourceTimecodeReader`, Penumbra port) threw `.missingFormatDescription` — an ffmpeg-muxed
+  tmcd puts its format description on the *track*, not the sample buffer. Switched the verifier to read
+  via **ffprobe** (`stream_tags=timecode`, consistent with the rest of `SourceTargetVerifier`); re-run
+  logs "Timecode write-back: match", Verify reads "No issues flagged." ✓. Debug-local; **1.0.2/102 DMG +
+  appcast untouched.**
 - **2026-06-18** — **Post-ship UI-honesty polish (full day, committed `e90f838` + pushed).** Five eyeball-confirmed fixes
   on real `2CULL` footage. **(1)** Thorough-verify control `.cjGhost`→`.cjStandard` (visible filled
   button + `checkmark.shield`). **(2)** Bar lifecycle: new transient `ConversionJob.isFinishing` →
