@@ -117,6 +117,16 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-18 (PM-2)** — **Verified + corrected the Wave 5 watch-folder plan** (docs only, `49853a5`;
+  no app code, suite stays 360/1 skip/0 fail). Fanned out 3 agents (2 `Explore` codebase + 1
+  web/Apple-docs) over the prior session's `file:line`-cited Wave 5 breakdown. **6 claims VERIFIED**
+  (dedup-unfinished → re-join risk real; serial queue loop; `addJob`/`startQueue`; one-group-one-job;
+  `withBookmarks:314`; stale `RecordGroup.swift:10`). **Corrected 3:** `DJIFolderReader.read` returns
+  `Discovery` not `[RecordGroup]`; `startAccessingIfNeeded` only *starts* access (resolution is in
+  `loadQueue`); **the big one — App Sandbox is disabled, so `.withSecurityScope` is a no-op**: plain
+  `bookmarkData()` suffices and the real new gate is **TCC** (`NSRemovableVolumesUsageDescription`) for
+  a background SD-card read. FSEvents/DispatchSource + file-stability caveats folded in. New memory
+  `sandbox-off-tcc-is-real-gate`. **Debug-local; shipped 1.0.2/102 untouched.**
 - **2026-06-18 (PM)** — **Timecode write-back verification** (ported the one reusable idea from TCE's
   ladder; audit found Conjoyn already equals/exceeds TCE on media integrity). Conjoyn's headline
   date/timecode fix was **stamped but never verified** — now the output's `tmcd` is re-read and
