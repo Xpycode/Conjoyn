@@ -85,8 +85,10 @@
 - Optional DMG polish (custom background image).
 - **Localization / i18n** (raised 2026-06-16, "for later") — app is English-only; no `.lproj` /
   String Catalog. Future: extract UI strings → `Localizable.xcstrings`, add target languages.
-- Roadmap futures (not built): **watch-folder ingest** (spec v1 scope, never shipped — stale comment at
-  `RecordGroup.swift:10`), **more camera families** (engine already camera-agnostic). User's target test
+- Roadmap futures: **watch-folder ingest** — **ENGINE BUILT 2026-06-18** on branch
+  `feature/wave5-watch-folder` (5A+5B+5C, 446 tests; stale `RecordGroup.swift:10` comment fixed); **only
+  5D UI + 5E real-footage validation remain** (5D designed+approved, deferred). **more camera families**
+  (engine already camera-agnostic). User's target test
   set (footage to be collected later, 2026-06-17): **GoPro 11 / 7 / 5 + DJI Osmo Action.** On the in-app
   Roadmap as "More camera families" (GoPro + Osmo Action named generically; telemetry/sidecar handling
   may trail the video join per brand).
@@ -117,6 +119,20 @@
 - Minor owed eyeballs: slow-mo + SRT-mismatch integrity chips (unit-tested only — no such clip on cards seen).
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-18 (PM-3)** — **`/execute wave 5`: built the watch-folder ENGINE (5A+5B+5C).** All on branch
+  **`feature/wave5-watch-folder`** (3 feat + 3 docs commits; **not merged, not pushed**); engine-only, no
+  UI/app wiring → shipped 1.0.2/102 untouched. **5A** `3478261` (FileStabilityGate, CompleteSetGate,
+  WatchGroupState, ProcessedGroupLedger SHA-256 fingerprint over `stem|index|variant` not the per-parse
+  UUID, stale-comment fix) → +50 tests. **5B** `87e5de1` (FSEvents `WatchFolder`, plain-bookmark
+  `WatchFolderBookmark`, `WatchFolderSettings`, Info.plist `NSRemovableVolumesUsageDescription` = the TCC
+  gate) → +15. **5C** `aa010fb` (pure `WatchFolderReconciler` + thin `@MainActor WatchFolderCoordinator`;
+  relaunch resume) → +21. **Full suite 446/1 skip/0 fail** (+86 over 360). **Two review-caught bugs fixed
+  + regression-tested:** (1) dedup set now sourced from the persisted ledger, not an empty-at-launch mirror
+  (else a joined group whose clips stay on the card re-enqueues forever after relaunch); (2) split FSEvents
+  rediscover from cheap poll re-sample so ffprobe doesn't run every 0.75s while idle. **5D UI =
+  designed + APPROVED, DEFERRED** (user: don't build this session): new "Watch Folder" CommandMenu (enable
+  + folder picker), footer status readout, its **own** output-folder picker (replaces the coordinator's v1
+  next-to-source `TODO(5D)`). 5E real-footage + SD-card TCC eyeball follows 5D.
 - **2026-06-18 (PM-2)** — **Verified + corrected the Wave 5 watch-folder plan** (docs only, `49853a5`;
   no app code, suite stays 360/1 skip/0 fail). Fanned out 3 agents (2 `Explore` codebase + 1
   web/Apple-docs) over the prior session's `file:line`-cited Wave 5 breakdown. **6 claims VERIFIED**
