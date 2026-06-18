@@ -106,11 +106,72 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 
 ## Wave 5 — Watch-folder automation (depends on W2 engine + W1 queue)
 
+> **Detailed breakdown (planned 2026-06-18; claims agent-verified against the codebase + Apple docs
+> 2026-06-18).** The original 3-row stub is decomposed below into atomic, `/execute`-ready tasks
+> across five sub-waves. **Key findings from tracing the engine:**
+> (a) **Access is largely solved — with one missed gate.** `ConversionJob.withBookmarks`
+> (`ConversionJob.swift:314`) mints a folder bookmark while a panel grant is live; the bookmark is
+> *resolved* on load in `QueueManager.loadQueue()` (`resolveSourceBookmark`/`resolveOutputBookmark`,
+> stale-aware), and `startAccessingIfNeeded` (`QueueManager.swift:357`) then merely calls
+> `startAccessingSecurityScopedResource()` on the already-resolved URL. The watch-folder just needs to
+> **persist one root bookmark** and resolve it on each wake (a directory grant covers child DCIM
+> files). **CAVEAT (corrected 2026-06-18):** App Sandbox is **disabled** (notarized
+> direct-distribution), so `.withSecurityScope` is a *sandbox-only* mechanism — here it is effectively
+> a no-op (the existing scope ceremony is harmless but redundant), and **plain `bookmarkData()` /
+> path persistence suffices** to *remember* the folder. The **real new gate the plan originally
+> missed is TCC**: a background watch-folder reading an **SD card** needs removable-volume consent
+> (`NSRemovableVolumesUsageDescription`), which a bookmark **cannot** satisfy — only a user prompt
+> can. Treat TCC, not bookmarks, as the access risk. (b) **The real new logic risk is idempotency** —
+> `addToQueue`'s dedup only checks *unfinished* jobs (`ConversionViewModel.swift:351`,
+> `!$0.status.isFinished`), but a watch-folder fires repeatedly while the card's files stay on disk
+> after a join → without a **persistent processed-group ledger** it re-joins forever. (c) **Bounded
+> concurrency is free** — the queue loop (`QueueManager+Processing.swift:26`) is already serial (1 job
+> at a time), inside the spec's 1–2 bound.
+>
+> **Reuse, don't rebuild:** discovery = `DJIFolderReader.read(folder:using:)` → **`Discovery`**
+> (`.groups: [RecordGroup]` — *not* `[RecordGroup]` directly) (+ `resolveMediaFolders`/
+> `containsDJIMedia`); enqueue = `QueueManager.addJob(folderName:…)` then `startQueue()`; one
+> `RecordGroup` → one `ConversionJob` (unchanged).
+
+### Wave 5A — Pure primitives (no deps; parallelizable; unit-tested in isolation)
+
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
-| 5.1 | `WatchFolder` monitor | `Services/WatchFolder.swift` | FSEvents recursive (DCIM trees, `kFSEventStreamCreateFlagFileEvents`, dispatch-queue, Unmanaged context); DispatchSource (`O_EVTONLY`) option for flat folder | unit/manual: file drop fires callback |
-| 5.2 | Stability/debounce gate | in 5.1 | size+mtime unchanged for N polls (~3×0.75s) before "settled"; ignore partial copies | manual: large copy not processed until complete |
-| 5.3 | Complete-set + state machine | `Services/WatchFolder.swift` + VM | quiet-window (30–60s) after last settled member; per-group state `Discovered→Settling→Grouped→Ready→Joining→Verifying→Done/Failed`, **persisted**; relaunch resumes; bounded concurrency 1–2 | manual: staged drop auto-joins once complete; relaunch resumes |
+| 5.1 | **Stability gate** *(⮕ user-authored predicate)* | `Services/FileStabilityGate.swift` + test | Pure `isSettled(samples:requiredStablePolls:)` over (size, mtime) snapshots — a file counts as settled only after N consecutive unchanged polls (~3×0.75s). **Policy decision (how cautious) is the user's to write**; I scaffold signature + tests. No I/O in the pure fn (sampler injects stats). *Caveats baked into tests:* a still-growing file must never settle; an atomic write-to-temp-then-rename appears complete only at the rename (watch the rename, not growth). | `xcodebuild test` — unit: changing size never settles, N stable polls settle |
+| 5.2 | **Complete-set gate** *(⮕ user-authored predicate)* | `Services/CompleteSetGate.swift` + test | Pure `isComplete(lastSegmentBytes:splitThreshold:quietElapsed:quietWindow:)` — a group is ready only when its last segment is **below** the split threshold (no further chaining expected) **AND** no new member appeared within the quiet window (~30–60s). **Predicate is the user's to write.** | `xcodebuild test` — unit: big last-segment ⇒ not ready; small + quiet ⇒ ready |
+| 5.3 | Watch group state machine | `Models/WatchGroupState.swift` + test | `enum WatchGroupState { discovered, settling, grouped, ready, joining, verifyingMetadata, done, failed }` + a validated transition table; `Codable` for persistence. Illegal transitions rejected. | `xcodebuild test` — unit: legal/illegal transition table |
+| 5.4 | Processed-group ledger | `Models/ProcessedGroupLedger.swift` + test | Stable per-group **fingerprint** (hash of ordered clip identities, stable across rescans/relaunch) + `Codable` persistence (`contains`/`insert`/load/save). Prevents the re-join-forever loop. | `xcodebuild test` — unit: same group ⇒ same fingerprint; survives encode/decode round-trip |
+| 5.5 | Clean stale comment | `Models/RecordGroup.swift:10` | Remove/rewrite the dangling "watch-folder 'join when the group is complete' state machine" reference so the doc matches reality (point it at the new state machine, or drop it). | `xcodebuild build` |
+
+### Wave 5B — Infrastructure (depends on 5A types where noted; parallelizable)
+
+| # | Task | Target | Success criteria | Backpressure |
+|---|------|--------|------------------|--------------|
+| 5.6 | FSEvents monitor | `Services/WatchFolder.swift` | Recursive FSEvents over the watched root (DCIM trees, `kFSEventStreamCreateFlagFileEvents`, GCD via `FSEventStreamSetDispatchQueue`, `Unmanaged` context; lifecycle `Create`→`SetDispatchQueue`→`Start` … `Stop`→`Invalidate`→`Release`). **Coalescing is the latency parameter itself** — events within the window batch into one callback, so do *not* add a separate debounce layer; FSEvents reports only *that* a path changed, so reconcile by rescanning. DispatchSource (`O_EVTONLY`) flat-folder variant optional — note it is **non-recursive** (one source per dir) and reports only *that* the dir changed → needs a cached-snapshot diff to find the file. | manual: dropping a file into the folder fires one coalesced callback |
+| 5.7 | Persisted watch-folder bookmark | `Services/WatchFolderBookmark.swift` + test | Pick root via `NSOpenPanel` → **plain `bookmarkData()`** (sandbox is **off** → `.withSecurityScope` is a no-op; keep only the resolver *shape* to mirror `withBookmarks`) → persist (UserDefaults); `resolve()` with **`isStale` → re-create + re-persist**. **SD-card reads are gated by TCC, not the bookmark** — set `NSRemovableVolumesUsageDescription` and ensure the user has granted removable-volume access (a background watch can't prompt as cleanly as a panel). | `xcodebuild test` — unit: temp-dir bookmark encode→persist→resolve, and `isStale`→recreate round-trip |
+| 5.8 | Watch-folder settings | `Models/WatchFolderSettings.swift` + test | `Codable`: `enabled`, bookmark ref, `requiredStablePolls`, `quietWindow`; persisted + sane defaults. | `xcodebuild test` — unit: defaults + round-trip |
+
+### Wave 5C — Coordinator (depends on all of 5A + 5B)
+
+| # | Task | Target | Success criteria | Backpressure |
+|---|------|--------|------------------|--------------|
+| 5.9 | Watch-folder coordinator | `Services/WatchFolderCoordinator.swift` + integration test | Monitor fires → resolve bookmark + access → `DJIFolderReader.read` → 5.1 stability gate per clip → 5.2 complete-set gate per group → 5.4 ledger filter → `QueueManager.addJob` + `startQueue()` → record in ledger; drives the 5.3 state machine; persists per-group state. | `xcodebuild test` — integration: a simulated filling folder enqueues exactly one job per complete group, none for incomplete/already-processed |
+| 5.10 | Relaunch resume + lifecycle | `WatchFolderCoordinator` (+ app wiring) | On launch (if enabled): restore persisted state, reconcile `.joining` groups against the live queue, resume monitoring. Idempotent: a group mid-flight at quit isn't double-enqueued. | `xcodebuild test` — unit: persisted `.joining` state + matching queue job ⇒ no re-enqueue |
+
+### Wave 5D — UI (follows the UI-changes protocol — propose location + await confirm before coding)
+
+| # | Task | Target | Success criteria | Backpressure |
+|---|------|--------|------------------|--------------|
+| 5.11 | Watch-folder UI surface | TBD — **propose first** | Enable toggle + folder picker + live status readout (watching / settling / N queued). Find a comparable existing control, trace wiring, propose exact file/line, **wait for approval**. | `xcodebuild build` + eyeball |
+| 5.12 | App-lifecycle wiring | App entry + `WatchFolderCoordinator` | Coordinator starts on enable, stops on disable, resumes on launch when enabled; no leak/zombie stream on toggle. | manual: toggle on/off, relaunch |
+
+### Wave 5E — Verification (final)
+
+| # | Task | Target | Success criteria | Backpressure |
+|---|------|--------|------------------|--------------|
+| 5.13 | Suite green | — | Full app suite + new integration test pass (target ≥ current 360/1 skip/0 fail + new tests). | `xcodebuild test` all green |
+| 5.14 | Real-footage eyeball | — | Copy a real DJI card's `DCIM/100MEDIA` into the watched folder → app settles, groups, auto-joins, output verifies (existing verification chain), originals untouched. **Also point the watch at an actual mounted SD card and confirm the TCC removable-volume prompt appears once and access persists across relaunch** (the bookmark alone won't grant it). | manual on real footage + real card |
+| 5.15 | Docs | `docs/PROJECT_STATE.md`, `docs/decisions.md` | Move watch-folder from "Roadmap futures (not built)" → done; drop the stale-comment backlog item; log the decisions: persisted-bookmark (plain, not scoped — sandbox off), TCC/`NSRemovableVolumesUsageDescription` as the real access gate, and the processed-group ledger for idempotency. | review |
 
 ---
 
