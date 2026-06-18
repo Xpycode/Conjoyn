@@ -133,7 +133,11 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 > `containsDJIMedia`); enqueue = `QueueManager.addJob(folderName:…)` then `startQueue()`; one
 > `RecordGroup` → one `ConversionJob` (unchanged).
 
-### Wave 5A — Pure primitives (no deps; parallelizable; unit-tested in isolation)
+### Wave 5A — Pure primitives (no deps; parallelizable; unit-tested in isolation) — ✅ **DONE (2026-06-18, `3478261`, branch `feature/wave5-watch-folder`)**
+
+> All five landed; +50 tests → full suite **410/1 skip/0 fail**. 5.1/5.2 ship with the strict-reading
+> default in their flagged policy block (user may tune cautiousness). No app wiring yet — shipped
+> 1.0.2/102 behavior untouched.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
