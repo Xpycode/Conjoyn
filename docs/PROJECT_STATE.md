@@ -26,9 +26,10 @@
   `/Volumes/2CULL` clean (0 failed). The mid-test "14 failed" = stale **restored-from-last-session**
   jobs whose source card was unmounted (`ffprobe exit 1`), **not** a watch-path bug. **Full suite
   455/1 skip/0 fail (+1).**
-  - **Next:** merge `feature/wave5-watch-folder` → `main` (`--no-ff`) — the eyeball gate is satisfied.
-    5E/5F close Wave 5.
-  - **Git:** branch committed + pushed; **`main` still at `fbd08b8`** until the merge.
+  - **✓ Merged to `main`** (`--no-ff`, `c814efc`) + pushed — the **whole of Wave 5 (5A–5C engine +
+    5D UI)** is now on `main` == `origin/main`. Branch `feature/wave5-watch-folder` retained.
+  - **Next:** 5E real-footage validation / 5F to close Wave 5. Re-cut the DMG only if/when a new build
+    ships (shipped 1.0.2/102 untouched by this Debug-local work).
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
   (monotonic for Sparkle). **Tests: 454 app / 1 skip / 0 fail** (was 360 pre-Wave-5) **· 10 FeedbackKit pkg.**
 - **✓ Post-ship verification-honesty polish committed `e90f838` (2026-06-18), pushed.** Five
