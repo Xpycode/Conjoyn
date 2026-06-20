@@ -7,7 +7,8 @@ import CoreMedia
 /// (`creationDate` + duration + filename index) — never by filename alone, and never across
 /// differing camera/lens variant suffixes. Transient: recomputed from the folder, never persisted.
 /// **One `RecordGroup` becomes one `ConversionJob`**, matching the concat-demuxer join (one group →
-/// one output) and the watch-folder "join when the group is complete" state machine.
+/// one output). The watch-folder advances a group from discovery to a joined output via the
+/// `WatchGroupState` machine, gated by `CompleteSetGate` ("join only once the set is complete").
 struct RecordGroup: Identifiable {
     /// Derived from the first clip for stable identity across recomputes (so SwiftUI doesn't treat
     /// a group as a new item on every access).

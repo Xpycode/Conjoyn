@@ -133,7 +133,11 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 > `containsDJIMedia`); enqueue = `QueueManager.addJob(folderName:…)` then `startQueue()`; one
 > `RecordGroup` → one `ConversionJob` (unchanged).
 
-### Wave 5A — Pure primitives (no deps; parallelizable; unit-tested in isolation)
+### Wave 5A — Pure primitives (no deps; parallelizable; unit-tested in isolation) — ✅ **DONE (2026-06-18, `3478261`, branch `feature/wave5-watch-folder`)**
+
+> All five landed; +50 tests → full suite **410/1 skip/0 fail**. 5.1/5.2 ship with the strict-reading
+> default in their flagged policy block (user may tune cautiousness). No app wiring yet — shipped
+> 1.0.2/102 behavior untouched.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
@@ -143,7 +147,10 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 | 5.4 | Processed-group ledger | `Models/ProcessedGroupLedger.swift` + test | Stable per-group **fingerprint** (hash of ordered clip identities, stable across rescans/relaunch) + `Codable` persistence (`contains`/`insert`/load/save). Prevents the re-join-forever loop. | `xcodebuild test` — unit: same group ⇒ same fingerprint; survives encode/decode round-trip |
 | 5.5 | Clean stale comment | `Models/RecordGroup.swift:10` | Remove/rewrite the dangling "watch-folder 'join when the group is complete' state machine" reference so the doc matches reality (point it at the new state machine, or drop it). | `xcodebuild build` |
 
-### Wave 5B — Infrastructure (depends on 5A types where noted; parallelizable)
+### Wave 5B — Infrastructure (depends on 5A types where noted; parallelizable) — ✅ **DONE (2026-06-18, `87e5de1`)**
+
+> FSEvents monitor + plain (non-scoped) persisted bookmark + settings model; Info.plist gains
+> `NSRemovableVolumesUsageDescription` (the TCC gate). +15 tests → 425/1 skip/0 fail.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
@@ -151,7 +158,14 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 | 5.7 | Persisted watch-folder bookmark | `Services/WatchFolderBookmark.swift` + test | Pick root via `NSOpenPanel` → **plain `bookmarkData()`** (sandbox is **off** → `.withSecurityScope` is a no-op; keep only the resolver *shape* to mirror `withBookmarks`) → persist (UserDefaults); `resolve()` with **`isStale` → re-create + re-persist**. **SD-card reads are gated by TCC, not the bookmark** — set `NSRemovableVolumesUsageDescription` and ensure the user has granted removable-volume access (a background watch can't prompt as cleanly as a panel). | `xcodebuild test` — unit: temp-dir bookmark encode→persist→resolve, and `isStale`→recreate round-trip |
 | 5.8 | Watch-folder settings | `Models/WatchFolderSettings.swift` + test | `Codable`: `enabled`, bookmark ref, `requiredStablePolls`, `quietWindow`; persisted + sane defaults. | `xcodebuild test` — unit: defaults + round-trip |
 
-### Wave 5C — Coordinator (depends on all of 5A + 5B)
+### Wave 5C — Coordinator (depends on all of 5A + 5B) — ✅ **DONE (2026-06-18, `aa010fb`)**
+
+> Pure `WatchFolderReconciler` + thin `@MainActor WatchFolderCoordinator`. Two review-caught bugs
+> fixed + regression-tested: (1) dedup set sources from the persisted ledger (not an empty-at-launch
+> mirror) — else a joined group whose clips stay on the card re-enqueues forever after relaunch;
+> (2) split rediscover (FSEvents) from cheap re-sample (poll timer) so ffprobe doesn't run every
+> 0.75s while idle. +21 tests → 446/1 skip/0 fail. **Output URL is a v1 placeholder
+> (`<stem>_joined.mp4` next to source) — `TODO(5D)` for a user-chosen output folder.**
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|

@@ -19,5 +19,12 @@
 	<string>Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<!-- TCC gate for the watch-folder (Wave 5). App Sandbox is OFF, so a security-scoped
+	     bookmark is a no-op and cannot grant access to a removable volume — only this usage
+	     description + a user consent prompt can. A background watch-folder reading an SD card's
+	     DCIM tree triggers the removable-volume TCC prompt; without this key macOS denies the
+	     read silently. (memory: sandbox-off-tcc-is-real-gate) -->
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>conjoyn watches this volume for DJI drone footage to auto-stitch split recordings.</string>
 </dict>
 </plist>
