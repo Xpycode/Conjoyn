@@ -101,9 +101,12 @@
 - Optional DMG polish (custom background image).
 - **Localization / i18n** (raised 2026-06-16, "for later") — app is English-only; no `.lproj` /
   String Catalog. Future: extract UI strings → `Localizable.xcstrings`, add target languages.
-- Roadmap futures: **watch-folder ingest** — **ENGINE BUILT 2026-06-18** on branch
-  `feature/wave5-watch-folder` (5A+5B+5C, 446 tests; stale `RecordGroup.swift:10` comment fixed); **only
-  5D UI + 5E real-footage validation remain** (5D designed+approved, deferred). **more camera families**
+- **✓ watch-folder ingest — BUILT + MERGED to `main`** (Wave 5A–5D, merge `c814efc`, 2026-06-20):
+  multi-folder watch window, per-folder isolated coordinators + outputs, overlap guard, 455 tests.
+  Engine + UI done; only the **real-SD-card TCC prompt + relaunch-persistence eyeball (5.14)** remains
+  before Wave 5 is fully closed. **Not in the shipped 1.0.2/102 DMG** — Debug-local until a build ships
+  (so the in-app Roadmap help topic rightly still lists it as a future).
+- Roadmap futures: **more camera families**
   (engine already camera-agnostic). User's target test
   set (footage to be collected later, 2026-06-17): **GoPro 11 / 7 / 5 + DJI Osmo Action.** On the in-app
   Roadmap as "More camera families" (GoPro + Osmo Action named generically; telemetry/sidecar handling

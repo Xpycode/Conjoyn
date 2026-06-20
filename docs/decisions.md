@@ -607,3 +607,31 @@ pinned by tests. **5D UI is designed + approved but deferred** (no build that se
 `CommandMenu`, a footer status readout, and the watch-folder's **own** output-folder picker (replacing
 the coordinator's v1 next-to-source `destinationURL` placeholder). 5E real-footage + real-SD-card TCC
 eyeball follows 5D. Engine-only; shipped 1.0.2/102 untouched.
+
+### 2026-06-20 - Watch-folder 5D UI = multi-folder list window + "block on last-known path" overlap policy
+
+**Decision:** Ship the watch-folder UI as a **multi-folder list window** (`WatchFoldersPanel`), not the
+originally-deferred single-folder menu+footer. Each row is a `WatchFolderEntry` driven by its **own**
+isolated `WatchFolderCoordinator` (one FSEvents stream + one `ProcessedGroupLedger` per folder) with an
+enable toggle, a live status chip (WATCHING / SETTLING n / QUEUED n), a per-folder output picker, and a
+settings popover (quiet window / stable polls / poll interval / split threshold). `WatchFolderManager`
+owns the list, persists entries to `UserDefaults`, and resolves the `TODO(5D)` placeholder via
+`WatchFolderCoordinator.outputFolderURL`. The **overlap guard** (`rejectionReason(forAdding:existing:)`)
+rejects a candidate that is the same as, nested in, or a parent of any existing root; an entry whose
+volume is currently **offline** STILL blocks, by falling back to its persisted `rootPath`
+(`resolvedRootURL ?? URL(fileURLWithPath: rootPath)`).
+
+**Rationale:** The user upgraded the scope mid-wave — watching multiple cards/folders at once is the real
+ingest workflow, and the per-folder isolated ledger (the 5A–5C engine shape) already makes N independent
+coordinators cheap and correct. The overlap guard is the price of that isolation: two roots over the same
+tree would each enqueue the same clips → a double join. Blocking on the last-known path (rather than
+skipping offline entries) closes a real hole — an SD card can be unplugged when you add a second folder,
+then re-mount and silently overlap; `rootPath` was already stored for exactly this offline case, so the
+guard costs ~2 lines and one regression test (`testRejectionReasonBlocksOfflineEntryViaLastKnownPath`).
+
+**Consequences:** Wave 5D shipped to `main` (merge `c814efc`, feat `41411bb`); full suite **455/1 skip/0
+fail**. Eyeballed on real `2CULL` footage: single + two concurrent watch folders, `SETTLING n` → `QUEUED
+n` → joined, per-folder outputs, 0 failed on the watch path. **This supersedes the "5D deferred" note in
+the 2026-06-18 engine entry above.** The shipped 1.0.2/102 DMG/appcast are untouched (Debug-local) — a
+re-cut is owed only if/when a build with watch-folder ships, and the in-app Roadmap help topic keeps
+listing watch-folder as a future until such a build ships.

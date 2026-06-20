@@ -172,14 +172,21 @@ The genuinely new work. **This is where 80% of the design risk lives.**
 | 5.9 | Watch-folder coordinator | `Services/WatchFolderCoordinator.swift` + integration test | Monitor fires → resolve bookmark + access → `DJIFolderReader.read` → 5.1 stability gate per clip → 5.2 complete-set gate per group → 5.4 ledger filter → `QueueManager.addJob` + `startQueue()` → record in ledger; drives the 5.3 state machine; persists per-group state. | `xcodebuild test` — integration: a simulated filling folder enqueues exactly one job per complete group, none for incomplete/already-processed |
 | 5.10 | Relaunch resume + lifecycle | `WatchFolderCoordinator` (+ app wiring) | On launch (if enabled): restore persisted state, reconcile `.joining` groups against the live queue, resume monitoring. Idempotent: a group mid-flight at quit isn't double-enqueued. | `xcodebuild test` — unit: persisted `.joining` state + matching queue job ⇒ no re-enqueue |
 
-### Wave 5D — UI (follows the UI-changes protocol — propose location + await confirm before coding)
+### Wave 5D — UI — ✅ **DONE (2026-06-20, merge `c814efc` / feat `41411bb`)**
+
+> Shipped as a **multi-folder list window** (`WatchFoldersPanel`) rather than the single-folder
+> menu+footer — one isolated `WatchFolderCoordinator` per row, each with an enable toggle, a live status
+> chip (WATCHING / SETTLING n / QUEUED n), a settings popover, and its **own** output picker (retires the
+> v1 `TODO(5D)` via `WatchFolderCoordinator.outputFolderURL`). Overlap guard (`WatchFolderManager`) blocks
+> same/nested roots and offline entries (via last-known `rootPath`). Eyeballed on real `2CULL` footage
+> (single + dual folders); 455/1 skip/0 fail (+1).
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
 | 5.11 | Watch-folder UI surface | TBD — **propose first** | Enable toggle + folder picker + live status readout (watching / settling / N queued). Find a comparable existing control, trace wiring, propose exact file/line, **wait for approval**. | `xcodebuild build` + eyeball |
 | 5.12 | App-lifecycle wiring | App entry + `WatchFolderCoordinator` | Coordinator starts on enable, stops on disable, resumes on launch when enabled; no leak/zombie stream on toggle. | manual: toggle on/off, relaunch |
 
-### Wave 5E — Verification (final)
+### Wave 5E — Verification (final) — 🟡 **5.13 + 5.15 DONE (2026-06-20); 5.14 join-path eyeballed — real-SD-card TCC prompt + relaunch persistence still pending**
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|------|--------|------------------|--------------|
