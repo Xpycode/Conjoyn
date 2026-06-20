@@ -15,8 +15,22 @@
   blind**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
+- **▶ Active focus (2026-06-20, M4-Pro):** **Wave 5D watch-folder UI DONE + eyeballed + committed +
+  pushed** on branch **`feature/wave5-watch-folder`**. Multi-folder list window (`WatchFoldersPanel`)
+  + `WatchFolderEntry`/`WatchFolderManager` (one isolated `WatchFolderCoordinator` per folder) +
+  "Watch Folder" menu; `WatchFolderCoordinator.outputFolderURL` retires the v1 `TODO(5D)`.
+  **Overlap policy authored** (`WatchFolderManager.rejectionReason`): rejects same/nested roots, and an
+  **offline** entry still blocks via its persisted `rootPath` so a re-mount can't slip a double join
+  past — `TODO(user)` retired, +1 regression test. **Real-footage eyeball PASSED (2026-06-20):** single
+  + dual watch folders, `SETTLING n`→`QUEUED n`→joined, per-folder outputs, SD-card read off
+  `/Volumes/2CULL` clean (0 failed). The mid-test "14 failed" = stale **restored-from-last-session**
+  jobs whose source card was unmounted (`ffprobe exit 1`), **not** a watch-path bug. **Full suite
+  455/1 skip/0 fail (+1).**
+  - **Next:** merge `feature/wave5-watch-folder` → `main` (`--no-ff`) — the eyeball gate is satisfied.
+    5E/5F close Wave 5.
+  - **Git:** branch committed + pushed; **`main` still at `fbd08b8`** until the merge.
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
-  (monotonic for Sparkle). **Tests: 360 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  (monotonic for Sparkle). **Tests: 454 app / 1 skip / 0 fail** (was 360 pre-Wave-5) **· 10 FeedbackKit pkg.**
 - **✓ Post-ship verification-honesty polish committed `e90f838` (2026-06-18), pushed.** Five
   eyeball-confirmed fixes (see the 2026-06-18 Recent entry) — Debug-local only; shipped 1.0.2/102 DMG +
   appcast untouched, so the **live download still predates these fixes** (re-cut owed only if/when a new
