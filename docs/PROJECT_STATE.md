@@ -27,7 +27,8 @@
   jobs whose source card was unmounted (`ffprobe exit 1`), **not** a watch-path bug. **Full suite
   455/1 skip/0 fail (+1).**
   - **✓ Merged to `main`** (`--no-ff`, `c814efc`) + pushed — the **whole of Wave 5 (5A–5C engine +
-    5D UI)** is now on `main` == `origin/main`. Branch `feature/wave5-watch-folder` retained.
+    5D UI)** is now on `main` == `origin/main`. Branch `feature/wave5-watch-folder` **deleted**
+    (local + origin) post-merge.
   - **Next:** 5E real-footage validation / 5F to close Wave 5. Re-cut the DMG only if/when a new build
     ships (shipped 1.0.2/102 untouched by this Debug-local work).
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
