@@ -29,8 +29,14 @@
   - **✓ Merged to `main`** (`--no-ff`, `c814efc`) + pushed — the **whole of Wave 5 (5A–5C engine +
     5D UI)** is now on `main` == `origin/main`. Branch `feature/wave5-watch-folder` **deleted**
     (local + origin) post-merge.
-  - **Next:** 5E real-footage validation / 5F to close Wave 5. Re-cut the DMG only if/when a new build
-    ships (shipped 1.0.2/102 untouched by this Debug-local work).
+  - **Wave 5E closeout:** 5.13 suite green ✅, 5.15 docs ✅ (decision logged, plan marked 5D ✅/5E 🟡).
+    **Only 5.14 remains:** the **real-SD-card TCC prompt + relaunch-persistence eyeball.** The `2CULL`
+    join eyeball does NOT count for this — `diskutil` shows `2CULL` is `Removable Media: Fixed` (external
+    USB disk, not a card), so it never trips `NSRemovableVolumesUsageDescription`. **Next session: user
+    brings a real removable SD card** (verify `Removable Media: Removable` first) → see the
+    2026-06-20 log **Resume** block for the exact steps. On pass, Wave 5 is fully closed.
+  - Re-cut the DMG only if/when a new build ships (shipped 1.0.2/102 untouched by this Debug-local work).
+    **Wave 6** (packaging / real-footage 6.3–6.5) is the next wave.
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC.** Version **1.0.2 / build 102**
   (monotonic for Sparkle). **Tests: 454 app / 1 skip / 0 fail** (was 360 pre-Wave-5) **· 10 FeedbackKit pkg.**
 - **✓ Post-ship verification-honesty polish committed `e90f838` (2026-06-18), pushed.** Five
