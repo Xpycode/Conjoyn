@@ -74,6 +74,9 @@ struct ConjoynApp: App {
     /// because macOS can't vary the bundle icon by appearance — see `AppIconController`.
     @AppStorage("iconPreference") private var iconPreference: IconPreference = .auto
     @StateObject private var iconController = AppIconController()
+    /// Owns the user's watch folders and runs one coordinator per enabled entry (Wave 5D).
+    /// Injected into the "Watch Folders" window; resumed at launch from the main window's `.task`.
+    @StateObject private var watchManager = WatchFolderManager()
 
     private let helpContent: HelpContent = {
         let content = (try? HelpContent(manifest: "help-manifest", in: .main))
@@ -122,6 +125,9 @@ struct ConjoynApp: App {
                 // `.onChange` handles later menu picks. See `AppIconController`.
                 .task { iconController.start(with: iconPreference) }
                 .onChange(of: iconPreference) { _, pref in iconController.update(pref) }
+                // Resume any enabled watch folders at launch. Idempotent — each entry's persisted
+                // ledger prevents re-enqueuing a group that was already joined (Wave 5D).
+                .task { watchManager.resumeAll() }
         }
         // Native titlebar toolbar (App Shell Standard): `.hiddenTitleBar` + the `.toolbar` /
         // `.toolbarRole(.editor)` in ContentView put the source well + Scan in the system titlebar.
@@ -140,7 +146,39 @@ struct ConjoynApp: App {
             // One line for Send Feedback… + Leave a Tip + the link-rich About panel.
             CitizenshipCommands(citizenship)
             UpdaterCommands(updater: updaterController)
+            WatchFolderMenuCommands()
             AppearanceCommands(appearance: $appearance, iconPreference: $iconPreference)
+        }
+
+        // Secondary single-instance window for managing watch folders (Wave 5D). Opened from the
+        // "Watch Folder" menu via `openWindow(id:)`. Shares the app-wide `NSApp.appearance`, so it
+        // inherits the Theme without its own appearance wiring.
+        Window("Watch Folders", id: WatchFolderMenuCommands.windowID) {
+            WatchFoldersPanel()
+                .environmentObject(watchManager)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 620, height: 460)
+    }
+}
+
+/// Adds a top-level **Watch Folder** menu with a single item that opens the Watch Folders manager
+/// window. A `Commands` struct (mirrors `AppearanceCommands`); the menu item lives in a nested view
+/// so it can read `@Environment(\.openWindow)`, which a `Commands` struct can't access directly.
+struct WatchFolderMenuCommands: Commands {
+    /// Scene id shared between the menu item and the `Window` scene in `ConjoynApp`.
+    static let windowID = "watch-folders"
+
+    var body: some Commands {
+        CommandMenu("Watch Folder") {
+            OpenWatchFoldersButton()
+        }
+    }
+
+    private struct OpenWatchFoldersButton: View {
+        @Environment(\.openWindow) private var openWindow
+        var body: some View {
+            Button("Watch Folders…") { openWindow(id: WatchFolderMenuCommands.windowID) }
         }
     }
 }

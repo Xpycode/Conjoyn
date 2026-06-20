@@ -134,6 +134,40 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         XCTAssertEqual(queue.jobs.count, 1, "a sealed group must not be enqueued again")
     }
 
+    // MARK: - Output folder (Wave 5D)
+
+    func testOutputFolderRedirectsJoinDestination() async {
+        let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ledger, queue: queue)
+        let output = freshTmpDir()
+        coord.outputFolderURL = output
+
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+
+        XCTAssertEqual(queue.jobs.count, 1)
+        let parent = queue.jobs.first!.destinationURL.deletingLastPathComponent().resolvingSymlinksInPath()
+        XCTAssertEqual(parent, output.resolvingSymlinksInPath(),
+                       "with an output folder set, the join must land there, not next to source")
+    }
+
+    func testNilOutputFolderKeepsJoinNextToSource() async {
+        let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ledger, queue: queue)   // outputFolderURL stays nil
+
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+
+        XCTAssertEqual(queue.jobs.count, 1)
+        let parent = queue.jobs.first!.destinationURL.deletingLastPathComponent().resolvingSymlinksInPath()
+        XCTAssertEqual(parent, root.resolvingSymlinksInPath(),
+                       "with no output folder, the join lands next to the source (v1 default)")
+    }
+
     // MARK: - Disable stops cleanly
 
     func testDisablePersistsDisabledState() {

@@ -30,6 +30,14 @@ final class WatchFolderCoordinator: ObservableObject {
 
     @Published private(set) var status: Status = .idle
 
+    // MARK: - Output folder (Wave 5D)
+
+    /// User-chosen destination folder for joined files. When `nil`, output lands next to the
+    /// source inside the watched root (the v1 placeholder behaviour). Set by the owner
+    /// (`WatchFolderManager`) from the per-entry output bookmark; honoured by `destinationURL`.
+    /// MainActor-isolated like the rest of the coordinator, so the owner mutates it on the main actor.
+    var outputFolderURL: URL?
+
     // MARK: - Persisted group states
 
     /// In-memory snapshot of per-group `WatchGroupState`, keyed by stable fingerprint.
@@ -434,18 +442,18 @@ final class WatchFolderCoordinator: ObservableObject {
 
     // MARK: - Private: Destination URL
 
-    /// Builds the output file URL for a group. Output lands next to the source (in `rootURL`),
-    /// named after the first segment's stem with `_joined` appended.
+    /// Builds the output file URL for a group, named after the first segment's stem with `_joined`
+    /// appended. Lands in `outputFolderURL` when the user chose a dedicated destination (Wave 5D),
+    /// otherwise next to the source inside `rootURL` (the v1 default).
     ///
     /// `QueueManager.addJob` calls `resolveFilenameConflict` internally to handle on-disk
     /// collisions, so we don't duplicate that logic here.
-    ///
-    /// TODO(5D): let the user choose a dedicated output folder in the watch-folder settings UI.
     private func destinationURL(for group: RecordGroup, rootURL: URL) -> URL {
         let stem = group.clips.first?.stem ?? "joined"
         let suffix = group.variantSuffix.map { "_\($0)" } ?? ""
         let filename = "\(stem)\(suffix)_joined.mp4"
-        return rootURL.appendingPathComponent(filename)
+        let directory = outputFolderURL ?? rootURL
+        return directory.appendingPathComponent(filename)
     }
 
     // MARK: - Private: Live queue fingerprints
