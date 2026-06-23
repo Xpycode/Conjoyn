@@ -26,8 +26,20 @@
   `NSRemovableVolumesUsageDescription` prompt fires and watch folders survive a relaunch. Exact steps
   in the **2026-06-20 log Resume block**. On pass, Wave 5 closes and **Wave 6** (packaging /
   real-footage 6.3–6.5) is next.
+- **Open follow-ups (deferred, from the 2026-06-23 engine review — verified, not blocking):** a
+  `fix/wave5-watchfolder-hardening` branch covering **(1)** hung-`discover` deadlock (ffprobe hang ⇒
+  `isRescanning` never clears ⇒ watcher silently dies — needs a timeout), **(2)** FSEvents teardown
+  UAF race (`WatchFolder` `passUnretained`+`Invalidate` — add retain/release context callbacks), and
+  **(3)** TOCTOU between enqueue and FFmpeg (cookbook #127 — capture+re-verify clip inode before
+  `mergeClips`). Full table + 6 lower-severity items in the **2026-06-23 log**. Pairs naturally with
+  the 5.14 eyeball before the watch-folder *daemon* use case gets real mileage.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-23** — Docs only: `/arrive` reconciled a Syncthing split-brain — this Mac was stranded on
+  the already-merged-and-deleted `feature/wave5-watch-folder`; its "uncommitted changes" were a pure
+  shadow (all 13 files byte-identical to `origin/main`) → discarded, FF'd `main` 16 commits, deleted
+  the branch (no duplicate commits). Then a **post-hoc Wave 5 engine code review** (hand-verified):
+  9 findings + 1 false positive → see Next. 455 tests unchanged.
 - **2026-06-22** — Docs only: slimmed this file **276 → 86 lines** back to the lean digest (no code,
   455 tests unchanged). All decisions confirmed already in `decisions.md` before trimming.
 - **2026-06-20** — Finished the multi-folder watch-folder window, eyeballed it on real footage (single
