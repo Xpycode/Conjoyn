@@ -16,16 +16,20 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.2 / build 102**.
-  **Tests: 468 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  **Tests: 471 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
   → `main` `2905b38`). Next focus is **Wave 6**.
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
 - **Next:** **Wave 6 is nearly closed.** **6.3 (legacy *and* timestamped + slow-mo) + 6.4 SRT alignment
-  are engine-validated on real footage** (2CULL legacy + 2026-06-24 M4P-1 timestamped/slow-mo pass). **Only
-  6.5 remains** (variant-guard / mixed-codec / missing-middle) and it needs a **multi-lens drone** (Mavic 3
-  Pro / thermal) — single-camera Mini 4 Pro footage can't exercise it. Footage-gated, not a blocker.
+  are engine-validated on real footage** (2CULL legacy + 2026-06-24 M4P-1 timestamped/slow-mo pass).
+  **6.5 missing-middle is now CLOSED** — a 2026-06-24 build-the-fixtures pass found the missing-middle path
+  untested *and* silently bridging a dropped **slow-mo** segment (the wall-clock bound uses playback duration,
+  ~4× real, too loose to notice the hole → corrupt join); fixed with an **index-gap guard** in `continues()`
+  (+3 tests). **Only variant-guard + mixed-codec remain** — they need a **multi-lens drone** (Mavic 3 Pro /
+  thermal); single-camera Mini 4 Pro can't exercise them, and the web has no downloadable such footage (hunt
+  2026-06-24), so synthetic/renamed M4P fixtures are the cheaper path. Footage-gated, not a blocker.
 - **Watch-folder hardening — DONE (2026-06-24, merged):** the 3 worth-fixing items from the 2026-06-23
   review are fixed: **(1)** hung-`discover` deadlock → bounded `discoverTimeout` (90 s, tunable) + split
   `isDiscovering`/`isResampling` latch so a wedged scan can't latch the watcher shut (`e3f9789`); **(2)**
@@ -36,7 +40,16 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-06-24 (latest)** — **Wave 6.3 + 6.4 validated on real timestamped slow-mo footage (M4P-1, DJI
+- **2026-06-24 (latest)** — **Wave 6.5 missing-middle: found & fixed a slow-mo silent-merge.** User asked me
+  to source multi-lens/mixed-codec/missing-segment footage off the web; verdict = real DJI multi-lens
+  split-video + SRT is essentially undownloadable (single clips / stills / SRT-only fixtures only). Reframed to
+  verifying the 3 guards: variant + codec already unit-tested, **missing-middle was not**. Building the fixtures
+  exposed that `continues()` had no index check — a missing **slow-mo** segment is silently bridged (playback
+  bound ~4× real, too loose) into a corrupt join, while normal-speed splits safely. **Fixed with an index-gap
+  guard** (adjacent segments must be index-consecutive; only ever adds a split, never a merge). +3 tests,
+  **471/1 skip/0 fail**, no regressions. `b4ec873` → `--no-ff` `cd001bd`; `decisions.md` logged. **2 commits
+  unpushed** (user said commit, not push). Closes 6.5 missing-middle; variant+codec still footage-gated.
+- **2026-06-24 (earlier)** — **Wave 6.3 + 6.4 validated on real timestamped slow-mo footage (M4P-1, DJI
   Mini 4 Pro).** Prompted by "didn't we validate this on 2CULL already?" — yes for legacy naming, but 2CULL
   never had the **timestamped** scheme or **slow-mo** (an owed, never-seen case). Proved the engine's
   6-group split *semantically* correct against the SRT's own wall-clock (4-segment merge 0006→0009, seams
