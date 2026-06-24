@@ -47,8 +47,8 @@
   exposed that `continues()` had no index check — a missing **slow-mo** segment is silently bridged (playback
   bound ~4× real, too loose) into a corrupt join, while normal-speed splits safely. **Fixed with an index-gap
   guard** (adjacent segments must be index-consecutive; only ever adds a split, never a merge). +3 tests,
-  **471/1 skip/0 fail**, no regressions. `b4ec873` → `--no-ff` `cd001bd`; `decisions.md` logged. **2 commits
-  unpushed** (user said commit, not push). Closes 6.5 missing-middle; variant+codec still footage-gated.
+  **471/1 skip/0 fail**, no regressions. `b4ec873` → `--no-ff` `cd001bd`; `decisions.md` logged. **Pushed —
+  `main` synced.** Closes 6.5 missing-middle; variant+codec still footage-gated.
 - **2026-06-24 (earlier)** — **Wave 6.3 + 6.4 validated on real timestamped slow-mo footage (M4P-1, DJI
   Mini 4 Pro).** Prompted by "didn't we validate this on 2CULL already?" — yes for legacy naming, but 2CULL
   never had the **timestamped** scheme or **slow-mo** (an owed, never-seen case). Proved the engine's
