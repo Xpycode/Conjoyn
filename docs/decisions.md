@@ -675,3 +675,44 @@ cases. Implemented on `fix/wave5-watchfolder-hardening`, merged `--no-ff` to `ma
 `3ee5933` TOCTOU). Full suite **468 / 1 skip / 0 fail** (+13). The lower-severity review items (unbounded
 ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label) remain deferred —
 cosmetic / debuggability, not reachable failures. Shipped 1.0.2/102 untouched (Debug-local).
+
+---
+
+### 2026-06-24 - Index-gap guard: a missing middle segment must split the chain (closes a slow-mo silent merge)
+**Context:** Building the Wave 6.5 missing-middle fixtures (variant-guard and codec-guard were already
+unit-tested; missing-middle was not) surfaced that `DJIFolderReader.continues()` had **no index-continuity
+check at all** — protection against a dropped/lost middle segment was purely *emergent* from the wall-clock
+rule `gap ≤ prev.containerSeconds + 12 s`. That bound uses **playback** duration. For normal speed it's
+tight (≈ real elapsed), so a missing segment's doubled ~654 s gap trips it and the chain splits safely. For
+**slow-motion** the bound is the playback length (≈ 4× real elapsed, ~794 s for ~199 s of real time) — the
+very looseness that lets slow-mo chain correctly — so a single missing segment's ~398 s real gap still fits
+inside it and the two survivors are **silently merged across the hole**: a `-c copy` join with a ~3.3-minute
+discontinuity and an SRT misaligned after the seam, with no warning (the join-time `ensureJoinable` re-probe
+can't catch it either — the survivors are the same recording, identical params). Up to ~3 consecutive missing
+slow-mo segments bridge before the bound finally exceeds. Proven by two characterization tests built from the
+real May-21 100 fps fixture numbers. User chose **"fix it (index-gap guard)"** over warn-only / accept-and-document.
+**Decision:** Add step 3 to `continues()`: adjacent segments must be **index-consecutive**
+(`next.index == prev.index + 1`) within their already variant-bucketed, time-ordered run. A jump means a
+segment is missing between them → don't bridge. Index is used here strictly as a **negative** signal, never
+as a continuity/ordering key (numbering still isn't authoritative — spec unchanged). Flipped the slow-mo
+characterization test to assert the split.
+**Why:** Directly closes the proven slow-mo hole and is **conservative** — the check can only ever *add* a
+split, never cause a merge, so it cannot corrupt a currently-correct group; its worst case is a benign
+false-split into two individually-valid outputs (vs. a silent corrupt merge). Hand-traced against all 12
+grouping tests: every intra-group link is already `+1`, and the only places it newly fires
+(`testCappedSegmentNotChainedWhenNextStartsTooLate` 14→99, `testAllShortClipsAreSingles` 1→3) are already
+split by the cap/wall-clock rules → zero assertion changes beyond the intended slow-mo flip.
+**Caveat / open:** Assumes **per-variant consecutive numbering** — verified on single-camera `_D` footage
+(the only footage that exists; M4P-1). If a multi-lens enterprise drone interleaves a *global* counter
+across lenses (W=6,8,10 within one bucket rather than paired W6/T6, which is what the existing variant test
+encodes), this would false-split multi-cam recordings. That's **footage-gated (6.5)** and to be re-validated
+when a Mavic 3T / multi-lens card is available; a false-split is the safe failure direction meanwhile.
+Index wraparound 9999→0001 within a single recording is an accepted rare false-split (favouring safety over
+special-case complexity).
+**Consequences:** `continues()` step 3 in `DJIFolderReader.swift` (+ comment, steps renumbered). +3 tests
+in `DJIFolderGroupingTests` (`testContiguousNormalChainIsOneGroup`,
+`testMissingMiddleSegmentSplitsChainAtGap_normalSpeed`, `…_slowMotion`). Full suite **471 / 1 skip / 0 fail**
+(+3), no regressions. **Uncommitted, Debug-local; shipped 1.0.2/102 untouched.** Open follow-up: a real-file
+end-to-end pass (rename/re-encode M4P clips through `parse → ffprobe → group`) and the user-facing
+"segment N appears missing" warning are both still optional (the warning was explicitly deferred in favour
+of the engine-only fix).

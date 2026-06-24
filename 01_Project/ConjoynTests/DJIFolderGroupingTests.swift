@@ -125,6 +125,57 @@ final class DJIFolderGroupingTests: XCTestCase {
         XCTAssertEqual(stems(DJIFolderReader.groupMetas(metas)), [["0006"], ["0007"]])
     }
 
+    // MARK: - Missing middle segment (deleted / dropped / lost on the card)
+
+    /// Baseline: four contiguous normal-speed segments (each ~327 s, real elapsed ≈ playback) form a
+    /// single recording. Used as the control for the missing-middle cases below.
+    func testContiguousNormalChainIsOneGroup() {
+        let metas = [
+            meta("0006", idx: 6, start: utc("10:00:00"), durS: 327.0, size: 3_760_000_000),
+            meta("0007", idx: 7, start: utc("10:05:27"), durS: 327.0, size: 3_760_000_000),
+            meta("0008", idx: 8, start: utc("10:10:54"), durS: 327.0, size: 3_760_000_000),
+            meta("0009", idx: 9, start: utc("10:16:21"), durS: 220.0, size: 2_500_000_000), // sub-cap → final
+        ]
+        XCTAssertEqual(stems(DJIFolderReader.groupMetas(metas)),
+                       [["0006", "0007", "0008", "0009"]])
+    }
+
+    /// Missing middle, **normal speed** — the emergent protection works. Drop `0008` from the chain
+    /// above. The deleted segment's own ~327 s of recording still occupies the wall-clock gap between
+    /// its neighbours, so `0007`→`0009` is 654 s apart — far past `0007`'s 327 s playback length + 12 s
+    /// slack. The chain therefore SPLITS at the hole: continuity is preserved on each side
+    /// (`0006,0007` stay merged) and the orphaned tail (`0009`) becomes its own group. No silent
+    /// bridge across the missing segment. There is no explicit index-gap check — this falls out of the
+    /// real wall-clock continuity rule alone.
+    func testMissingMiddleSegmentSplitsChainAtGap_normalSpeed() {
+        let metas = [
+            meta("0006", idx: 6, start: utc("10:00:00"), durS: 327.0, size: 3_760_000_000),
+            meta("0007", idx: 7, start: utc("10:05:27"), durS: 327.0, size: 3_760_000_000),
+            // 0008 deleted — the hole.
+            meta("0009", idx: 9, start: utc("10:16:21"), durS: 220.0, size: 2_500_000_000),
+        ]
+        XCTAssertEqual(stems(DJIFolderReader.groupMetas(metas)),
+                       [["0006", "0007"], ["0009"]])
+    }
+
+    /// Missing middle, **slow motion** — the case the wall-clock bound alone cannot catch, now closed
+    /// by the index-gap guard (`continues` step 3). These are the real May-21 100 fps fixture numbers
+    /// (container ≈ 794 s, real elapsed ≈ 199 s). Drop `0007`: `0006`→`0008` is only ~398 s of real
+    /// time apart, which still fits inside `0006`'s 794 s *playback* length + slack — so the wall-clock
+    /// rule would have silently merged them across the hole (a join with a ~3.3-minute discontinuity
+    /// and an SRT misaligned after the seam). The index jump 6→8 trips the guard first, so the chain
+    /// SPLITS instead. Regression lock for the slow-mo missing-middle fix (decisions.md, 2026-06-24).
+    func testMissingMiddleSegmentSplitsChainAtGap_slowMotion() {
+        let metas = [
+            meta("0006", idx: 6, start: utc("17:53:03"), durS: 794.84, size: 3_764_025_581),
+            // 0007 deleted — the hole that slow-mo's loose wall-clock bound cannot detect, but the
+            // index jump 6→8 does.
+            meta("0008", idx: 8, start: utc("17:59:41"), durS: 794.56, size: 3_762_590_379),
+        ]
+        XCTAssertEqual(stems(DJIFolderReader.groupMetas(metas)),
+                       [["0006"], ["0008"]])
+    }
+
     /// Defensive: without a real `creation_time` we can't confirm continuity, so a capped segment is
     /// not chained (matches the decision to treat DJI's zeroed/wrong timecode defensively).
     func testMissingCreationDatePreventsChaining() {
