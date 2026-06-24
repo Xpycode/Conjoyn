@@ -130,6 +130,51 @@ struct ConversionJob: Identifiable, Codable, Sendable {
     /// the file", not a stuck "Joining…". The ffmpeg join is done by the time this is set.
     var isFinishing: Bool = false
 
+    /// Filesystem identity `(device, inode)` of each source segment, captured at enqueue time and
+    /// keyed by the segment's path. Re-checked immediately before the join (`firstSourceIdentityMismatch`)
+    /// so a card swap / file rotation between queueing and joining fails loudly instead of silently
+    /// concatenating the wrong bytes (cookbook #127). **Transient** (not in `CodingKeys`): a job
+    /// restored from a previous session has no baseline — and the relaunch is itself a fresh
+    /// time-of-check — so an empty map means "skip the guard", which is correct.
+    var sourceIdentities: [String: FileIdentity] = [:]
+
+    /// Snapshots `(device, inode)` for every source segment, keyed by path. Call once at enqueue,
+    /// while the source files are the ones the user/watch-folder actually saw. A segment that can't
+    /// be `stat`'d is simply omitted (its slot is then "no baseline" → not flagged later).
+    mutating func captureSourceIdentities() {
+        var map: [String: FileIdentity] = [:]
+        for clip in clips {
+            if let identity = FileIdentity.capture(clip.videoURL) {
+                map[clip.videoURL.path] = identity
+            }
+        }
+        sourceIdentities = map
+    }
+
+    /// Returns the filename of the first source segment whose on-disk identity no longer matches the
+    /// one captured at enqueue (a swap/rotation, or the file vanished), or `nil` if every baselined
+    /// segment still matches. Used to gate the join.
+    ///
+    /// **Policy:** `.mismatch` (different file now) and `.missingNow` (gone) block the join — the
+    /// first is the silent-corruption case ffmpeg can't catch, the second would fail opaquely later.
+    /// `.unverifiable` (a transient `stat` error that isn't "gone") does **not** block: we couldn't
+    /// prove identity *changed*, only that we couldn't read it this instant, and failing a legitimate
+    /// job on a momentary read blip is worse than letting ffmpeg surface a genuine read error itself.
+    /// A segment with no captured baseline (restored job, or capture failed) is skipped.
+    func firstSourceIdentityMismatch() -> String? {
+        guard !sourceIdentities.isEmpty else { return nil }
+        for clip in clips {
+            guard let scanned = sourceIdentities[clip.videoURL.path] else { continue }
+            switch FileIdentity.verify(url: clip.videoURL, against: scanned) {
+            case .matches, .unverifiable:
+                continue
+            case .mismatch, .missingNow:
+                return clip.videoURL.lastPathComponent
+            }
+        }
+        return nil
+    }
+
     /// Fraction of the bar's track allocated to *producing* the file (join + optional cross-volume
     /// move). The remainder is the verification tail. Produce keeps its own internal byte-weighting
     /// inside `progress` (join/move = 50/50 when staged, 100/0 when not), so this only decides the
