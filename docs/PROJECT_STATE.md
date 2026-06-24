@@ -22,8 +22,10 @@
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
   → `main` `2905b38`). Next focus is **Wave 6**.
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
-- **Next:** **Wave 6** — real-footage validation (6.3 end-to-end legacy + timestamped sets, 6.4 SRT
-  alignment, 6.5 variant-guard / edge-cases). Footage-gated, not a blocker.
+- **Next:** **Wave 6 is nearly closed.** **6.3 (legacy *and* timestamped + slow-mo) + 6.4 SRT alignment
+  are engine-validated on real footage** (2CULL legacy + 2026-06-24 M4P-1 timestamped/slow-mo pass). **Only
+  6.5 remains** (variant-guard / mixed-codec / missing-middle) and it needs a **multi-lens drone** (Mavic 3
+  Pro / thermal) — single-camera Mini 4 Pro footage can't exercise it. Footage-gated, not a blocker.
 - **Watch-folder hardening — DONE (2026-06-24, merged):** the 3 worth-fixing items from the 2026-06-23
   review are fixed: **(1)** hung-`discover` deadlock → bounded `discoverTimeout` (90 s, tunable) + split
   `isDiscovering`/`isResampling` latch so a wedged scan can't latch the watcher shut (`e3f9789`); **(2)**
@@ -34,6 +36,16 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-24 (latest)** — **Wave 6.3 + 6.4 validated on real timestamped slow-mo footage (M4P-1, DJI
+  Mini 4 Pro).** Prompted by "didn't we validate this on 2CULL already?" — yes for legacy naming, but 2CULL
+  never had the **timestamped** scheme or **slow-mo** (an owed, never-seen case). Proved the engine's
+  6-group split *semantically* correct against the SRT's own wall-clock (4-segment merge 0006→0009, seams
+  exact to the second; 0010 correctly kept separate). Replicated the app's exact join: **duration = exact
+  Σ (2871.72 s), streams byte-identical (10-bit HDR preserved), full decode-to-null clean (exit 0, 0
+  errors)**; metadata write-back (`creation_time`+`tmcd`) confirmed; **SRT seam drift +34 ms < 1 cue, no
+  accumulation**. Marked 6.3/6.4 ✅ in plan; 6.5 footage-gated (multi-lens drone). Slow-mo
+  (≈4×, 100→25 fps) validates the chain-on-cap-not-playback design. Docs only; code + shipped 1.0.2/102
+  untouched; tests unchanged. **6.5 variant-guard still needs a multi-lens drone.**
 - **2026-06-24 (later)** — **Watch-folder daemon hardening — the 3 deferred engine-review items, fixed +
   merged.** `fix/wave5-watchfolder-hardening` → `main` (`2905b38`): bounded discovery timeout + split latch
   (a hung ffprobe no longer silently kills the watcher), FSEvents context retain (closes the teardown
@@ -80,7 +92,9 @@
 - Footage-gated engine items: 2.2/2.3 reader polish, 2.7 TS-remux fallback, Apple `Keys`
   creationdate atom (6.3).
 - Owed eyeballs (low-risk, unit-tested only): adaptive ETA in a current build; live AppCitizenshipKit
-  menu/About surfaces; slow-mo + SRT-mismatch integrity chips (no such clip seen on cards yet).
+  menu/About surfaces; SRT-mismatch integrity chip (no such clip seen on cards yet). **Slow-mo footage is
+  now seen** (M4P-1, ≈4×) and its **join + SRT path is engine-validated** (2026-06-24); only the in-app
+  slow-mo *integrity-chip UI* remains an un-eyeballed GUI surface.
 
 ## Risks
 - **SRT offset-correction stitching** = highest-uncertainty v1 item (per brief). Engine implemented +
