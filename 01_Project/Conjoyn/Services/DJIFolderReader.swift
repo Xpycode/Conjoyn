@@ -215,12 +215,22 @@ enum DJIFolderReader {
         guard prev.sizeBytes >= capThreshold else { return false }
         // 2. Never merge across camera/lens variants (the spec's hard boundary; also bucketed).
         guard prev.variantSuffix == next.variantSuffix else { return false }
-        // 3. Copy-relevant stream params must match when both are known (the join guard backstops nil).
+        // 3. Adjacent segments of one recording carry consecutive indices — a jump means a segment is
+        //    missing between them, so never bridge the hole. This is the *only* signal that catches a
+        //    dropped middle segment in slow-motion footage, where step 5's wall-clock bound is the
+        //    playback length (≈4× real elapsed) and is far too loose to notice the gap. Index is used
+        //    here strictly as a *negative* signal within a same-variant, time-ordered run — not as a
+        //    continuity key (numbering still isn't authoritative for ordering or identity; see spec).
+        //    A non-consecutive index favours a safe split over a corrupt silent merge. Caveat: assumes
+        //    per-variant consecutive numbering (verified on single-camera footage); multi-lens
+        //    enterprise numbering is footage-gated (6.5) and to be re-validated when such a card exists.
+        guard next.index == prev.index + 1 else { return false }
+        // 4. Copy-relevant stream params must match when both are known (the join guard backstops nil).
         if let p = prev.streamInfo, let n = next.streamInfo,
            StreamParameterGuard.check([p, n]) != .compatible {
             return false
         }
-        // 4. `next` must start within `prev`'s playback length (+slack) of `prev`'s start — and we
+        // 5. `next` must start within `prev`'s playback length (+slack) of `prev`'s start — and we
         //    need real `creation_time`s to judge it. Missing either ⇒ can't confirm ⇒ don't chain.
         guard let pc = prev.creationDate, let nc = next.creationDate else { return false }
         let gap = nc.timeIntervalSince(pc)
