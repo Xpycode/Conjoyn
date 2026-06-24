@@ -38,6 +38,14 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
     /// mounts with many files.
     var pollInterval: TimeInterval
 
+    /// Maximum seconds a single **discovery** pass (the per-clip ffprobe scan of the whole watched
+    /// root) may run before the coordinator abandons it, reuses the last known groups, and retries on
+    /// the next tick. This bounds a wedged ffprobe / stalled mount so it can't latch discovery forever
+    /// and silently kill the watcher. Default 90 s — generous for a cold scan of a full card, while
+    /// still recovering from a true hang. The cheap re-sample cadence runs on a separate latch, so a
+    /// timed-out discovery never blocks in-flight groups from settling.
+    var discoverTimeout: TimeInterval
+
     // MARK: - Defaults
 
     /// A settings instance with every field at its sane default.
@@ -47,7 +55,8 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         requiredStablePolls: 3,
         quietWindow: 45,
         splitThreshold: 3_900_000_000,
-        pollInterval: 0.75
+        pollInterval: 0.75,
+        discoverTimeout: 90
     )
 
     // MARK: - Init
@@ -57,13 +66,15 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         requiredStablePolls: Int = 3,
         quietWindow: TimeInterval = 45,
         splitThreshold: Int64 = 3_900_000_000,
-        pollInterval: TimeInterval = 0.75
+        pollInterval: TimeInterval = 0.75,
+        discoverTimeout: TimeInterval = 90
     ) {
         self.enabled = enabled
         self.requiredStablePolls = requiredStablePolls
         self.quietWindow = quietWindow
         self.splitThreshold = splitThreshold
         self.pollInterval = pollInterval
+        self.discoverTimeout = discoverTimeout
     }
 
     // MARK: - Codable: forward-compatible decode
@@ -74,6 +85,7 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         case quietWindow
         case splitThreshold
         case pollInterval
+        case discoverTimeout
     }
 
     /// Decodes a partial blob by falling back to the field default for any missing key.
@@ -87,6 +99,7 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         quietWindow         = try c.decodeIfPresent(TimeInterval.self,  forKey: .quietWindow)         ?? d.quietWindow
         splitThreshold      = try c.decodeIfPresent(Int64.self,         forKey: .splitThreshold)      ?? d.splitThreshold
         pollInterval        = try c.decodeIfPresent(TimeInterval.self,  forKey: .pollInterval)        ?? d.pollInterval
+        discoverTimeout     = try c.decodeIfPresent(TimeInterval.self,  forKey: .discoverTimeout)     ?? d.discoverTimeout
     }
 
     // MARK: - Persistence

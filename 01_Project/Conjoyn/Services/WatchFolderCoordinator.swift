@@ -75,10 +75,17 @@ final class WatchFolderCoordinator: ObservableObject {
     /// is quiet (no new change events, but the gate still needs more identical samples).
     private var pollTimer: Timer?
 
-    /// Guards against overlapping rescans: FSEvents and the poll timer can fire concurrently
-    /// (one from the GCD queue hop, one from the RunLoop). A second rescan that arrives while
-    /// one is in flight is silently dropped — the trailing FSEvents event will trigger another.
-    private var isRescanning = false
+    /// Guards the heavy **discovery** path (FSEvents-driven: per-clip ffprobe scan of the whole root).
+    /// A second discovery that arrives while one is in flight is dropped — the trailing FSEvents event
+    /// will trigger another. Bounded by `settings.discoverTimeout` (`withDiscoverTimeout` below) so a
+    /// wedged ffprobe / stalled mount can't latch this `true` forever and silently kill the watcher.
+    private var isDiscovering = false
+
+    /// Guards the cheap **re-sample** cadence (poll-timer-driven: a `stat` per known clip, no ffprobe).
+    /// Deliberately **separate** from `isDiscovering` so a wedged discovery never blocks the cadence —
+    /// already-discovered groups keep accumulating stability samples and can still settle + enqueue
+    /// while discovery is stuck or timing out.
+    private var isResampling = false
 
     /// Groups from the most recent **discovery** pass. The poll timer re-samples these (cheap
     /// `stat`s) to advance the stability gate without re-running discovery's per-clip ffprobe;
@@ -298,15 +305,39 @@ final class WatchFolderCoordinator: ObservableObject {
     /// bookmark) and assert enqueue behaviour — notably that a ledger-recorded group is not
     /// re-enqueued after relaunch.
     func reconcile(rootURL: URL, rediscover: Bool) async {
-        guard !isRescanning else { return }
-        isRescanning = true
-        defer { isRescanning = false }
+        // Two independent latches (see `isDiscovering` / `isResampling`): the heavy discovery path and
+        // the cheap re-sample cadence each guard their own flag, so a wedged discovery can't freeze the
+        // cadence. The `defer` clears whichever latch this pass took — including after a discovery
+        // timeout, which is what makes recovery automatic.
+        if rediscover {
+            guard !isDiscovering else { return }
+            isDiscovering = true
+        } else {
+            guard !isResampling else { return }
+            isResampling = true
+        }
+        defer {
+            if rediscover { isDiscovering = false } else { isResampling = false }
+        }
 
         // Step 1: obtain current groups — fresh discovery on change, else reuse the last set.
         let groups: [RecordGroup]
         if rediscover {
-            groups = await discover(rootURL)
-            lastGroups = groups
+            // Bound the scan: a hung ffprobe / stalled mount must not latch discovery forever. On
+            // timeout we reuse the last known groups and let the next FSEvents/poll tick retry — the
+            // `defer` above clears `isDiscovering`, so recovery needs no intervention. The wedged
+            // discovery task is abandoned (not awaited), so it can't drag the coordinator down with it.
+            if let discovered = await withDiscoverTimeout(seconds: settings.discoverTimeout, { [discover] in
+                await discover(rootURL)
+            }) {
+                groups = discovered
+                lastGroups = discovered
+            } else {
+                #if DEBUG
+                print("[WatchFolderCoordinator] discovery timed out after \(settings.discoverTimeout)s — reusing last groups, retrying next tick")
+                #endif
+                groups = lastGroups
+            }
         } else {
             groups = lastGroups
         }
@@ -347,6 +378,17 @@ final class WatchFolderCoordinator: ObservableObject {
                 groupLastChanged[fp] = currentNow
             }
         }
+
+        // Bound memory across a long daemon session spanning many cards: drop sample history and
+        // quiet-window timers for clips/groups no longer present (card ejected, files deleted). These
+        // are pure caches — a returning clip simply re-accumulates samples — so eviction is safe and
+        // never touches the persisted `groupStates` progress markers. Keys are only pruned once a
+        // *discovery* confirms a group is gone (on a poll pass `groups == lastGroups`, so nothing is
+        // dropped on a transient read blip).
+        let liveClipKeys = Set(groups.flatMap { group in group.clips.map { $0.videoURL.path } })
+        let liveGroupKeys = Set(groups.map { ProcessedGroupLedger.fingerprint(for: $0) })
+        sampleHistory = sampleHistory.filter { liveClipKeys.contains($0.key) }
+        groupLastChanged = groupLastChanged.filter { liveGroupKeys.contains($0.key) }
 
         // Step 3: build observations.
         let observations: [WatchFolderReconciler.GroupObservation] = groups.compactMap { group in
@@ -494,6 +536,50 @@ final class WatchFolderCoordinator: ObservableObject {
             #if DEBUG
             print("[WatchFolderCoordinator] saveGroupStates failed: \(error)")
             #endif
+        }
+    }
+}
+
+// MARK: - Bounded discovery
+
+/// Single-resume gate shared by the work task and the timeout task in `withDiscoverTimeout`. An
+/// `actor` guarantees the "resume the continuation exactly once" invariant without a manual lock:
+/// whichever task calls `claim()` first gets `true`; every later caller gets `false`.
+private actor ResumeGate {
+    private var claimed = false
+    func claim() -> Bool {
+        if claimed { return false }
+        claimed = true
+        return true
+    }
+}
+
+/// Runs `operation`, returning its result, or `nil` if `seconds` elapse first.
+///
+/// Unlike a `withTaskGroup` race, the operation task is **not awaited** on the timeout path — it's
+/// abandoned. This is deliberate: the thing we bound (an ffprobe `Process` inside `discover`) can
+/// ignore cooperative cancellation and stay wedged on a stalled mount, and awaiting it would just
+/// re-introduce the deadlock we're escaping. The orphaned task lingers until it eventually unblocks
+/// (or the app quits) — an acceptable cost for a rare stuck mount, since the caller recovers at once.
+/// Defined at file scope (not on the `@MainActor` coordinator) so its racing tasks run off the main
+/// actor and don't stall the UI while a scan is in flight.
+private func withDiscoverTimeout<T: Sendable>(
+    seconds: TimeInterval,
+    _ operation: @escaping @Sendable () async -> T
+) async -> T? {
+    let gate = ResumeGate()
+    return await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+            if await gate.claim() { continuation.resume(returning: nil) }
+        }
+        Task {
+            let result = await operation()
+            // Work won the race: stop the timer so a fast scan doesn't leave a sleeping task behind.
+            if await gate.claim() {
+                timeoutTask.cancel()
+                continuation.resume(returning: result)
+            }
         }
     }
 }
