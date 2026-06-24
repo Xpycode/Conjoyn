@@ -16,24 +16,30 @@
 
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.2 / build 102**.
-  **Tests: 455 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-- **Focus:** **Wave 5 (watch-folder ingest) is fully closed** — engine + multi-folder UI merged to `main`
-  (`c814efc`), and the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24** (read+join+relaunch+live-
-  detect all green on a built-in-SDXC card). Next focus is **Wave 6** or the deferred hardening branch.
+  **Tests: 468 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+- **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
+  UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
+  **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
+  → `main` `2905b38`). Next focus is **Wave 6**.
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
 - **Next:** **Wave 6** — real-footage validation (6.3 end-to-end legacy + timestamped sets, 6.4 SRT
-  alignment, 6.5 variant-guard / edge-cases) — or take the **`fix/wave5-watchfolder-hardening`** branch
-  first (the 3 worth-fixing engine-review items below). Both are footage/edge-case work, not blockers.
-- **Open follow-ups (deferred, from the 2026-06-23 engine review — verified, not blocking):** a
-  `fix/wave5-watchfolder-hardening` branch covering **(1)** hung-`discover` deadlock (ffprobe hang ⇒
-  `isRescanning` never clears ⇒ watcher silently dies — needs a timeout), **(2)** FSEvents teardown
-  UAF race (`WatchFolder` `passUnretained`+`Invalidate` — add retain/release context callbacks), and
-  **(3)** TOCTOU between enqueue and FFmpeg (cookbook #127 — capture+re-verify clip inode before
-  `mergeClips`). Full table + 6 lower-severity items in the **2026-06-23 log**. The 5.14 eyeball
-  (2026-06-24) passed the *happy path* — these remain the hang/UAF/TOCTOU edge cases to harden before the
-  watch-folder *daemon* use case gets real mileage.
+  alignment, 6.5 variant-guard / edge-cases). Footage-gated, not a blocker.
+- **Watch-folder hardening — DONE (2026-06-24, merged):** the 3 worth-fixing items from the 2026-06-23
+  review are fixed: **(1)** hung-`discover` deadlock → bounded `discoverTimeout` (90 s, tunable) + split
+  `isDiscovering`/`isResampling` latch so a wedged scan can't latch the watcher shut (`e3f9789`); **(2)**
+  FSEvents teardown UAF → stream now takes a context retain on the monitor, balanced at `Release`
+  (`d7e05fe`); **(3)** enqueue→join TOCTOU → `FileIdentity` `(dev,ino)` snapshot at enqueue, re-verified
+  before `mergeClips`, swap/rotation throws non-retriable (`3ee5933`, cookbook #127). +#4 stale-key cache
+  eviction. +13 tests. Rationale in `decisions.md` (2026-06-24). **Still deferred** (cosmetic, not
+  reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-24 (later)** — **Watch-folder daemon hardening — the 3 deferred engine-review items, fixed +
+  merged.** `fix/wave5-watchfolder-hardening` → `main` (`2905b38`): bounded discovery timeout + split latch
+  (a hung ffprobe no longer silently kills the watcher), FSEvents context retain (closes the teardown
+  use-after-free), and a `FileIdentity` `(dev,ino)` TOCTOU guard that refuses to join a swapped/rotated
+  source instead of joining the wrong bytes (cookbook #127). +#4 stale-key cache eviction. **468/1 skip/0
+  fail (+13).** Code + tests only; shipped 1.0.2/102 untouched.
 - **2026-06-24** — **Closed Wave 5.** Ran the real removable-SD-card eyeball (5.14) on a built-in-SDXC card
   (`Removable Media: Removable` — the precondition the `2CULL`/Fixed drive failed): 6 DJI groups joined +
   SRT-stitched + verified **off-card**, originals untouched; the macOS removable-volume prompt **never fired**

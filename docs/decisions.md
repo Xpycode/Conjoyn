@@ -635,3 +635,43 @@ n` → joined, per-folder outputs, 0 failed on the watch path. **This supersedes
 the 2026-06-18 engine entry above.** The shipped 1.0.2/102 DMG/appcast are untouched (Debug-local) — a
 re-cut is owed only if/when a build with watch-folder ships, and the in-app Roadmap help topic keeps
 listing watch-folder as a future until such a build ships.
+
+### 2026-06-24 - Watch-folder daemon hardening: bounded discovery, FSEvents context retain, source-identity TOCTOU guard
+
+**Context:** The 2026-06-23 post-hoc engine review flagged three worth-fixing items before the
+watch-folder *daemon* use case (long-running, many cards) gets real mileage. The shipped single-card
+happy path (5.14, 2026-06-24) is unaffected — these are the hang / use-after-free / time-of-check edge
+cases. Implemented on `fix/wave5-watchfolder-hardening`, merged `--no-ff` to `main`.
+
+**Decisions:**
+1. **Hung discovery → bounded timeout + split latch** (user-chosen over "split latch only"). `reconcile`
+   previously latched a single `isRescanning` flag cleared by `defer`; a `discover()` (ffprobe) that
+   hangs on a stalled mount never returns, so the `defer` never fires and the watcher silently dies.
+   Fix: split into `isDiscovering` (heavy rediscovery) and `isResampling` (cheap poll cadence) so a
+   wedged scan can't freeze the cadence, AND bound `discover()` with `WatchFolderSettings.discoverTimeout`
+   (default 90 s, tunable, forward-compatible decode). On timeout the coordinator reuses the last known
+   groups and retries next tick. The wedged task is **abandoned, not awaited** — an ffprobe `Process` can
+   ignore cooperative cancellation, and awaiting it would re-introduce the deadlock; an orphaned task on a
+   rare stuck mount is the acceptable cost. (`withDiscoverTimeout` + a single-resume `ResumeGate` actor.)
+2. **FSEvents context retain/release** to close the teardown UAF (`passUnretained`/`nil` callbacks let
+   `stop()`/`deinit` free the monitor while a callback was in flight on the GCD queue). The stream now
+   holds its own strong ref; `FSEventStreamRelease` (after `Invalidate`) balances it. This is an
+   intentional stream↔monitor cycle broken by the explicit `stop()` the coordinator always calls — so
+   `deinit` is now a fallback for the unstarted/already-stopped case only. (Verified safe: every
+   coordinator routes through `deactivate → disable → stopMonitor → stop()` before release.)
+3. **Source-identity TOCTOU guard before the join** (cookbook #127). Clips are captured at enqueue but
+   ffmpeg runs minutes later as the queue drains; a card swap / in-camera rotation can repoint a `DJI_NNNN`
+   path at different bytes, which ffmpeg would concatenate silently. `FileIdentity` snapshots `(device,
+   inode)` via `lstat` at enqueue (in the shared `addJob` funnel, so the manual queue is guarded too) and
+   re-verifies immediately before `mergeClips`; a `.mismatch`/`.missingNow` throws the **non-retriable**
+   `FFmpegError.sourceIdentityChanged`. **Policy divergence from #127:** `.unverifiable` (a transient
+   `stat` error that isn't "gone") does **not** block here — #127's source was *trashing* (delete), where
+   refusing on uncertainty is strictly safe; this is a *read-and-produce* (join), so failing a legitimate
+   job on a momentary read blip is worse than letting ffmpeg surface a genuine read error. A restored job
+   has no baseline → the guard is a no-op (the relaunch is its own time-of-check). Captured identities are
+   transient (out of `CodingKeys`).
+
+**Consequences:** Merged to `main` (`d7e05fe` UAF, `e3f9789` hung-discover + #4 stale-key cache eviction,
+`3ee5933` TOCTOU). Full suite **468 / 1 skip / 0 fail** (+13). The lower-severity review items (unbounded
+ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label) remain deferred —
+cosmetic / debuggability, not reachable failures. Shipped 1.0.2/102 untouched (Debug-local).
