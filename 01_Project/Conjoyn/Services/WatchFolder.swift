@@ -29,11 +29,19 @@ import Foundation
 ///     *owner* is expected to call from a stable context (typically the main actor or a single
 ///     queue).
 ///   - The C stream callback fires on `dispatchQueue` (our private GCD queue). It reads `self`
-///     through an `Unmanaged` passUnretained reference and immediately calls `onChange`, which is
-///     `@Sendable` and must itself be concurrency-safe. The callback never mutates `streamRef` or
-///     `started`.
-///   - `deinit` calls `stop()`, which is safe because `deinit` runs after all strong references
-///     are gone — no concurrent `start()` call is possible at that point.
+///     through the context `info` pointer and immediately calls `onChange`, which is `@Sendable`
+///     and must itself be concurrency-safe. The callback never mutates `streamRef` or `started`.
+///   - The stream is given real `retain`/`release` context callbacks, so **the stream itself holds
+///     a strong reference** to this object for its entire lifetime. That closes a teardown
+///     use-after-free: `stop()`/`deinit` run on the owner's actor while a callback may still be
+///     in flight on `dispatchQueue`; the stream's own retain keeps `self` alive until
+///     `FSEventStreamRelease` (after `Invalidate`, when no further callbacks can fire) balances it.
+///   - **Ownership contract:** because the running stream holds its own retain on `self`, the owner
+///     **must call `stop()`** to break that stream↔self cycle before dropping the monitor (the
+///     `WatchFolderCoordinator` does, via `stopMonitor()` on every disable/re-monitor). While a
+///     started stream is alive, `deinit` will *not* fire on its own — its retain keeps `self` up. The
+///     `deinit { stop() }` below is therefore a fallback for the unstarted / already-stopped case
+///     (where no stream retain exists), not the primary teardown path.
 final class WatchFolder: @unchecked Sendable {
 
     // MARK: - Public API
@@ -92,14 +100,18 @@ final class WatchFolder: @unchecked Sendable {
     func start() {
         guard !started else { return }
 
-        // Pass `self` through the context info pointer as an unretained reference.
-        // The stream does NOT own this object — `WatchFolder` owns the stream.
-        // `takeUnretainedValue()` in the callback therefore does not consume a retain count.
+        // Pass `self` through the context info pointer, with real `retain`/`release` callbacks so the
+        // **stream takes its own strong reference** to this object. FSEvents calls `retain` once when
+        // the stream is created and `release` once at `FSEventStreamRelease` (step 3 of `stop()`,
+        // after `Invalidate` guarantees no further callbacks). That retain is what keeps `self` alive
+        // if the owner releases it (e.g. `stopMonitor()` swaps in a new monitor, or the coordinator
+        // deallocs) while a callback is still in flight on `dispatchQueue` — closing the teardown UAF.
+        // The callback still uses `takeUnretainedValue()`: it does not consume the stream's retain.
         var context = FSEventStreamContext(
             version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),
-            retain: nil,
-            release: nil,
+            retain: watchFolderContextRetain,
+            release: watchFolderContextRelease,
             copyDescription: nil
         )
 
@@ -175,4 +187,24 @@ final class WatchFolder: @unchecked Sendable {
     deinit {
         stop()
     }
+}
+
+// MARK: - FSEvents context retain/release
+
+// C function pointers for `FSEventStreamContext`. They can't capture Swift state, so they live at
+// file scope and round-trip the `info` pointer through `Unmanaged`. Together they give the stream a
+// balanced strong reference to the `WatchFolder` for its whole lifetime (see `start()`).
+
+/// Retains the `WatchFolder` behind the context `info` pointer. FSEvents calls this when the stream
+/// is created; balanced by `watchFolderContextRelease` at `FSEventStreamRelease`.
+private let watchFolderContextRetain: CFAllocatorRetainCallBack = { info in
+    guard let info else { return nil }
+    return UnsafeRawPointer(Unmanaged<WatchFolder>.fromOpaque(info).retain().toOpaque())
+}
+
+/// Releases the `WatchFolder` retained by `watchFolderContextRetain`. FSEvents calls this when the
+/// stream is released, after `Invalidate` has guaranteed no further callbacks can fire.
+private let watchFolderContextRelease: CFAllocatorReleaseCallBack = { info in
+    guard let info else { return }
+    Unmanaged<WatchFolder>.fromOpaque(info).release()
 }

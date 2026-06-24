@@ -40,6 +40,13 @@ extension QueueManager {
             }
         }
 
+        // Snapshot each source segment's filesystem identity (device, inode) now, while these are the
+        // files the user / watch-folder actually selected. The join (`processConcatenateJob`) re-checks
+        // it before running ffmpeg, so a card swap or file rotation in the gap between queueing and
+        // joining fails loudly instead of silently joining the wrong bytes (cookbook #127). Captured
+        // in this shared funnel so both the manual queue and the watch-folder feed are guarded.
+        finalJob.captureSourceIdentities()
+
         jobs.append(finalJob)
         log("Added job: \(finalJob.displayName)")
         saveQueue()

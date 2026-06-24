@@ -253,6 +253,17 @@ extension QueueManager {
         // the destination untouched until the move).
         var destinationTouched = !staged
 
+        // Cookbook #127: re-verify each source segment's filesystem identity now, immediately before
+        // the join. The clips were captured when the job was enqueued; the queue may have drained for
+        // minutes since, during which a card swap or in-camera file rotation could repoint a path at
+        // different bytes — which ffmpeg would concatenate silently. Refuse instead. A job with no
+        // captured baseline (restored from a previous session) skips the check; the relaunch was its
+        // own time-of-check.
+        if let changedSegment = job.firstSourceIdentityMismatch() {
+            log("REFUSED: \(changedSegment) changed since it was queued — not joining stale/mismatched source")
+            throw FFmpegWrapper.FFmpegError.sourceIdentityChanged(changedSegment)
+        }
+
         do {
             defer { if staged { try? FileManager.default.removeItem(at: writeURL) } }
 
@@ -378,7 +389,9 @@ extension QueueManager {
         if let e = error as? FFmpegWrapper.FFmpegError {
             switch e {
             case .conversionFailed: return true
-            case .cancelled, .ffmpegNotFound, .invalidInput: return false
+            // A swapped card / rotated file won't heal on a retry — the path still resolves to the
+            // wrong bytes — so this is deterministic, never retried.
+            case .cancelled, .ffmpegNotFound, .invalidInput, .sourceIdentityChanged: return false
             }
         }
         if let e = error as? StreamParameterGuard.GuardError {

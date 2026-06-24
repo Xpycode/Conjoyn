@@ -21,6 +21,10 @@ final class FFmpegWrapper: @unchecked Sendable {
         case conversionFailed(String)
         case invalidInput(String)
         case cancelled  // User-initiated cancellation
+        /// A source segment's on-disk identity changed between enqueue and join (card swapped or the
+        /// file rotated under the same path) — refusing to join the wrong bytes. Carries the segment
+        /// filename. Deterministic, so never retried (cookbook #127).
+        case sourceIdentityChanged(String)
 
         var errorDescription: String? {
             switch self {
@@ -32,6 +36,8 @@ final class FFmpegWrapper: @unchecked Sendable {
                 return "Invalid input: \(msg)"
             case .cancelled:
                 return "Conversion was cancelled"
+            case .sourceIdentityChanged(let name):
+                return "Source file changed before joining: \(name). The card may have been swapped or the file replaced — re-add the recording and try again."
             }
         }
     }
