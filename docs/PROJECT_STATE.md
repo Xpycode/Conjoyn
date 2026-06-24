@@ -21,7 +21,8 @@
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
-  → `main` `2905b38`). Next focus is **Wave 6**.
+  → `main` `2905b38`). **Wave 6 is now effectively closed; next focus = GoPro + Osmo Action
+  camera-family support** — user now has the hardware (DJI Osmo Action 1, GoPro 11, GoPro 7).
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
 - **Next:** **Wave 6 is effectively closed.** **6.3 (legacy *and* timestamped + slow-mo) + 6.4 SRT alignment
   are engine-validated on real footage** (2CULL legacy + 2026-06-24 M4P-1 timestamped/slow-mo pass).
@@ -44,7 +45,17 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-06-25 (latest)** — **Shipped 1.0.3 / build 103 — public.** Cut the first point release since 1.0.2,
+- **2026-06-25 (session 2, latest)** — **Post-ship Q&A + website v1.0.3 badge.** No app code changed.
+  Traced the join output staging: finished media writes to the **temp/scratch volume first** (default boot
+  SSD via `TempDirectoryManager`), copied to the destination **only when temp ≠ destination volume** — to
+  keep ffmpeg's write + `+faststart` rewrite churn off slow external media (the "re-open / I/O error" fix).
+  Confirmed the disk-space **preflight checks the temp volume** independently (fails open on `nil`). **Found
+  + deferred a UX gap:** preflight errors point to a **"File → Temp Folder…" menu that doesn't exist** — the
+  `TempDirectoryManager.setCustomTempDirectory` backend is built but never wired to UI (scratch dir is always
+  the boot volume); **user chose leave as-is.** Website: `index.html` had no version string → added a static
+  `v1.0.3` hero-meta badge, deployed + verified live (App-Websites `9faf089`, pushed). **Next: GoPro + Osmo
+  Action camera families** (hardware now in hand).
+- **2026-06-25 (ship)** — **Shipped 1.0.3 / build 103 — public.** Cut the first point release since 1.0.2,
   carrying real production fixes that had accumulated in `main`: the **missing-middle index-gap guard** (no
   silent corrupt join on a dropped slow-mo segment) + **watch-folder hardening** (FSEvents UAF, hung-discover
   deadlock, swapped-source TOCTOU guard). Bumped `project.yml` → 1.0.3/103, regenerated; `make-dmg.sh` (clean
@@ -121,9 +132,10 @@
 ## Backlog (all optional / post-ship)
 - **Real-SD-card TCC + relaunch eyeball (5.14)** — see Now/Next; the only thing between current state
   and a fully-closed Wave 5.
-- **More camera families** (engine is already camera-agnostic) — user's test set to be collected:
-  GoPro 11 / 7 / 5 + DJI Osmo Action. On the in-app Roadmap (telemetry/sidecar may trail the video
-  join per brand).
+- **More camera families = NEXT FOCUS** (engine is already camera-agnostic) — **hardware now in hand:
+  DJI Osmo Action 1, GoPro 11, GoPro 7** (footage to be captured). Validate per-brand **filename
+  grouping**, **metadata read**, and **telemetry/SRT sidecar** (sidecar may trail the video join per
+  brand). On the in-app Roadmap.
 - **Localization / i18n** — app is English-only; future work is extract UI strings →
   `Localizable.xcstrings` + target languages.
 - Optional DMG polish (custom background image).
@@ -152,6 +164,8 @@
   `project.yml` + `xcodegen generate` → `make-dmg.sh` → `make-appcast.sh` → drop the staged
   `04_Exports/appcast/Conjoyn-<v>.dmg` + `appcast.xml` + `Conjoyn-<v>.html` into `App-Websites`
   `APPS/Conjoyn/01_Source/` (and overwrite `downloads/conjoyn.dmg` for the human button) → its `deploy.sh`.
+  **Also bump the `v1.0.x` badge in `index.html` `.hero-meta`** (added 2026-06-25 — now a manual per-release
+  source of truth alongside the appcast + DMG name + `downloads/conjoyn.dmg`).
 - **Sparkle auto-update** — appcast `https://conjoyn.lucesumbrarum.com/appcast.xml`; public key
   `Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=` (in Info.plist). EdDSA private key custody = **3
   verified copies** (M4-Pro keychain `account=conjoyn` + `99-AUTH/conjoyn-sparkle-private.key` +
