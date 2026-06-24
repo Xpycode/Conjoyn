@@ -17,24 +17,30 @@
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.2 / build 102**.
   **Tests: 455 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-- **Focus:** Watch-folder ingest (Wave 5) is **fully built — engine + multi-folder UI — and merged to
-  `main`** (`c814efc`); only the **real-SD-card permission + relaunch-persistence eyeball (5.14)**
-  remains before Wave 5 is formally closed.
+- **Focus:** **Wave 5 (watch-folder ingest) is fully closed** — engine + multi-folder UI merged to `main`
+  (`c814efc`), and the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24** (read+join+relaunch+live-
+  detect all green on a built-in-SDXC card). Next focus is **Wave 6** or the deferred hardening branch.
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
-- **Next:** bring a **real removable SD card** (verify `diskutil` reports `Removable Media: Removable`
-  first — the `2CULL` test drive reads as *Fixed*, so it never trips the TCC prompt) → confirm the
-  `NSRemovableVolumesUsageDescription` prompt fires and watch folders survive a relaunch. Exact steps
-  in the **2026-06-20 log Resume block**. On pass, Wave 5 closes and **Wave 6** (packaging /
-  real-footage 6.3–6.5) is next.
+- **Next:** **Wave 6** — real-footage validation (6.3 end-to-end legacy + timestamped sets, 6.4 SRT
+  alignment, 6.5 variant-guard / edge-cases) — or take the **`fix/wave5-watchfolder-hardening`** branch
+  first (the 3 worth-fixing engine-review items below). Both are footage/edge-case work, not blockers.
 - **Open follow-ups (deferred, from the 2026-06-23 engine review — verified, not blocking):** a
   `fix/wave5-watchfolder-hardening` branch covering **(1)** hung-`discover` deadlock (ffprobe hang ⇒
   `isRescanning` never clears ⇒ watcher silently dies — needs a timeout), **(2)** FSEvents teardown
   UAF race (`WatchFolder` `passUnretained`+`Invalidate` — add retain/release context callbacks), and
   **(3)** TOCTOU between enqueue and FFmpeg (cookbook #127 — capture+re-verify clip inode before
-  `mergeClips`). Full table + 6 lower-severity items in the **2026-06-23 log**. Pairs naturally with
-  the 5.14 eyeball before the watch-folder *daemon* use case gets real mileage.
+  `mergeClips`). Full table + 6 lower-severity items in the **2026-06-23 log**. The 5.14 eyeball
+  (2026-06-24) passed the *happy path* — these remain the hang/UAF/TOCTOU edge cases to harden before the
+  watch-folder *daemon* use case gets real mileage.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
+- **2026-06-24** — **Closed Wave 5.** Ran the real removable-SD-card eyeball (5.14) on a built-in-SDXC card
+  (`Removable Media: Removable` — the precondition the `2CULL`/Fixed drive failed): 6 DJI groups joined +
+  SRT-stitched + verified **off-card**, originals untouched; the macOS removable-volume prompt **never fired**
+  (folder picked via panel = powerbox grant, which **persists across relaunch**); relaunch resumed the watch
+  with **no re-prompt and no re-join** (ledger held); and a freshly-dropped clip was **auto-detected in ~25 s
+  and joined via pure background card access** — proving the watcher is genuinely live after relaunch, not
+  just UI-restored. Docs only; 455 tests unchanged, shipped 1.0.2/102 untouched.
 - **2026-06-23** — Docs only: `/arrive` reconciled a Syncthing split-brain — this Mac was stranded on
   the already-merged-and-deleted `feature/wave5-watch-folder`; its "uncommitted changes" were a pure
   shadow (all 13 files byte-identical to `origin/main`) → discarded, FF'd `main` 16 commits, deleted
