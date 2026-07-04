@@ -45,7 +45,21 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-06-25 (session 2, latest)** — **Post-ship Q&A + website v1.0.3 badge.** No app code changed.
+- **2026-07-04 (latest)** — **Two UI-polish bugs fixed: Rename popover light-mode contrast + Queue
+  name truncation.** User-reported (live screenshots). (1) `Theme.acc1` was a fixed amber used in
+  both appearances — measured 1.63:1 contrast on light surfaces (WCAG AA needs 4.5:1) vs. 9.4:1 in
+  dark; made it adaptive (`Theme.swift:49`, light variant `0x8F5600`), verified 4.6–5.5:1 across all
+  light surfaces via a standalone reproduction of the app's `NSAppearance` color logic — dark mode
+  untouched. (2) Queue row name column (`QueuePanel.swift:267`) was hardcoded to `.frame(width: 220)`
+  while its sibling progress-bar/placeholder is the row's only unconstrained-width view and silently
+  ate the spare space; changed to `.frame(minWidth: 220, maxWidth: 420)`. Verified live: built + ran
+  the app, drove it via Accessibility UI scripting (no Screen Recording permission in this sandboxed
+  session, so no pixel screenshots — `/test-app`'s AppProbe binary also isn't present on this Mac),
+  confirmed a 49-char synthetic output name now renders at 346pt instead of truncating at the old
+  220pt cap. Branch `fix/ui-polish-rename-contrast-queue-width`. `docs/ideas.md` entries marked
+  resolved. Cleared the two synthetic test jobs from the real `~/Library/Application
+  Support/Conjoyn/queue.json` before quitting (Debug and Release builds share it).
+- **2026-06-25 (session 2)** — **Post-ship Q&A + website v1.0.3 badge.** No app code changed.
   Traced the join output staging: finished media writes to the **temp/scratch volume first** (default boot
   SSD via `TempDirectoryManager`), copied to the destination **only when temp ≠ destination volume** — to
   keep ffmpeg's write + `+faststart` rewrite churn off slow external media (the "re-open / I/O error" fix).

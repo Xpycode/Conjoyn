@@ -8,8 +8,8 @@ import AppKit
 /// "soft neutral gray" variant (light gray surfaces, not pure white — keeps the dark theme's
 /// restrained, low-glare FCP character). Tokens are **adaptive**: a single `Color` resolves
 /// its value against the window's live `NSAppearance`, so the appearance toggle (View ›
-/// Appearance) flips the whole UI by setting `.preferredColorScheme`. The four accents are
-/// mode-independent.
+/// Appearance) flips the whole UI by setting `.preferredColorScheme`. Three of the four accents
+/// (`acc2`, `ok`, `bad`) are mode-independent; `acc1` is adaptive — see its own doc comment.
 ///
 /// Use `Theme.xxx` everywhere for surfaces, hairlines, text, and accent — never `Color.gray`,
 /// `.secondary` for chrome, or raw `.white.opacity`/`.black.opacity` in view code. For chrome
@@ -43,11 +43,17 @@ struct Theme {
     /// `--txt-3` — tertiary text / section labels.
     static let txt3 = Color(light: 0x8A8A8A, dark: 0x6E6E6E)
 
-    // MARK: Accents (mode-independent)
+    // MARK: Accents
 
-    /// `--acc1` — light accent: Split badge, "Joining…" status, spinner.
-    static let acc1 = Color(hex: 0xFFB23E)
+    /// `--acc1` — light accent: Split badge, "Joining…" status, spinner. **Adaptive, unlike the
+    /// other three accents**: the handoff's `0xFFB23E` is tuned for the dark palette (9.4:1 on
+    /// `bg`) but drops to ~1.6:1 on the light palette's `bg`/`panel`/`panel2` — under WCAG AA's
+    /// 4.5:1 floor for text — because it's used as *foreground* text/icon color (Rename preview,
+    /// queue "Joining…"/warning text), not just a tint. The light variant keeps the same ~36°
+    /// hue, darkened to clear 4.5:1 on every light-mode surface (2026-07-04, `docs/ideas.md`).
+    static let acc1 = Color(light: 0x8F5600, dark: 0xFFB23E)
     /// `--acc2` — control accent: primary buttons, checks, switches, progress, selection tint.
+    /// Mode-independent (used as fills/tints, not foreground text — contrast isn't at stake).
     static let acc2 = Color(hex: 0xF0622A)
     /// `--ok` — success.
     static let ok = Color(hex: 0x3FD68A)

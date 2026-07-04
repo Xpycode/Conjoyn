@@ -9,6 +9,39 @@
 <!-- Raw concepts, brainstorms, "what if" thoughts -->
 <!-- Format: Brief description, date added, any initial notes -->
 
+### Rename Joined Files popover: preview text hard to read in light mode — ✅ RESOLVED 2026-07-04
+**Added:** 2026-07-04 (user spotted during live use, screenshots provided) · **Resolved:** same day
+
+The renamed-filename half of each preview row in the Rename Joined Files popover
+(`01_Project/Conjoyn/Views/RenamePopover.swift:174`) is drawn in `Theme.acc1`, which was a fixed
+amber (`0xFFB23E`) used in *both* appearances. Measured contrast confirmed the bug: 1.63:1 against
+the light-mode `bg`/`panel`/`panel2` surfaces — well under WCAG AA's 4.5:1 floor for text — while
+9.4:1 in dark mode (why it read fine there). **Fix:** `Theme.acc1` (`Theme.swift:49`) is now
+adaptive — `Color(light: 0x8F5600, dark: 0xFFB23E)` — same hue, darkened only for light mode.
+Verified by reproducing the app's own `NSAppearance`-based color-resolution logic standalone: new
+light-mode contrast is 4.63–5.46:1 across all three light surfaces (passes AA everywhere), dark
+mode unchanged at 7.99–9.38:1. This token is used in 21 other call sites (queue status text,
+warning badges, split badges); all inherit the same fix for free. `ok`/`bad` accents have a
+similar (smaller) contrast gap in light mode but were **not** touched — out of scope, flag if
+reported.
+
+### Queue panel: full output filename truncates despite spare horizontal room — ✅ RESOLVED 2026-07-04
+**Added:** 2026-07-04 (user spotted during live use, screenshots provided) · **Resolved:** same day
+
+Queue job rows showed the joined output name truncated (e.g. `DJI-M4P--2025-...22--06.01.16.mp4`)
+even though there was plenty of unused horizontal space in the row. Root cause: the name `Text` at
+`01_Project/Conjoyn/Views/QueuePanel.swift:262-267` had a hardcoded `.frame(width: 220)`, while its
+sibling — the per-row progress bar (`CJProgressBar`, a `GeometryReader`) or, for pending jobs, a
+bare `Color.clear.frame(height: 5)` placeholder — has no width constraint and is SwiftUI's
+"greediest" child, so it silently absorbed all the row's spare width instead of the name. **Fix:**
+changed the name's frame to `.frame(minWidth: 220, maxWidth: 420, alignment: .leading)` — bounded
+but no longer capped at exactly 220, so it grows to fit real names while the progress-bar column
+still gets whatever's left. Verified live: rebuilt the app, scanned a synthetic DJI fixture clip via
+Accessibility-driven UI automation (no `screencapture` permission in this sandboxed session), and
+measured the actual rendered row via the accessibility tree — a 49-char output name
+(`DJI_20260704060000_0002_D_2026-07-04_joined.mp4`) rendered at 346pt (fits under the new 420pt cap,
+full string visible) versus the old 220pt cap that would have truncated it.
+
 ### Single-file export (stamp TC/date on lone clips)
 **Added:** 2026-06-10 (user request during live test of the new UI)
 **Type:** Feature

@@ -264,7 +264,12 @@ private struct QueueRow: View {
                     .foregroundStyle(Theme.txt)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(width: 220, alignment: .leading)
+                    // Bounded, not fixed: the placeholder/progress-bar column that follows is the
+                    // row's only unconstrained-width view, so a hardcoded 220pt here truncated
+                    // most real output names while that column silently absorbed the rest of the
+                    // row's width. minWidth keeps short-name rows aligned like before; maxWidth
+                    // lets long names actually show instead of vanishing into unused space.
+                    .frame(minWidth: 220, maxWidth: 420, alignment: .leading)
                     .help(job.destinationURL.path)
 
                 if folderMismatch {
