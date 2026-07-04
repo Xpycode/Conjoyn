@@ -99,49 +99,8 @@
   guard** (adjacent segments must be index-consecutive; only ever adds a split, never a merge). +3 tests,
   **471/1 skip/0 fail**, no regressions. `b4ec873` → `--no-ff` `cd001bd`; `decisions.md` logged. **Pushed —
   `main` synced.** Closes 6.5 missing-middle; variant+codec still footage-gated.
-- **2026-06-24 (earlier)** — **Wave 6.3 + 6.4 validated on real timestamped slow-mo footage (M4P-1, DJI
-  Mini 4 Pro).** Prompted by "didn't we validate this on 2CULL already?" — yes for legacy naming, but 2CULL
-  never had the **timestamped** scheme or **slow-mo** (an owed, never-seen case). Proved the engine's
-  6-group split *semantically* correct against the SRT's own wall-clock (4-segment merge 0006→0009, seams
-  exact to the second; 0010 correctly kept separate). Replicated the app's exact join: **duration = exact
-  Σ (2871.72 s), streams byte-identical (10-bit HDR preserved), full decode-to-null clean (exit 0, 0
-  errors)**; metadata write-back (`creation_time`+`tmcd`) confirmed; **SRT seam drift +34 ms < 1 cue, no
-  accumulation**. Marked 6.3/6.4 ✅ in plan; 6.5 footage-gated (multi-lens drone). Slow-mo
-  (≈4×, 100→25 fps) validates the chain-on-cap-not-playback design. Docs only; code + shipped 1.0.2/102
-  untouched; tests unchanged. **6.5 variant-guard still needs a multi-lens drone.**
-- **2026-06-24 (later)** — **Watch-folder daemon hardening — the 3 deferred engine-review items, fixed +
-  merged.** `fix/wave5-watchfolder-hardening` → `main` (`2905b38`): bounded discovery timeout + split latch
-  (a hung ffprobe no longer silently kills the watcher), FSEvents context retain (closes the teardown
-  use-after-free), and a `FileIdentity` `(dev,ino)` TOCTOU guard that refuses to join a swapped/rotated
-  source instead of joining the wrong bytes (cookbook #127). +#4 stale-key cache eviction. **468/1 skip/0
-  fail (+13).** Code + tests only; shipped 1.0.2/102 untouched.
-- **2026-06-24** — **Closed Wave 5.** Ran the real removable-SD-card eyeball (5.14) on a built-in-SDXC card
-  (`Removable Media: Removable` — the precondition the `2CULL`/Fixed drive failed): 6 DJI groups joined +
-  SRT-stitched + verified **off-card**, originals untouched; the macOS removable-volume prompt **never fired**
-  (folder picked via panel = powerbox grant, which **persists across relaunch**); relaunch resumed the watch
-  with **no re-prompt and no re-join** (ledger held); and a freshly-dropped clip was **auto-detected in ~25 s
-  and joined via pure background card access** — proving the watcher is genuinely live after relaunch, not
-  just UI-restored. Docs only; 455 tests unchanged, shipped 1.0.2/102 untouched.
-- **2026-06-23** — Docs only: `/arrive` reconciled a Syncthing split-brain — this Mac was stranded on
-  the already-merged-and-deleted `feature/wave5-watch-folder`; its "uncommitted changes" were a pure
-  shadow (all 13 files byte-identical to `origin/main`) → discarded, FF'd `main` 16 commits, deleted
-  the branch (no duplicate commits). Then a **post-hoc Wave 5 engine code review** (hand-verified):
-  9 findings + 1 false positive → see Next. 455 tests unchanged.
-- **2026-06-22** — Docs only: slimmed this file **276 → 86 lines** back to the lean digest (no code,
-  455 tests unchanged). All decisions confirmed already in `decisions.md` before trimming.
-- **2026-06-20** — Finished the multi-folder watch-folder window, eyeballed it on real footage (single
-  + dual folders, each writing to its own output, clean run), authored the overlap-rejection policy
-  (an offline folder still blocks an overlapping add via its last-known path), then **merged all of
-  Wave 5 — engine + UI — to `main`** and deleted the feature branch. 455 tests.
-- **2026-06-18** — Built the watch-folder **engine** (file-stability + complete-set gates, FSEvents,
-  relaunch resume) and added output-honesty polish: green shows only when a join is **verified
-  byte-for-byte**, verify is folded into one progress bar, and the date/timecode write-back is now
-  re-read and confirmed after each join.
-- **2026-06-17** — **Shipped Sparkle auto-update → 1.0 is publicly live.** Also fixed a whole-queue
-  "time left" that swung wildly (now extrapolates from the run's own observed pace) and a console
-  freeze on large logs (lazy line-by-line rendering).
-- **2026-06-16** — Made the repo **public** under PolyForm Noncommercial; re-cut the notarized DMG;
-  fixed light/dark appearance + Dock-icon switching and "undated rows sort last in both directions".
+*(older entries trimmed 2026-07-04 per the lean-digest rule — full history in
+`docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 
 ## Backlog (all optional / post-ship)
 - **Real-SD-card TCC + relaunch eyeball (5.14)** — see Now/Next; the only thing between current state
