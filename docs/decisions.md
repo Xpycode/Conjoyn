@@ -752,3 +752,42 @@ codec pair is a stand-in. Both are documented in the test's file header, not hid
 (+4), no regressions. Closes the prior entry's "real-file end-to-end pass" follow-up for variant + codec
 (via synthetic clips, since real footage is unobtainable). **Uncommitted, Debug-local; shipped 1.0.2/102
 untouched.**
+
+---
+
+### 2026-07-14 - SD-card photo handling: preserve, don't process (roadmap scope guard)
+**Context:** Roadmap idea raised by the user — DJI cards routinely carry **stills alongside video**
+(single JPG, RAW `.DNG`, panorama source sets, AEB/burst brackets, timelapse frames). Today those files
+are not merely ignored: in `DJIFolderReader.read` the scan only classifies `mp4/mov/srt/lrf` as media —
+every other extension hits `continue` and does **not** even land in `skippedNonDJI` (`DJIFolderReader.swift`
+~L67-83). So a `.JPG`/`.DNG` next to the clips is dropped with **zero trace**. If a user treats Conjoyn as
+their card-ingest tool ("get everything off, then format"), that is a latent **data-loss footgun**: they can
+wipe the card and lose photos Conjoyn silently saw. No code written yet — this entry locks the *scope
+boundary* while it's fresh, per the same discipline that fenced SRT stitching.
+**Decision:** If/when built, Conjoyn **preserves** photos; it never **processes** them.
+1. **Two modes, different behaviour** — the copy-offer is **SD-card / direct-card-read only** (the card is
+   ephemeral and about to be wiped, so preservation earns its keep). In **watch-folder / drag-a-folder**
+   mode, photos are already on managed disk → **surface a count, do nothing, don't touch them.**
+2. **Tiered scope.** *Tier 0 (detect & surface):* give `DJIFilenameParser` a `.photo` `mediaKind`, add a
+   `photos: [DJIPhoto]` collection to `Discovery`, show a passive "also on this card: N photos (M DNG)"
+   line — shipped alone this already closes the silent-drop footgun. *Tier 1 (MVP copy):* opt-in "also copy
+   photos", byte-for-byte (preserve filename + timestamps) into a `Photos/` sibling of the stitched output,
+   checksum-verified via the existing `VerificationService` so it feeds a **"card fully ingested — safe to
+   format"** confirmation. *Tier 2:* copy panorama tiles / AEB-burst / RAW+JPG **as coherent sets**, never
+   half a set.
+3. **Explicitly OUT of scope (the fence):** stitching panoramas, merging HDR/AEB brackets, RAW development,
+   any editing — DJI Fly and third-party tools own that. Conjoyn is not a photo app.
+**Why:** Framing this as **card safety** rather than "photo support" gives it a coherent product story *and*
+tells us exactly how far to build: nothing on the card should be lost, but Conjoyn stays a stitcher. Every
+piece rides seams that already exist — the `.other`/`mediaKind` enum has a latent `.photo` slot, the DCIM
+`resolveMediaFolders` descent already handles a dropped card root, and `VerificationService` already does
+checksum verification — so there are **no new subsystems**, only a new classification branch + a copy step.
+**Caveat / footage-gated:** Confident about DJI photo **filenames** (same grammar as video — the stem parser
+already handles `DJI_0001.JPG` / `DJI_20230813102011_0008_D.JPG`). **Not** confident about **panorama
+folder layout** — DJI stores pano source tiles in a subfolder whose exact path varies by model
+(Mini/Air/Mavic differ); Tier 2 must be verified against a **real card with photos** before it's designed,
+not asserted from memory.
+**Consequences:** No code this session — captured as a post-v1 roadmap item (PROJECT_STATE Backlog) with the
+scope guard locked. Natural next step is a `/spec` stub once a real photo-bearing card is on hand. Ties into
+the "more camera families" focus (GoPro/Osmo also shoot stills), so the `.photo` classification should be
+designed camera-agnostic from the start.

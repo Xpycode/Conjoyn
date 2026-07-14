@@ -45,7 +45,16 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-07-04 (latest)** — **Two UI-polish bugs fixed: Rename popover light-mode contrast + Queue
+- **2026-07-14 (latest)** — **Captured a roadmap idea: honour photos on a DJI SD card (preserve,
+  don't process).** No code changed. Found that discovery (`DJIFolderReader.read`) silently drops any
+  file that isn't `mp4/mov/srt/lrf` — a `.JPG`/`.DNG` next to the clips vanishes with no trace, a
+  latent data-loss footgun if the card is treated as ingest-then-format. Logged the scope guard to
+  `decisions.md`: SD-card mode offers a checksum-verified byte copy → `Photos/` sibling; watch-folder
+  mode just surfaces a count; **no** panorama stitching / HDR / RAW dev. Rides existing seams
+  (`.photo` mediaKind, DCIM descent, `VerificationService`) — no new subsystems. Post-v1; promote to
+  `/spec` once a real photo-bearing card is on hand. Design camera-agnostic (GoPro/Osmo also shoot
+  stills). Backlog entry added below.
+- **2026-07-04** — **Two UI-polish bugs fixed: Rename popover light-mode contrast + Queue
   name truncation.** User-reported (live screenshots). (1) `Theme.acc1` was a fixed amber used in
   both appearances — measured 1.63:1 contrast on light surfaces (WCAG AA needs 4.5:1) vs. 9.4:1 in
   dark; made it adaptive (`Theme.swift:49`, light variant `0x8F5600`), verified 4.6–5.5:1 across all
@@ -90,16 +99,7 @@
   no production code changed, no regressions.** Wave 6 now effectively closed; only real multi-lens *numbering*
   + exact h264/hevc bytes stay footage-gated (can't synthesize either; guard path is identical regardless).
   `decisions.md` + plan 6.5 row updated. Shipped 1.0.2/102 untouched.
-- **2026-06-24 (missing-middle)** — **Wave 6.5 missing-middle: found & fixed a slow-mo silent-merge.** User asked me
-  to source multi-lens/mixed-codec/missing-segment footage off the web; verdict = real DJI multi-lens
-  split-video + SRT is essentially undownloadable (single clips / stills / SRT-only fixtures only). Reframed to
-  verifying the 3 guards: variant + codec already unit-tested, **missing-middle was not**. Building the fixtures
-  exposed that `continues()` had no index check — a missing **slow-mo** segment is silently bridged (playback
-  bound ~4× real, too loose) into a corrupt join, while normal-speed splits safely. **Fixed with an index-gap
-  guard** (adjacent segments must be index-consecutive; only ever adds a split, never a merge). +3 tests,
-  **471/1 skip/0 fail**, no regressions. `b4ec873` → `--no-ff` `cd001bd`; `decisions.md` logged. **Pushed —
-  `main` synced.** Closes 6.5 missing-middle; variant+codec still footage-gated.
-*(older entries trimmed 2026-07-04 per the lean-digest rule — full history in
+*(older entries trimmed per the lean-digest rule — full history in
 `docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 
 ## Backlog (all optional / post-ship)
@@ -109,6 +109,14 @@
   DJI Osmo Action 1, GoPro 11, GoPro 7** (footage to be captured). Validate per-brand **filename
   grouping**, **metadata read**, and **telemetry/SRT sidecar** (sidecar may trail the video join per
   brand). On the in-app Roadmap.
+- **SD-card photo preservation (post-v1)** — cards carry stills (JPG/DNG/panorama/AEB) alongside video;
+  today they're **silently dropped** (`DJIFolderReader.read` only classifies `mp4/mov/srt/lrf`). Scope
+  **locked** in `decisions.md` (2026-07-14): **preserve, don't process.** Tier 0 = detect & surface (add
+  `.photo` `mediaKind` + `Discovery.photos`, show a count — closes the silent-drop footgun). Tier 1 =
+  opt-in checksum-verified byte copy → `Photos/` sibling, **SD-card mode only**, feeds a "safe to format"
+  confirmation. Fence: **no** panorama stitching / HDR merge / RAW dev. Tier 2 (keep sets intact) is
+  footage-gated — needs a real photo-bearing card first. Design `.photo` camera-agnostic (GoPro/Osmo also
+  shoot stills). Natural `/spec` candidate once a card is on hand.
 - **Localization / i18n** — app is English-only; future work is extract UI strings →
   `Localizable.xcstrings` + target languages.
 - Optional DMG polish (custom background image).
