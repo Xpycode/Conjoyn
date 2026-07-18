@@ -17,9 +17,10 @@
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.3 / build 103**
   (shipped 2026-06-25: missing-middle index-gap fix + watch-folder hardening; notarized DMG + signed appcast
-  live, Sparkle now offers 1.0.3 to 1.0.2 installs). **Tests: 475 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-  **`main` is ahead of the shipped build:** carries the 2026-07-18 output-folder-popover crash fix,
-  slated for the next planned version update (bump to 1.0.4/104 when cutting).
+  live, Sparkle now offers 1.0.3 to 1.0.2 installs). **Tests: 488 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  **`main` is ahead of the shipped build by TWO user-facing changes:** the 2026-07-18 output-folder-popover
+  crash fix + saved rename templates (same day) — both ride the next planned version update
+  (bump to 1.0.4/104 when cutting).
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
@@ -47,7 +48,15 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-07-18 (latest)** — **Fixed a live crash in shipped 1.0.3: changing the output folder while
+- **2026-07-18 session 2 (latest)** — **Built saved rename templates in the Rename popover.** A
+  custom naming pattern can now be stored with one click on a ＋ chip and recalled from a new
+  "Saved:" chip row that appears once the first template exists (right-click deletes; chips are
+  labelled with the pattern itself, so there's no naming step). Templates survive relaunch —
+  previously a custom pattern reset every launch by design. Pattern-only by user choice (counter
+  settings stay per-batch, like the built-in presets). 13 new tests; all four user-eyeball checks
+  passed live; merged to `main` and pushed. Ships with the next version update alongside the
+  crash fix below.
+- **2026-07-18** — **Fixed a live crash in shipped 1.0.3: changing the output folder while
   jobs waited in the queue killed the app.** The folder picker on macOS 26+ is hosted out-of-process
   (ViewBridge), and the "Apply new folder to pending jobs?" popover was presented in the same instant
   the picker closed — racing the picker's teardown and hitting a dead observer, which macOS turns
@@ -90,17 +99,6 @@
   the boot volume); **user chose leave as-is.** Website: `index.html` had no version string → added a static
   `v1.0.3` hero-meta badge, deployed + verified live (App-Websites `9faf089`, pushed). **Next: GoPro + Osmo
   Action camera families** (hardware now in hand).
-- **2026-06-25 (ship)** — **Shipped 1.0.3 / build 103 — public.** Cut the first point release since 1.0.2,
-  carrying real production fixes that had accumulated in `main`: the **missing-middle index-gap guard** (no
-  silent corrupt join on a dropped slow-mo segment) + **watch-folder hardening** (FSEvents UAF, hung-discover
-  deadlock, swapped-source TOCTOU guard). Bumped `project.yml` → 1.0.3/103, regenerated; `make-dmg.sh` (clean
-  Release archive → Developer-ID export → both notary round-trips **Accepted** → stapled, Gatekeeper accepts);
-  `make-appcast.sh` (EdDSA-signed, length 29575236 matches); wrote `Conjoyn-1.0.3.html` release notes; deployed
-  via `App-Websites` `deploy.sh` (lftp, no `--delete` → 1.0.2 enclosure preserved). **Verified live:** appcast
-  serves 1.0.3/103 + valid sig, DMG 200 with exact byte length, release-notes page 200, human `dl.php` button
-  302→200 on the new DMG, old 1.0.2 DMG still 200. **Cut on the M4 Pro** (has Developer ID + `conjoyn-notary`
-  profile + Sparkle key). This session's test/docs work was already on `main`; the shippable code was the
-  earlier index-gap + watch-folder commits.
 *(older entries trimmed per the lean-digest rule — full history in
 `docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 

@@ -791,3 +791,26 @@ not asserted from memory.
 scope guard locked. Natural next step is a `/spec` stub once a real photo-bearing card is on hand. Ties into
 the "more camera families" focus (GoPro/Osmo also shoot stills), so the `.photo` classification should be
 designed camera-agnostic from the start.
+
+### 2026-07-18 - Saved rename templates: pattern-only, self-labelled, no naming UI
+
+**Context:** The Rename popover offered three built-in preset chips, but a user's own pattern lived
+only in session-state (`renameOptions` deliberately resets each launch — 2026-06-10), so a custom
+pattern had to be retyped every session. User asked for storable rename templates.
+**Decision:** A template is a **bare pattern string**, persisted as a Codable blob under one
+UserDefaults key (`RenameTemplates`, the `WatchFolderSettings` idiom). Three deliberate narrowings:
+1. **Pattern only** — counter start/digits are *not* captured. They stay per-batch settings, so a
+   template tap behaves exactly like a built-in preset tap; capturing them would make templates
+   silently change counter behaviour and diverge from the 2026-06-10 counter-restarts-per-batch call.
+2. **The chip's label IS the pattern** (monospace, like the token pills) — no naming step, so saving
+   is one click on the ＋ chip. Alternative (user-named templates) was offered and declined: compact
+   labels weren't worth an in-popover naming flow.
+3. **The ＋ chip only exists while the current pattern is savable** (non-empty, not a built-in
+   preset, not already saved) — a visible ＋ always does something; dedup falls out of visibility.
+**Why:** Selection/recall mechanics already existed — preset chips highlight via
+`renameOptions.pattern == chip.pattern` string equality — so a stored pattern needs no "active
+template" state, no IDs, no reverse references. The whole feature is a string array + chips.
+**Consequences:** New `Models/RenameTemplates.swift` + a "Saved:" row and `ChipFlowLayout` (wrapping
+`Layout`, first in the codebase) in `RenamePopover.swift`; +13 tests (488/1/0). Session-only
+`renameOptions` semantics unchanged. If per-template counter settings are ever wanted, that's a
+schema evolution of the blob (decodeIfPresent keeps old blobs valid), not a redesign.
