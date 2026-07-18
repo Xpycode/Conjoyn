@@ -6,7 +6,9 @@ import AppKit
 // SwiftUI port of the handoff's `rename.jsx` / `rename-popover.css`. Anchored to the output bar's
 // "Rename files" switch; edits `vm.renameOptions` (session-only) and shows a live before→after
 // preview of the currently-selected recordings. Native controls re-skinned to the CSS tokens, per
-// the handoff's "prefer native controls" guidance.
+// the handoff's "prefer native controls" guidance. User-saved templates (`RenameTemplates`) persist
+// across launches and render as a "Saved:" chip row; the ＋ chip stores the current pattern,
+// right-click deletes.
 
 struct RenamePopover: View {
     @EnvironmentObject private var vm: ConversionViewModel
@@ -14,6 +16,8 @@ struct RenamePopover: View {
     let onClose: () -> Void
 
     @StateObject private var caret = CaretFieldController()
+    // Loaded when the popover is created (it is instantiated fresh on each presentation).
+    @State private var templates = RenameTemplates.load()
 
     private var usesCounter: Bool { RenamePatternEngine.usesCounter(vm.renameOptions.pattern) }
 
@@ -23,6 +27,9 @@ struct RenamePopover: View {
             Theme.line.frame(height: 1)
             VStack(spacing: 11) {
                 formRow("Preset:") { presetChips }
+                if !templates.patterns.isEmpty {
+                    formRow("Saved:") { savedChips }
+                }
                 formRow("Pattern:") { patternField }
                 formRow("Counter:", dim: !usesCounter) { counterRow }
                 formRow("Preview:") { previewWell }
@@ -82,6 +89,39 @@ struct RenamePopover: View {
                     vm.renameOptions.pattern = preset.pattern
                 }
             }
+            // While no templates exist the "Saved:" row is hidden, so the ＋ lives here.
+            if templates.patterns.isEmpty { saveChip }
+        }
+    }
+
+    // MARK: Row 1b — saved templates (hidden until the first save)
+
+    private var savedChips: some View {
+        ChipFlowLayout(hSpacing: 5, vSpacing: 5) {
+            ForEach(templates.patterns, id: \.self) { pattern in
+                chip(pattern, selected: vm.renameOptions.pattern == pattern, mono: true) {
+                    vm.renameOptions.pattern = pattern
+                }
+                .contextMenu {
+                    Button("Delete Template", role: .destructive) {
+                        templates.remove(pattern)
+                        templates.save()
+                    }
+                }
+            }
+            saveChip
+        }
+    }
+
+    /// Shown only when the current pattern is savable (non-empty, not a preset, not saved yet) —
+    /// a visible ＋ always does something.
+    @ViewBuilder private var saveChip: some View {
+        if templates.canSave(vm.renameOptions.pattern) {
+            chip("＋", selected: false) {
+                templates.add(vm.renameOptions.pattern)
+                templates.save()
+            }
+            .help("Save current pattern as a template")
         }
     }
 
@@ -211,6 +251,50 @@ struct RenamePopover: View {
     private func chipFill(selected: Bool, mono: Bool) -> Color {
         if selected { return Theme.acc2 }
         return mono ? Theme.acc2.opacity(0.20) : Theme.raised(0.10)
+    }
+}
+
+// MARK: - Wrapping chip row
+
+/// Minimal left-aligned wrapping layout for the saved-template chips. Their labels are whole
+/// patterns (arbitrarily wide) and the popover is fixed at 430 pt, so a plain `HStack` would
+/// overflow it; this wraps onto new lines instead.
+struct ChipFlowLayout: Layout {
+    var hSpacing: CGFloat = 5
+    var vSpacing: CGFloat = 5
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, widest: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + vSpacing
+                rowHeight = 0
+            }
+            x += size.width + hSpacing
+            rowHeight = max(rowHeight, size.height)
+            widest = max(widest, x - hSpacing)
+        }
+        return CGSize(width: widest, height: y + rowHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + vSpacing
+                rowHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: .unspecified)
+            x += size.width + hSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 
