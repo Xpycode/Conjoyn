@@ -94,16 +94,6 @@
   220pt cap. Branch `fix/ui-polish-rename-contrast-queue-width`. `docs/ideas.md` entries marked
   resolved. Cleared the two synthetic test jobs from the real `~/Library/Application
   Support/Conjoyn/queue.json` before quitting (Debug and Release builds share it).
-- **2026-06-25 (session 2)** — **Post-ship Q&A + website v1.0.3 badge.** No app code changed.
-  Traced the join output staging: finished media writes to the **temp/scratch volume first** (default boot
-  SSD via `TempDirectoryManager`), copied to the destination **only when temp ≠ destination volume** — to
-  keep ffmpeg's write + `+faststart` rewrite churn off slow external media (the "re-open / I/O error" fix).
-  Confirmed the disk-space **preflight checks the temp volume** independently (fails open on `nil`). **Found
-  + deferred a UX gap:** preflight errors point to a **"File → Temp Folder…" menu that doesn't exist** — the
-  `TempDirectoryManager.setCustomTempDirectory` backend is built but never wired to UI (scratch dir is always
-  the boot volume); **user chose leave as-is.** Website: `index.html` had no version string → added a static
-  `v1.0.3` hero-meta badge, deployed + verified live (App-Websites `9faf089`, pushed). **Next: GoPro + Osmo
-  Action camera families** (hardware now in hand).
 *(older entries trimmed per the lean-digest rule — full history in
 `docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 
