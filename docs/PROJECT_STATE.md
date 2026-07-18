@@ -15,12 +15,10 @@
   blind**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
-- **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.3 / build 103**
-  (shipped 2026-06-25: missing-middle index-gap fix + watch-folder hardening; notarized DMG + signed appcast
-  live, Sparkle now offers 1.0.3 to 1.0.2 installs). **Tests: 488 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-  **`main` is ahead of the shipped build by TWO user-facing changes:** the 2026-07-18 output-folder-popover
-  crash fix + saved rename templates (same day) — both ride the next planned version update
-  (bump to 1.0.4/104 when cutting).
+- **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.4 / build 104**
+  (shipped 2026-07-18: output-folder-popover crash fix + saved rename templates; notarized DMG + signed
+  appcast + 104→103 binary delta live). **Tests: 488 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  **`main` == the shipped build** — nothing user-facing is waiting on a release.
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
@@ -48,7 +46,14 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-07-18 session 2 (latest)** — **Built saved rename templates in the Rename popover.** A
+- **2026-07-18 session 3 (latest)** — **Shipped 1.0.4 / build 104 — public point release.** Carries the
+  two finished changes `main` had been sitting on: the output-folder-popover crash fix + saved rename
+  templates. Suite re-run green before cutting (488/1 skip/0 fail); both notary round-trips Accepted +
+  stapled; appcast now serves 1.0.4+1.0.3+1.0.2 **plus a first-ever 104→103 binary delta** (212 KB —
+  generate_appcast emits it when the previous DMG is still staged; must be deployed or old updaters 404
+  before falling back). Website: badge → v1.0.4, notes page live, `downloads/conjoyn.dmg` swapped.
+  **All live checks passed** (byte-exact DMG length vs. signed enclosure, dl.php 302→200, old DMGs intact).
+- **2026-07-18 session 2** — **Built saved rename templates in the Rename popover.** A
   custom naming pattern can now be stored with one click on a ＋ chip and recalled from a new
   "Saved:" chip row that appears once the first template exists (right-click deletes; chips are
   labelled with the pattern itself, so there's no naming step). Templates survive relaunch —
@@ -135,16 +140,20 @@
   (binaries gitignored).
 
 ## Infrastructure (operational reference)
-- **Version 1.0.3 / build 103** — keep monotonic for Sparkle. (1.0.3 shipped 2026-06-25; appcast keeps both
-  1.0.3 + 1.0.2 items.)
+- **Version 1.0.4 / build 104** — keep monotonic for Sparkle. (1.0.4 shipped 2026-07-18; appcast keeps
+  1.0.4 + 1.0.3 + 1.0.2 items **+ a 104→103 binary delta**. generate_appcast emits a
+  `Conjoyn<new>-<old>.delta` whenever the previous DMG is still in `04_Exports/appcast/` — **deploy it
+  with the DMG**, else updaters on the previous version 404 before falling back to the full download.)
 - **DMG** = current `main`, notarized + double-stapled, `/Applications` drop-link, ~29 MB, installs
   offline. **1.0.3 was cut on the M4 Pro** via `make-dmg.sh` (it holds the Developer ID identity, the
   `conjoyn-notary` profile, and the Sparkle key — the M1 Max is down). The `conjoyn-notary` keychain profile is
   **per-Mac** — recreate via `setup-notary-profile.sh` from `99-AUTH/` (memory
-  `notary-credentials-recreation`). Re-cut only when a new build ships. **Ship recipe (verified 1.0.3):** bump
-  `project.yml` + `xcodegen generate` → `make-dmg.sh` → `make-appcast.sh` → drop the staged
-  `04_Exports/appcast/Conjoyn-<v>.dmg` + `appcast.xml` + `Conjoyn-<v>.html` into `App-Websites`
-  `APPS/Conjoyn/01_Source/` (and overwrite `downloads/conjoyn.dmg` for the human button) → its `deploy.sh`.
+  `notary-credentials-recreation`). Re-cut only when a new build ships. **Ship recipe (verified 1.0.3 + 1.0.4):** bump
+  `project.yml` + `xcodegen generate` → re-run tests → `make-dmg.sh` → write `Conjoyn-<v>.html` notes into
+  `04_Exports/appcast/` **before** `make-appcast.sh` (that's how the releaseNotesLink gets emitted) → drop the
+  staged `04_Exports/appcast/Conjoyn-<v>.dmg` + any `*.delta` + `appcast.xml` + `Conjoyn-<v>.html` into
+  `App-Websites` `APPS/Conjoyn/01_Source/` (and overwrite `downloads/conjoyn.dmg` for the human button) →
+  its `deploy.sh`.
   **Also bump the `v1.0.x` badge in `index.html` `.hero-meta`** (added 2026-06-25 — now a manual per-release
   source of truth alongside the appcast + DMG name + `downloads/conjoyn.dmg`).
 - **Sparkle auto-update** — appcast `https://conjoyn.lucesumbrarum.com/appcast.xml`; public key
