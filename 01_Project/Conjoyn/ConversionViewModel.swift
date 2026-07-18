@@ -291,7 +291,14 @@ final class ConversionViewModel: ObservableObject {
         let previous = outputFolderURL
         outputFolderURL = url
         if QueueManager.directoriesDiffer(previous, url) && pendingJobCount > 0 {
-            showApplyFolderPrompt = true
+            // NSOpenPanel is ViewBridge-hosted (macOS 26+): presenting the popover in the same
+            // runloop turn as panel dismissal races the remote view's async XPC teardown — its
+            // stale notification observer throws and AppKit crash-on-exceptions kills the app
+            // (crash 2026-07-18). Defer past the teardown before flipping the flag.
+            Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                showApplyFolderPrompt = true
+            }
         }
     }
 
