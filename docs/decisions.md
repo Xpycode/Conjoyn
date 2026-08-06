@@ -814,3 +814,37 @@ template" state, no IDs, no reverse references. The whole feature is a string ar
 `Layout`, first in the codebase) in `RenamePopover.swift`; +13 tests (488/1/0). Session-only
 `renameOptions` semantics unchanged. If per-template counter settings are ever wanted, that's a
 schema evolution of the blob (decodeIfPresent keeps old blobs valid), not a redesign.
+
+### 2026-08-06 - Filename parser tolerates a rename prefix, but keeps the tail anchored
+
+**Context:** A user pointed Conjoyn at a folder of their own archived M4P footage and it reported
+"No video segments found" for 9 intact clips + 9 `.SRT` sidecars. The files had been renamed by an
+archiving tool — `M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.MP4` — leaving the DJI name
+verbatim but prefixed. Both parser regexes were anchored to the whole stem (`^DJI_…$`), so every
+file failed to parse and discovery produced zero clips. Renamed source footage was never considered
+when the parser was written (Wave 2): the assumption was that source files arrive straight off a
+card with untouched names, which stops holding the moment footage is archived off the card.
+**Decision:** Allow an optional prefix — `(?:.*[^A-Za-z0-9])?` — before `DJI_` in **both** schemes,
+while leaving the tail anchored to `$`. Two constraints make this safe rather than a general
+loosening:
+1. **The prefix must end in a non-alphanumeric separator**, so it can only attach *ahead of* the DJI
+   name and can never eat into a word. `MYDJI_0001` stays rejected; the index, timestamp and variant
+   suffix are still extracted from exact-width, fully-anchored fields.
+2. **The tail stays anchored**, so a *trailing* addition is still not a DJI name.
+**Why the asymmetry is the point:** a **prefix** is how third-party renamers and archive conventions
+mark files (date/camera/shoot in front, original name preserved); a **suffix** is how *this app*
+names its own output — `WatchFolderCoordinator` writes `<stem>_joined.mp4`. Accepting prefixes
+recovers real user footage; continuing to refuse suffixes is exactly what keeps a watch folder from
+re-ingesting its own joined output as fresh source. Rejected alternatives: (a) a user-configurable
+filename pattern — far more surface for a problem one regex fragment solves; (b) matching `DJI_…`
+anywhere in the stem — would also match the app's own output and any trailing junk, reintroducing
+the re-ingest loop; (c) leaving it and telling users to un-rename — the footage is legitimate and
+the parser is the thing being wrong.
+**Consequences:** +7 tests (495/1 skip/0 fail). Grouping is untouched and provably unaffected: the
+archived, renamed copy of the 2026-05-21 M4P footage produced **6 groups from 9 clips with
+0006→0009 as a 4-segment split** — identical to the June hand-verified run on the same footage under
+its original card names. `stem` still carries the whole filename, so a renamed video and its
+identically-renamed `.SRT` continue to pair, and output names derived from `{name}` simply inherit
+the longer stem. Paired with a UI fix: the empty state now names the cause when files were skipped,
+because `skippedNonDJI` only ever rendered in the recordings-list header — which is off-screen
+precisely when the scan finds nothing, so this class of bug reported as silence.

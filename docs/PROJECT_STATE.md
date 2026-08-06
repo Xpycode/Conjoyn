@@ -17,8 +17,9 @@
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.4 / build 104**
   (shipped 2026-07-18: output-folder-popover crash fix + saved rename templates; notarized DMG + signed
-  appcast + 104→103 binary delta live). **Tests: 488 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
-  **`main` == the shipped build** — nothing user-facing is waiting on a release.
+  appcast + 104→103 binary delta live). **Tests: 495 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  ⚠️ **`main` is AHEAD of the shipped build** since 2026-08-06: the renamed-footage parser fix is on
+  `main` but not in 1.0.4, so renamed folders still scan empty in the installed app until the next bump.
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
@@ -46,7 +47,16 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-07-18 session 3 (latest)** — **Shipped 1.0.4 / build 104 — public point release.** Carries the
+- **2026-08-06 (latest)** — **Fixed: a folder of renamed footage scanned as completely empty.** The
+  filename parser demanded that a name *begin* with `DJI_`, so archived clips carrying a prefix
+  (`M4P--2026-05-21--…--DJI_20260521194329_0001_D.MP4`) were all rejected — 9 clips and 9 telemetry
+  sidecars vanished with no explanation, because the "N skipped" counter only shows in the recordings
+  list, which isn't on screen when nothing was found. A prefix is now allowed (it must end in a
+  separator); a trailing addition is still refused, which is what stops the app re-reading its own
+  joined output as new source. The empty state now says *why* it's empty. Proven on the real footage:
+  the renamed copy groups identically to June's hand-verified run on the same clips under their
+  original names. +7 tests → 495. **Ships with the next version bump.**
+- **2026-07-18 session 3** — **Shipped 1.0.4 / build 104 — public point release.** Carries the
   two finished changes `main` had been sitting on: the output-folder-popover crash fix + saved rename
   templates. Suite re-run green before cutting (488/1 skip/0 fail); both notary round-trips Accepted +
   stapled; appcast now serves 1.0.4+1.0.3+1.0.2 **plus a first-ever 104→103 binary delta** (212 KB —
@@ -80,20 +90,6 @@
   (`.photo` mediaKind, DCIM descent, `VerificationService`) — no new subsystems. Post-v1; promote to
   `/spec` once a real photo-bearing card is on hand. Design camera-agnostic (GoPro/Osmo also shoot
   stills). Backlog entry added below.
-- **2026-07-04** — **Two UI-polish bugs fixed: Rename popover light-mode contrast + Queue
-  name truncation.** User-reported (live screenshots). (1) `Theme.acc1` was a fixed amber used in
-  both appearances — measured 1.63:1 contrast on light surfaces (WCAG AA needs 4.5:1) vs. 9.4:1 in
-  dark; made it adaptive (`Theme.swift:49`, light variant `0x8F5600`), verified 4.6–5.5:1 across all
-  light surfaces via a standalone reproduction of the app's `NSAppearance` color logic — dark mode
-  untouched. (2) Queue row name column (`QueuePanel.swift:267`) was hardcoded to `.frame(width: 220)`
-  while its sibling progress-bar/placeholder is the row's only unconstrained-width view and silently
-  ate the spare space; changed to `.frame(minWidth: 220, maxWidth: 420)`. Verified live: built + ran
-  the app, drove it via Accessibility UI scripting (no Screen Recording permission in this sandboxed
-  session, so no pixel screenshots — `/test-app`'s AppProbe binary also isn't present on this Mac),
-  confirmed a 49-char synthetic output name now renders at 346pt instead of truncating at the old
-  220pt cap. Branch `fix/ui-polish-rename-contrast-queue-width`. `docs/ideas.md` entries marked
-  resolved. Cleared the two synthetic test jobs from the real `~/Library/Application
-  Support/Conjoyn/queue.json` before quitting (Debug and Release builds share it).
 *(older entries trimmed per the lean-digest rule — full history in
 `docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 
