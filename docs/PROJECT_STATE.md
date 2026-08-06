@@ -23,10 +23,33 @@
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
   UI merged to `main` (`c814efc`), the **real removable-SD-card eyeball (5.14) PASSED 2026-06-24**, and the
   **3 worth-fixing engine-review items are now fixed + merged** (2026-06-24, `fix/wave5-watchfolder-hardening`
-  → `main` `2905b38`). **Wave 6 is now effectively closed; next focus = GoPro + Osmo Action
-  camera-family support** — user now has the hardware (DJI Osmo Action 1, GoPro 11, GoPro 7).
+  → `main` `2905b38`). **Wave 6 is now effectively closed; current focus = GoPro camera-family
+  support** — spec written 2026-08-07 at `specs/gopro-camera-family.md`, grounded in 71 real
+  Hero 11 clips; **all 6 open questions resolved the same day**. Scope locked: preserve the in-container
+  `gpmd` telemetry track through the join · add a camera-family layer but **keep** the DJI type
+  names (rename deferred) · GX/GH chaptered naming only. Osmo Action 1 + GoPro 7 remain
+  footage-gated (hardware in hand, nothing shot yet).
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
-- **Next:** **Wave 6 is effectively closed.** **6.3 (legacy *and* timestamped + slow-mo) + 6.4 SRT alignment
+- **Next:** **`/make-plan` for the GoPro spec** — all 6 open questions are answered (2026-08-07): gpmd
+  concatenation is **semantically** sound, not just byte-exact (GPMF payloads walk clean across the seam
+  and `STMP` is recording-relative, so nothing re-bases per chapter — parser kept at
+  `01_Project/scripts/gpmf-dump.py`); **no absolute split-size constant** for GoPro (the cap isn't fixed —
+  10.847 GiB at 25 fps vs 10.718 at 100 — and the Hero 7 splits near 4 GB), so grouping rests on chapter
+  numbering + stream params + timecode with a *relative* complete-set signal; the empty-state copy **drops
+  the file-size figure** entirely; `DJIClip` gets a **hand-written `init(from:)`/`CodingKeys`** with
+  `decodeIfPresent`; GH ships parsed-by-symmetry with one ~30 s H.264 clip as the only capture owed; and
+  the "cross-month chapters" worry was a false premise (no 2026-07 folder exists).
+  Highest remaining risk is still the `DJIClip` `Codable` hazard: any **non-Optional** new stored property
+  — *even with a default value* — throws `keyNotFound` at `QueueManager.swift:256`, and the catch at
+  `:301` discards a shipped-1.0.4 user's **entire** persisted queue. **Fixed order: 1.0.4-shaped
+  `queue.json` fixture test → custom decoder → new fields.** Also proven on real footage: the concat join
+  carries `gpmd` byte-exactly (6338 pair → 165,299 video / 77,484 audio / 1,653 gpmd packets, all exact
+  sums), and `-map 0` fails outright because the `tmcd` track has codec `none`.
+  ⚠️ **Source-footage note (2026-08-07):** `H11--2026-08-03--11-52-11--GX016338.MP4` (ch01 of recording
+  6338, 11.5 GB) is no longer in the V26 archive folder — 71 files at the 2026-08-06/07 probe, 70 now.
+  User-side clear-out (the separate `2026-07` folder was deleted the same day); no Conjoyn run touched it.
+  Spec fixture numbers keep the 71-file measurements (grouping tests are in-memory), so nothing is blocked.
+- **Wave 6 (previous focus, closed):** **6.3 (legacy *and* timestamped + slow-mo) + 6.4 SRT alignment
   are engine-validated on real footage** (2CULL legacy + 2026-06-24 M4P-1 timestamped/slow-mo pass).
   **6.5 missing-middle CLOSED** via the **index-gap guard** in `continues()` (+3 tests). **6.5 variant-guard +
   mixed-codec now closed via synthetic real-tool fixtures (2026-06-24)** — `JoinGuardIntegrationTests` drives
@@ -96,10 +119,14 @@
 ## Backlog (all optional / post-ship)
 - **Real-SD-card TCC + relaunch eyeball (5.14)** — see Now/Next; the only thing between current state
   and a fully-closed Wave 5.
-- **More camera families = NEXT FOCUS** (engine is already camera-agnostic) — **hardware now in hand:
-  DJI Osmo Action 1, GoPro 11, GoPro 7** (footage to be captured). Validate per-brand **filename
-  grouping**, **metadata read**, and **telemetry/SRT sidecar** (sidecar may trail the video join per
-  brand). On the in-app Roadmap.
+- **More camera families — GoPro is now SPECCED** (`specs/gopro-camera-family.md`, 2026-08-07); the
+  engine generalises better than expected (the size-cap and stream-param rules already fire correctly
+  on GoPro; only the time rule inverts — GoPro chapters share one `creation_time`, so continuity comes
+  from **timecode**, exact at all 15 chapter transitions measured). Still footage-gated: **Osmo Action 1
+  + GoPro 7** (hardware in hand, nothing shot) and one ~30 s H.264 clip to sanity-check GH naming. The
+  Hero 11 splits at **~10.7–10.8 GiB**, not the 4 GB the empty-state copy claims
+  (`RecordingsList.swift:501`) — but that copy will **drop the figure** rather than name a per-camera one
+  (decision 2026-08-07: no camera splits at a number worth printing). On the in-app Roadmap.
 - **SD-card photo preservation (post-v1)** — cards carry stills (JPG/DNG/panorama/AEB) alongside video;
   today they're **silently dropped** (`DJIFolderReader.read` only classifies `mp4/mov/srt/lrf`). Scope
   **locked** in `decisions.md` (2026-07-14): **preserve, don't process.** Tier 0 = detect & surface (add
@@ -152,5 +179,6 @@
 
 ## Detail (read only if needed)
 - `docs/decisions.md` — why behind every choice · `docs/sessions/_index.md` — per-session logs ·
-  `specs/dji-auto-stitcher.md` — spec + acceptance criteria · `IMPLEMENTATION_PLAN.md` (repo root) —
+  `specs/dji-auto-stitcher.md` — spec + acceptance criteria · `specs/gopro-camera-family.md` — GoPro
+  camera-family spec (2026-08-07, Draft) · `IMPLEMENTATION_PLAN.md` (repo root) —
   the 7-wave plan · **2026-06-20 log Resume block** — exact SD-card (5.14) test steps.

@@ -848,3 +848,56 @@ identically-renamed `.SRT` continue to pair, and output names derived from `{nam
 the longer stem. Paired with a UI fix: the empty state now names the cause when files were skipped,
 because `skippedNonDJI` only ever rendered in the recordings-list header — which is off-screen
 precisely when the scan finds nothing, so this class of bug reported as silence.
+
+### 2026-08-07 - GoPro camera family: no absolute split-size constant, and a hand-written `DJIClip` decoder
+**Context:** `specs/gopro-camera-family.md` (2026-08-07) shipped with 6 open questions. Two were
+answered by measurement against the real Hero 11 corpus, four needed a call. The two with lasting
+architectural weight are recorded here; the full table with all six lives in the spec.
+
+**Decision 1 — the GoPro path consults no absolute byte cap.**
+**Options Considered:**
+1. A GoPro constant (~10.7 GiB) mirroring DJI's `capSizeFloorBytes`/`capSizeFraction` — matches all
+   14 measured non-final chapters, one line of code.
+2. A per-camera-model cap table (Hero 11 ~10.7 GiB, Hero 5–7 ~4 GB, DJI 4 GB) — precise, but needs
+   model detection and goes stale with every camera generation.
+3. No absolute constant: group on chapter numbering + stream-param equality + timecode continuity;
+   make the watch-folder "expect a continuation" signal **relative** (non-final chapters of one
+   recording are near-equal in size, the final one is smaller) plus the existing quiet window.
+**Decision:** Option 3. DJI's split-cap gate is **skipped entirely** on the GoPro path, not
+re-parameterised.
+**Rationale:** The measured cap is not a fixed byte count — recording 6349 at 25 fps capped at
+10.8471 GiB while the 100 fps recordings capped at ~10.718 GiB — so any constant is a fit to one
+camera *and* one firmware *and* one frame rate. The user's own **Hero 7 is a generation that splits
+near 4 GB**, so a Hero 11 constant would be wrong for hardware already in the drawer. Chapter
+numbering carries the grouping signal that size was standing in for on DJI, and the relative rule
+degrades gracefully on any future camera. Acceptance criterion added: the relative rule must
+reproduce the absolute rule's verdict on all 6 corpus groups.
+**Consequences:** No GoPro cap constant enters the codebase; `capSizeFraction`/`capSizeFloorBytes`
+stay DJI-only. The empty-state copy loses its file-size figure entirely (no number is true across
+DJI, Hero 11 and Hero 7 at once) — camera-neutral wording, so no mixed-folder variant is needed.
+
+**Decision 2 — `DJIClip` gets a hand-written `init(from:)` + `CodingKeys` before any new field.**
+**Options Considered:**
+1. Keep the synthesized `Codable` and make every new field `Optional` — smallest diff.
+2. Hand-write `init(from:)`/`CodingKeys` with `decodeIfPresent` throughout, following the
+   `ConversionJob`/`JobStatus` precedent (`Models/ConversionJob.swift:51-85`).
+**Decision:** Option 2, in a fixed order: **checked-in 1.0.4-shaped `queue.json` fixture test first
+(green against today's model), then the custom decoder, then any new field.**
+**Rationale:** The hazard is severe and silent — `DJIClip` is fully synthesized-`Codable`, so a new
+**non-Optional** stored property *even with a default value* makes a 1.0.4-era blob throw
+`keyNotFound` at `QueueManager.swift:256`, and the catch at `:301` discards a shipped user's
+**entire** persisted queue. Option 1 disarms it for exactly one change and leaves it armed for
+whoever adds the next field. The explicit `CodingKeys` is also the key-mapping layer the deferred
+DJI→neutral rename will need, so the work is done once rather than twice.
+**Consequences:** New per-clip fields (camera family, gpmd index) may be non-Optional with defaults.
+No existing test decodes an older-shaped `DJIClip` blob today (the only forward-compat test is
+`SourceTargetModelsTests.swift:160`), so the fixture is new coverage, not a re-run.
+
+**Measured, for the record (closes spec Q1):** verbatim `gpmd` concatenation is **semantically**
+correct, not merely byte-exact. Walking the joined seam fixture's gpmd stream as raw GPMF KLV
+(parser checked in at `01_Project/scripts/gpmf-dump.py`): all 50 `DEVC` payloads parse clean with no
+desync at the seam, `GPSU` UTC is continuous across it, container packet PTS step exactly 1.000 s
+throughout — and decisively **`STMP` is recording-relative, not chapter-relative** (chapter 02's
+first payload reads 1,536.014 s, continuing chapter 01's clock instead of resetting). The feared
+failure mode — a consumer re-basing time per chapter — cannot occur because the camera never
+re-bases it.
