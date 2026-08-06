@@ -12,6 +12,10 @@ import Foundation
 ///   later) embed a capture date-time and a trailing lens/camera **variant suffix**
 ///   (e.g. `DJI_20230813102011_0008_D.MP4`).
 ///
+/// Either scheme is also recognised behind an arbitrary **prefix** ending in a separator, so
+/// footage an archiving tool has renamed (`M4P--2026-05-21--…--DJI_20260521194329_0001_D.MP4`)
+/// still parses. `stem` keeps the *whole* name, so a video and its prefixed sidecars still pair.
+///
 /// Filenames are a *corroborating* grouping signal only — index order to break ties within a
 /// confirmed group, and the variant suffix as a hard no-merge boundary — never the sole key
 /// (numbering collides across drones and resets on format). This parser only *extracts* fields;
@@ -68,12 +72,24 @@ enum DJIFilenameParser {
 
     // MARK: - Parsing
 
+    /// Tolerates a non-DJI **prefix** that an archiving/renaming tool prepended to an otherwise
+    /// intact DJI name (e.g. `M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.MP4`). Such
+    /// files are still DJI segments — the index and variant suffix are verbatim — and refusing
+    /// them made a folder of renamed footage read as empty.
+    ///
+    /// The prefix must end in a **separator** (any non-alphanumeric), so it can only ever attach
+    /// *before* the DJI name and never eat into it: `MYDJI_0001` stays rejected. The tail stays
+    /// anchored to `$`, so the index/timestamp/suffix fields are as exact as before — a *trailing*
+    /// addition (`DJI_0001_joined`) is still not a DJI name, which is what keeps the app's own
+    /// `…_joined` output from being re-ingested as source.
+    private static let optionalPrefix = #"(?:.*[^A-Za-z0-9])?"#
+
     private static let timestampedRegex = try! NSRegularExpression(
-        pattern: #"^DJI_(\d{14})_(\d{4})_([A-Za-z0-9]+)$"#,
+        pattern: "^" + optionalPrefix + #"DJI_(\d{14})_(\d{4})_([A-Za-z0-9]+)$"#,
         options: [.caseInsensitive]
     )
     private static let legacyRegex = try! NSRegularExpression(
-        pattern: #"^DJI_(\d{4})$"#,
+        pattern: "^" + optionalPrefix + #"DJI_(\d{4})$"#,
         options: [.caseInsensitive]
     )
 

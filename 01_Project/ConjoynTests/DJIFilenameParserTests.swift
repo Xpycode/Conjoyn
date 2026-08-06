@@ -100,4 +100,69 @@ final class DJIFilenameParserTests: XCTestCase {
         XCTAssertNil(DJIFilenameParser.parse("DJI_20230813102011.MP4")) // no index/suffix
         XCTAssertNil(DJIFilenameParser.parse("random.mp4"))
     }
+
+    // MARK: - Renamed footage (prefixed names)
+
+    /// Real user footage, renamed by an archiving tool: the DJI name is intact but carries a
+    /// prefix. Every field must still parse verbatim — before this was allowed, a whole folder of
+    /// renamed clips read as "no video segments found".
+    func testTimestampedBehindPrefix() {
+        let p = DJIFilenameParser.parse("M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.MP4")
+        XCTAssertEqual(p?.scheme, .timestamped)
+        XCTAssertEqual(p?.index, 1)
+        XCTAssertEqual(p?.variantSuffix, "D")
+        XCTAssertEqual(p?.mediaKind, .video)
+        XCTAssertEqual(p?.timestamp?.year, 2026)
+        XCTAssertEqual(p?.timestamp?.month, 5)
+        XCTAssertEqual(p?.timestamp?.day, 21)
+        XCTAssertEqual(p?.timestamp?.hour, 19)
+        XCTAssertEqual(p?.timestamp?.minute, 43)
+        XCTAssertEqual(p?.timestamp?.second, 29)
+        // The stem is the *whole* name — that's what sidecars pair on.
+        XCTAssertEqual(p?.stem, "M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D")
+    }
+
+    func testLegacyBehindPrefix() {
+        let p = DJIFilenameParser.parse("2026-05-21 flight_DJI_0007.MP4")
+        XCTAssertEqual(p?.scheme, .legacy)
+        XCTAssertEqual(p?.index, 7)
+        XCTAssertNil(p?.variantSuffix)
+        XCTAssertEqual(p?.stem, "2026-05-21 flight_DJI_0007")
+    }
+
+    /// A renamed video and its renamed `.SRT` carry the same prefix, so they still share a stem —
+    /// which is the only thing `DJIFolderReader` pairs sidecars on.
+    func testPrefixedSidecarPairsWithVideo() {
+        let prefix = "M4P--2026-05-21--19-43-29--"
+        let video = DJIFilenameParser.parse(prefix + "DJI_20260521194329_0001_D.MP4")
+        let srt = DJIFilenameParser.parse(prefix + "DJI_20260521194329_0001_D.SRT")
+        XCTAssertEqual(video?.mediaKind, .video)
+        XCTAssertEqual(srt?.mediaKind, .telemetry)
+        XCTAssertEqual(video?.stem, srt?.stem)
+    }
+
+    /// Two prefixed clips of different lenses must still land in different variant buckets —
+    /// the prefix must not blur the hard no-merge boundary.
+    func testPrefixedVariantsStillDistinct() {
+        let wide = DJIFilenameParser.parse("archive_DJI_20230813102011_0008_W.MP4")
+        let tele = DJIFilenameParser.parse("archive_DJI_20230813102011_0008_T.MP4")
+        XCTAssertEqual(wide?.variantSuffix, "W")
+        XCTAssertEqual(tele?.variantSuffix, "T")
+        XCTAssertNotEqual(wide?.stem, tele?.stem)
+    }
+
+    /// The prefix must end in a separator, so it can only attach *before* the DJI name — it can
+    /// never eat into a word and turn a non-DJI name into a match.
+    func testPrefixMustEndInSeparator() {
+        XCTAssertNil(DJIFilenameParser.parse("MYDJI_0001.MP4"))
+        XCTAssertNil(DJIFilenameParser.parse("XDJI_20230813102011_0008_D.MP4"))
+    }
+
+    /// The tail stays anchored: a *trailing* addition is still not a DJI name. This is what stops
+    /// the app's own `…_joined` output from being re-ingested as source footage.
+    func testTrailingAdditionsStillRejected() {
+        XCTAssertNil(DJIFilenameParser.parse("DJI_0001_joined.MP4"))
+        XCTAssertNil(DJIFilenameParser.parse("DJI_20230813102011_0008_D_joined.MP4"))
+        XCTAssertNil(DJIFilenameParser.parse("M4P--2026-05-21--DJI_0001_joined.MP4"))
+    }
 }
