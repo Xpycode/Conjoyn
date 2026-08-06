@@ -70,7 +70,16 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-06 (latest)** — **Fixed: a folder of renamed footage scanned as completely empty.** The
+- **2026-08-07 (latest)** — **Settled every open question about GoPro support, so it can be planned.**
+  The one that actually mattered: we already knew the telemetry track survives a join byte-for-byte,
+  but not whether anything could still *read* it afterwards — a camera that restarts its clock in each
+  chapter would produce a file that looks perfect and reads as nonsense. It doesn't: the timestamps run
+  from the start of the whole recording, not the chapter, so a joined file is coherent end to end. Also
+  decided: no hard-coded file-size limit for GoPro (the cameras don't agree on one — the Hero 11 splits
+  near 11 GB, the older Hero 7 near 4), the "4 GB card limit" line in the empty state loses its number
+  because no number is true for every camera, and the saved-queue file gets a proper reader before any
+  new field is added, so an update can't wipe a user's queue. Nothing built yet — next step is the plan.
+- **2026-08-06** — **Fixed: a folder of renamed footage scanned as completely empty.** The
   filename parser demanded that a name *begin* with `DJI_`, so archived clips carrying a prefix
   (`M4P--2026-05-21--…--DJI_20260521194329_0001_D.MP4`) were all rejected — 9 clips and 9 telemetry
   sidecars vanished with no explanation, because the "N skipped" counter only shows in the recordings
