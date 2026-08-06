@@ -100,6 +100,17 @@ final class DJIFolderResolveTests: XCTestCase {
         assertResolved(DJIFolderReader.resolveMediaFolders(startingAt: root), [root])
     }
 
+    /// A folder of footage an archiving tool renamed (DJI name intact behind a prefix) must be
+    /// recognised as a media folder — `containsDJIMedia` is the discovery-level consumer of the
+    /// parser's prefix tolerance, and it's what decides whether the folder is scanned at all.
+    func testPrefixedRenamedClipsAreRecognisedAsMedia() throws {
+        let media = try dir("PHOTOS M4P - 2026-05")
+        try clip("M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.MP4", in: media)
+        try clip("M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.SRT", in: media)
+
+        assertResolved(DJIFolderReader.resolveMediaFolders(startingAt: media), [media])
+    }
+
     /// The descent is bounded: a clip two levels below `DCIM/*` (i.e. depth 3 from root) is NOT
     /// found — guards against deep walks of an arbitrary dropped directory.
     func testDescentIsBoundedAndDoesNotRecurseDeeply() throws {

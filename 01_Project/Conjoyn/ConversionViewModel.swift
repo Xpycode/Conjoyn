@@ -336,7 +336,16 @@ final class ConversionViewModel: ObservableObject {
         prewarmStartDates()
 
         if groups.isEmpty {
-            statusMessage = "No video segments found in \(source.lastPathComponent)."
+            // Say *why* it's empty when we saw plausible media and rejected it on the name. The
+            // "N skipped" counter lives in the recordings-list header, which isn't on screen when
+            // there are no groups — without this the user gets silence for a folder full of movies.
+            if skippedFiles.isEmpty {
+                statusMessage = "No video segments found in \(source.lastPathComponent)."
+            } else {
+                let n = skippedFiles.count
+                statusMessage = "No DJI recordings found in \(source.lastPathComponent) — "
+                    + "\(n) file\(n == 1 ? "" : "s") didn't match a DJI filename."
+            }
         } else {
             let segs = discovery.clipCount
             let splits = selectedCount
