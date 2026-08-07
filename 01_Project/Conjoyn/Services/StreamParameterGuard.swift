@@ -71,6 +71,14 @@ enum StreamParameterGuard {
     struct SegmentStreamInfo: Hashable, Codable, Sendable {
         var video: VideoStreamParams
         var audio: AudioStreamParams?
+        /// Index of the GoPro `gpmd` telemetry data stream, when present. Optional so a shipped
+        /// DJI-era queue.json (no such key) still decodes and stays byte-identical on re-encode.
+        var dataStreamIndex: Int? = nil
+        /// `codec_tag_string` of the selected data stream (e.g. `"gpmd"`), for later waves to
+        /// confirm what was retained.
+        var dataCodecTag: String? = nil
+        /// Start timecode read from the `tmcd` stream's tags (falling back to `format.tags`).
+        var startTimecode: String? = nil
     }
 
     /// Result of comparing a set of segments.
@@ -189,15 +197,35 @@ enum StreamParameterGuard {
                 channelLayout: $0.channel_layout
             )
         }
-        return SegmentStreamInfo(video: video, audio: audio)
+
+        // GoPro's telemetry data stream, selected by codec_tag_string (never codec_name — tmcd's
+        // is null — and never position, since the index moves depending on audio presence and
+        // stream ordering). Absent on DJI footage, where this stays nil.
+        let dataStream = probe.streams.first(where: { $0.codec_tag_string == "gpmd" })
+        let tmcdStream = probe.streams.first(where: { $0.codec_tag_string == "tmcd" })
+        let startTimecode = tmcdStream?.tags?.timecode ?? probe.format?.tags?.timecode
+
+        return SegmentStreamInfo(
+            video: video,
+            audio: audio,
+            dataStreamIndex: dataStream?.index,
+            dataCodecTag: dataStream?.codec_tag_string,
+            startTimecode: startTimecode
+        )
     }
 
-    /// Codable mirror of the subset of ffprobe's `-show_streams` JSON we read.
+    /// Codable mirror of the subset of ffprobe's `-show_streams -show_format` JSON we read.
     private struct FFProbeStreams: Decodable {
         let streams: [Stream]
+        /// Optional so JSON captured with `-show_streams` only (as used by several existing
+        /// tests' literal fixtures) still decodes.
+        let format: Format?
+
         struct Stream: Decodable {
+            let index: Int?
             let codec_type: String?
             let codec_name: String?
+            let codec_tag_string: String?
             let width: Int?
             let height: Int?
             let pix_fmt: String?
@@ -207,6 +235,15 @@ enum StreamParameterGuard {
             let sample_rate: String?
             let channels: Int?
             let channel_layout: String?
+            let tags: Tags?
+        }
+
+        struct Format: Decodable {
+            let tags: Tags?
+        }
+
+        struct Tags: Decodable {
+            let timecode: String?
         }
     }
 }
@@ -223,7 +260,7 @@ extension FFmpegWrapper {
 
         let process = Process()
         process.executableURL = ffprobe
-        process.arguments = ["-v", "quiet", "-print_format", "json", "-show_streams", url.path]
+        process.arguments = ["-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", url.path]
 
         let pipe = Pipe()
         process.standardOutput = pipe
