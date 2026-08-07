@@ -129,6 +129,63 @@ struct DJIClip: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+// MARK: - Codable (hand-written decoder — queue-compatibility critical)
+
+extension DJIClip {
+    /// Explicit keys for all 13 stored properties. Nothing is decoded that isn't listed here, so a
+    /// property added *without* a key simply keeps its default instead of breaking old blobs.
+    enum CodingKeys: String, CodingKey {
+        case id
+        case videoFilePath, srtFilePath, lrfFilePath
+        case index, variantSuffix, filenameTimestamp, stem
+        case creationDate, cameraModel
+        case durationValue, durationTimescale
+        case streamInfo
+    }
+
+    /// Decodes a clip from a `queue.json` that may predate any field added since it was written.
+    ///
+    /// **Why this is hand-written.** The queue persists `[ConversionJob]` — and therefore
+    /// `[DJIClip]` — across app updates. The *synthesized* decoder calls `decode` (not
+    /// `decodeIfPresent`) for every non-Optional property, so adding one `var` with a default value
+    /// makes an older blob throw `keyNotFound`; `QueueManager.loadQueue` catches that at
+    /// `QueueManager.swift:301` and the user's entire queue silently disappears on the first launch
+    /// after updating. (A `let` with an inline default is exempt — Swift leaves it out of synthesis
+    /// altogether — but that exemption is invisible at the call site and vanishes the moment the
+    /// property becomes a `var`. Don't rely on it.)
+    ///
+    /// **Rule for every new field:** add its key above, decode it with `decodeIfPresent`, and give
+    /// it a documented default for the blobs that predate it. Only fields that existed in the
+    /// shipped 1.0.4 layout — and are meaningless without a value — use a plain `decode`.
+    /// `ConjoynTests/QueuePersistenceCompatTests` pins this against a real 1.0.4 `queue.json`.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Required: present in every blob since 1.0.0, and a clip without them is unusable.
+        id = try container.decode(UUID.self, forKey: .id)
+        videoFilePath = try container.decode(String.self, forKey: .videoFilePath)
+        index = try container.decode(Int.self, forKey: .index)
+        stem = try container.decode(String.self, forKey: .stem)
+        durationValue = try container.decode(Int64.self, forKey: .durationValue)
+        durationTimescale = try container.decode(Int32.self, forKey: .durationTimescale)
+
+        // Optional in the model — and absent from the JSON entirely when nil, since the synthesized
+        // encoder writes Optionals with `encodeIfPresent`.
+        srtFilePath = try container.decodeIfPresent(String.self, forKey: .srtFilePath)
+        lrfFilePath = try container.decodeIfPresent(String.self, forKey: .lrfFilePath)
+        variantSuffix = try container.decodeIfPresent(String.self, forKey: .variantSuffix)
+        filenameTimestamp = try container.decodeIfPresent(DateComponents.self, forKey: .filenameTimestamp)
+        creationDate = try container.decodeIfPresent(Date.self, forKey: .creationDate)
+        cameraModel = try container.decodeIfPresent(String.self, forKey: .cameraModel)
+        streamInfo = try container.decodeIfPresent(
+            StreamParameterGuard.SegmentStreamInfo.self, forKey: .streamInfo
+        )
+    }
+
+    // `encode(to:)` stays synthesized: it uses the `CodingKeys` above and writes Optionals with
+    // `encodeIfPresent`, so the on-disk shape is byte-identical to what 1.0.4 wrote.
+}
+
 // MARK: - Factory
 
 extension DJIClip {

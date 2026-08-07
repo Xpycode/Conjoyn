@@ -211,4 +211,92 @@ final class QueuePersistenceCompatTests: XCTestCase {
         XCTAssertEqual(job.appliedTimecode, "20:48:13:18")
         XCTAssertEqual(job.clips.last?.stem, "DJI_20260521210127_0018_D")
     }
+
+    // MARK: - G0.2: the hand-written decoder
+
+    /// `DJIClip.init(from:)` is hand-written; `encode(to:)` is still synthesized. This proves the
+    /// two halves agree — a decoder that quietly dropped a field would round-trip to a different
+    /// value, and the queue would degrade a little on every save/load cycle.
+    func testDecodedClipsSurviveAnEncodeDecodeRoundTrip() throws {
+        let original = try decodeFixture()
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601     // matches QueueManager.saveQueue
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let reloaded = try decoder.decode([ConversionJob].self, from: encoder.encode(original))
+
+        XCTAssertEqual(reloaded.count, original.count)
+        for (before, after) in zip(original, reloaded) {
+            XCTAssertEqual(before.clips, after.clips)   // DJIClip is Hashable/Equatable — all 13 fields
+        }
+    }
+
+    /// Re-encoding what 1.0.4 wrote must produce the same JSON keys 1.0.4 wrote — no more, no
+    /// fewer. This is the half the fixture can't check on its own: a new field that lands in
+    /// `CodingKeys` starts appearing on disk, and a *downgrade* (or a rollback DMG) then has to
+    /// tolerate it. Absent-when-nil is the shape the synthesized encoder produces, and this pins it.
+    func testReEncodingAClipProducesTheSameKeysAsShipped104() throws {
+        let clips = try XCTUnwrap(try decodeFixture().first).clips
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: encoder.encode(clips[0])) as? [String: Any]
+        )
+
+        XCTAssertEqual(Set(json.keys), [
+            "id", "videoFilePath", "srtFilePath",
+            "index", "variantSuffix", "filenameTimestamp", "stem",
+            "creationDate",
+            "durationValue", "durationTimescale",
+            "streamInfo",
+        ], "on-disk clip shape changed — a queue written here may not load on an older build")
+
+        // `lrfFilePath` and `cameraModel` were nil on this clip, so they must be absent, not null.
+        XCTAssertNil(json["lrfFilePath"])
+        XCTAssertNil(json["cameraModel"])
+    }
+
+    /// The specific regression G0.2 exists to prevent: a field the JSON doesn't carry must decode
+    /// to its default rather than throwing and taking the whole queue with it. Simulated by
+    /// stripping a key the current model *does* know about — the same shape an old blob presents
+    /// to a newer model.
+    func testAClipMissingAnOptionalKeyStillDecodes() throws {
+        let data = try Data(contentsOf: try fixtureURL("queue-1.0.4"))
+        var raw = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+
+        var jobs = raw
+        var firstJob = jobs[0]
+        var clips = try XCTUnwrap(firstJob["clips"] as? [[String: Any]])
+        for index in clips.indices {
+            clips[index].removeValue(forKey: "streamInfo")
+            clips[index].removeValue(forKey: "variantSuffix")
+            clips[index].removeValue(forKey: "filenameTimestamp")
+            clips[index].removeValue(forKey: "creationDate")
+        }
+        firstJob["clips"] = clips
+        jobs[0] = firstJob
+        raw = jobs
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(
+            [ConversionJob].self,
+            from: try JSONSerialization.data(withJSONObject: raw)
+        )
+
+        XCTAssertEqual(decoded.count, 4)
+        let stripped = decoded[0].clips
+        XCTAssertEqual(stripped.count, 4)
+        XCTAssertEqual(stripped.map(\.index), [6, 7, 8, 9])   // required fields still decoded
+        XCTAssertTrue(stripped.allSatisfy { $0.streamInfo == nil })
+        XCTAssertTrue(stripped.allSatisfy { $0.variantSuffix == nil })
+        XCTAssertTrue(stripped.allSatisfy { $0.filenameTimestamp == nil })
+        XCTAssertTrue(stripped.allSatisfy { $0.creationDate == nil })
+
+        // A clip with no probed frame rate yields no estimate — degraded, never a decode failure.
+        XCTAssertNil(decoded[0].estimatedFrameCount)
+    }
 }
