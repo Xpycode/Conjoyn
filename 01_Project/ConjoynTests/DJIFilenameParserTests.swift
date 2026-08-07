@@ -165,4 +165,159 @@ final class DJIFilenameParserTests: XCTestCase {
         XCTAssertNil(DJIFilenameParser.parse("DJI_20230813102011_0008_D_joined.MP4"))
         XCTAssertNil(DJIFilenameParser.parse("M4P--2026-05-21--DJI_0001_joined.MP4"))
     }
+
+    // MARK: - Camera family (DJI side)
+
+    /// DJI names must carry the new `family`/`recordingNumber` fields with their DJI-side values —
+    /// added as a standalone assertion rather than folded into the 16 existing DJI cases above, so
+    /// those cases stay provably unmodified.
+    func testDJIParsedCarriesFamilyAndNoRecordingNumber() {
+        let legacy = DJIFilenameParser.parse("DJI_0001.MP4")
+        XCTAssertEqual(legacy?.family, .dji)
+        XCTAssertNil(legacy?.recordingNumber)
+
+        let timestamped = DJIFilenameParser.parse("DJI_20230813102011_0008_D.MP4")
+        XCTAssertEqual(timestamped?.family, .dji)
+        XCTAssertNil(timestamped?.recordingNumber)
+
+        let prefixed = DJIFilenameParser.parse("M4P--2026-05-21--19-43-29--DJI_20260521194329_0001_D.MP4")
+        XCTAssertEqual(prefixed?.family, .dji)
+        XCTAssertNil(prefixed?.recordingNumber)
+    }
+
+    // MARK: - GoPro chaptered scheme
+
+    func testGoProChapteredVideo() {
+        let p = DJIFilenameParser.parse("GX016338.MP4")
+        XCTAssertEqual(p?.scheme, .goProChaptered)
+        XCTAssertEqual(p?.family, .goPro)
+        XCTAssertEqual(p?.index, 1)                 // chapter rides in `index`
+        XCTAssertEqual(p?.recordingNumber, 6338)
+        XCTAssertNil(p?.timestamp)
+        XCTAssertNil(p?.variantSuffix)
+        XCTAssertEqual(p?.mediaKind, .video)
+        XCTAssertEqual(p?.stem, "GX016338")
+        XCTAssertEqual(p?.original, "GX016338.MP4")
+    }
+
+    /// Real user footage, renamed by an archiving tool — the same optional rename-prefix rule
+    /// that applies to DJI names applies to GoPro ones too.
+    func testGoProChapteredBehindPrefix() {
+        let p = DJIFilenameParser.parse("H11--2026-08-03--11-52-11--GX026338.MP4")
+        XCTAssertEqual(p?.family, .goPro)
+        XCTAssertEqual(p?.index, 2)
+        XCTAssertEqual(p?.recordingNumber, 6338)
+        XCTAssertEqual(p?.stem, "H11--2026-08-03--11-52-11--GX026338")
+    }
+
+    /// The tail stays anchored, exactly like the DJI regexes: the app must never re-ingest its
+    /// own `…_joined` output as a fresh GoPro source segment.
+    func testGoProTrailingAdditionRejected() {
+        XCTAssertNil(DJIFilenameParser.parse("GX016338_joined.mp4"))
+    }
+
+    /// `GH` (chaptered AVC naming) is accepted with the same structure as `GX`.
+    func testGoProGHAcceptedWithSameStructure() {
+        let p = DJIFilenameParser.parse("GH010123.MP4")
+        XCTAssertEqual(p?.family, .goPro)
+        XCTAssertEqual(p?.index, 1)
+        XCTAssertEqual(p?.recordingNumber, 123)
+    }
+
+    /// GoPro's older, non-chaptered naming schemes are out of scope for this pass and must not
+    /// be misparsed as the chaptered form.
+    func testGoProLegacyNamesRejected() {
+        XCTAssertNil(DJIFilenameParser.parse("GOPR0123.MP4"))
+        XCTAssertNil(DJIFilenameParser.parse("GP010123.MP4"))
+    }
+
+    /// The measured 71-file 2026-08 corpus: every filename, its expected chapter, and its
+    /// expected file number. Transcribed from the authoritative corpus listing (in-memory only —
+    /// no dependency on the source folder or volume at test run time).
+    private static let corpus: [(filename: String, chapter: Int, fileNumber: Int)] = [
+        ("H11--2026-08-01--14-30-29--GX014604.MP4", 1, 4604),
+        ("H11--2026-08-01--14-31-08--GX014605.MP4", 1, 4605),
+        ("H11--2026-08-01--14-31-42--GX014606.MP4", 1, 4606),
+        ("H11--2026-08-01--14-32-18--GX014607.MP4", 1, 4607),
+        ("H11--2026-08-01--14-33-12--GX014608.MP4", 1, 4608),
+        ("H11--2026-08-01--14-34-59--GX014609.MP4", 1, 4609),
+        ("H11--2026-08-01--14-35-41--GX014610.MP4", 1, 4610),
+        ("H11--2026-08-01--14-36-13--GX014611.MP4", 1, 4611),
+        ("H11--2026-08-01--14-38-33--GX014612.MP4", 1, 4612),
+        ("H11--2026-08-01--14-39-07--GX014613.MP4", 1, 4613),
+        ("H11--2026-08-01--14-41-10--GX014616.MP4", 1, 4616),
+        ("H11--2026-08-01--14-45-07--GX014617.MP4", 1, 4617),
+        ("H11--2026-08-02--11-16-02--GX014618.MP4", 1, 4618),
+        ("H11--2026-08-02--11-23-10--GX014619.MP4", 1, 4619),
+        ("H11--2026-08-02--11-29-05--GX014620.MP4", 1, 4620),
+        ("H11--2026-08-02--11-32-04--GX014621.MP4", 1, 4621),
+        ("H11--2026-08-02--11-33-00--GX014622.MP4", 1, 4622),
+        ("H11--2026-08-02--11-44-07--GX014623.MP4", 1, 4623),
+        ("H11--2026-08-02--11-44-23--GX014624.MP4", 1, 4624),
+        ("H11--2026-08-02--11-52-55--GX014625.MP4", 1, 4625),
+        ("H11--2026-08-02--11-56-37--GX014626.MP4", 1, 4626),
+        ("H11--2026-08-02--13-30-16--GX014627.MP4", 1, 4627),
+        ("H11--2026-08-02--13-31-39--GX014628.MP4", 1, 4628),
+        ("H11--2026-08-02--13-32-47--GX014629.MP4", 1, 4629),
+        ("H11--2026-08-02--13-33-57--GX014630.MP4", 1, 4630),
+        ("H11--2026-08-02--13-35-03--GX014631.MP4", 1, 4631),
+        ("H11--2026-08-02--13-36-10--GX014632.MP4", 1, 4632),
+        ("H11--2026-08-02--13-37-58--GX014633.MP4", 1, 4633),
+        ("H11--2026-08-02--13-42-34--GX014634.MP4", 1, 4634),
+        ("H11--2026-08-02--13-45-28--GX014635.MP4", 1, 4635),
+        ("H11--2026-08-02--13-46-04--GX014636.MP4", 1, 4636),
+        ("H11--2026-08-02--13-46-57--GX014637.MP4", 1, 4637),
+        ("H11--2026-08-03--11-04-27--GX016317.MP4", 1, 6317),
+        ("H11--2026-08-03--11-06-24--GX016318.MP4", 1, 6318),
+        ("H11--2026-08-03--11-07-39--GX016319.MP4", 1, 6319),
+        ("H11--2026-08-03--11-12-13--GX016320.MP4", 1, 6320),
+        ("H11--2026-08-03--11-15-31--GX016321.MP4", 1, 6321),
+        ("H11--2026-08-03--11-17-09--GX016330.MP4", 1, 6330),
+        ("H11--2026-08-03--11-23-32--GX016332.MP4", 1, 6332),
+        ("H11--2026-08-03--11-27-14--GX016333.MP4", 1, 6333),
+        ("H11--2026-08-03--11-30-15--GX016334.MP4", 1, 6334),
+        ("H11--2026-08-03--11-30-19--GX016335.MP4", 1, 6335),
+        ("H11--2026-08-03--11-30-25--GX016336.MP4", 1, 6336),
+        ("H11--2026-08-03--11-33-55--GX016337.MP4", 1, 6337),
+        ("H11--2026-08-03--11-52-11--GX016338.MP4", 1, 6338),
+        ("H11--2026-08-03--11-52-11--GX026338.MP4", 2, 6338),
+        ("H11--2026-08-03--14-03-27--GX016339.MP4", 1, 6339),
+        ("H11--2026-08-03--14-04-23--GX016340.MP4", 1, 6340),
+        ("H11--2026-08-03--14-06-59--GX016341.MP4", 1, 6341),
+        ("H11--2026-08-03--14-10-36--GX016342.MP4", 1, 6342),
+        ("H11--2026-08-03--14-14-22--GX016343.MP4", 1, 6343),
+        ("H11--2026-08-03--14-14-36--GX016344.MP4", 1, 6344),
+        ("H11--2026-08-04--14-40-19--GX016345.MP4", 1, 6345),
+        ("H11--2026-08-04--14-40-19--GX026345.MP4", 2, 6345),
+        ("H11--2026-08-04--14-40-19--GX036345.MP4", 3, 6345),
+        ("H11--2026-08-04--14-40-19--GX046345.MP4", 4, 6345),
+        ("H11--2026-08-04--15-49-22--GX016346.MP4", 1, 6346),
+        ("H11--2026-08-04--15-49-22--GX026346.MP4", 2, 6346),
+        ("H11--2026-08-04--15-49-22--GX036346.MP4", 3, 6346),
+        ("H11--2026-08-04--15-49-22--GX046346.MP4", 4, 6346),
+        ("H11--2026-08-04--16-40-00--GX016347.MP4", 1, 6347),
+        ("H11--2026-08-04--16-40-00--GX026347.MP4", 2, 6347),
+        ("H11--2026-08-04--16-40-00--GX036347.MP4", 3, 6347),
+        ("H11--2026-08-04--16-40-00--GX046347.MP4", 4, 6347),
+        ("H11--2026-08-04--16-40-00--GX056347.MP4", 5, 6347),
+        ("H11--2026-08-04--17-34-02--GX016348.MP4", 1, 6348),
+        ("H11--2026-08-04--17-34-02--GX026348.MP4", 2, 6348),
+        ("H11--2026-08-04--17-34-02--GX036348.MP4", 3, 6348),
+        ("H11--2026-08-04--18-14-42--GX016349.MP4", 1, 6349),
+        ("H11--2026-08-04--18-14-42--GX026349.MP4", 2, 6349),
+        ("H11--2026-08-04--19-00-19--GX016350.MP4", 1, 6350),
+    ]
+
+    /// All 71 corpus filenames parse with the correct (chapter, recordingNumber) pair and zero
+    /// misclassification.
+    func testGoProCorpusAllParseCorrectly() {
+        XCTAssertEqual(Self.corpus.count, 71)
+        for entry in Self.corpus {
+            let p = DJIFilenameParser.parse(entry.filename)
+            XCTAssertEqual(p?.family, .goPro, "for \(entry.filename)")
+            XCTAssertEqual(p?.scheme, .goProChaptered, "for \(entry.filename)")
+            XCTAssertEqual(p?.index, entry.chapter, "chapter mismatch for \(entry.filename)")
+            XCTAssertEqual(p?.recordingNumber, entry.fileNumber, "file number mismatch for \(entry.filename)")
+        }
+    }
 }

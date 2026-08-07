@@ -7,10 +7,17 @@ backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tra
 
 *(G0.1–G0.3 completed 2026-08-07 → `tasks-archive.md`.)*
 
-- [ ] **G1.1** `CameraFamily` + tail-anchored GoPro `GX`/`GH` regex in `DJIFilenameParser`
-- [ ] **G1.2** Parser acceptance tests (incl. all 71 corpus filenames)
-- [ ] **G1.3** Thread family + `recordingNumber` through `DJIClip` and folder discovery
+- [x] **G1.1** `CameraFamily` + tail-anchored GoPro `GX`/`GH` regex in `DJIFilenameParser`
+- [x] **G1.2** Parser acceptance tests (incl. all 71 corpus filenames)
+- [x] **G1.3** Thread family + `recordingNumber` through `DJIClip` and folder discovery
 - [ ] **G2.1** Retain gpmd stream index, codec tag and start timecode from ffprobe
+
+> **Wave G1 is CLOSED (2026-08-07)** — parser, tests and model threading merged. Suite **525 / 0
+> fail**. `DJIClip.encode(to:)` is now **hand-written** (a non-Optional `family` would otherwise
+> have written `"family":"dji"` into every DJI clip and changed the shape 1.0.4 wrote), so the
+> G0 standing rule now has an **encoder half**: a new field must be added to `CodingKeys`, decoded
+> with `decodeIfPresent` **and written in `encode(to:)`**. `CodingKeys` is `CaseIterable` and
+> `testEncoderWritesEveryCodingKeyForAFullyPopulatedClip` pins that — verified by reproduction.
 
 > ~~**G0 blocks everything.**~~ **Wave G0 is CLOSED (2026-08-07)** — the net is in place and the
 > hazard was reproduced against it before the fix (a probe `var` on `DJIClip` failed all 10 G0.1

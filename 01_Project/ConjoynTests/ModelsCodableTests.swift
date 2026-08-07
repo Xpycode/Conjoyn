@@ -110,6 +110,75 @@ final class ModelsCodableTests: XCTestCase {
         XCTAssertEqual(clip.stem, "DJI_20230813102011_0008_D")
         XCTAssertEqual(clip.filenameTimestamp?.year, 2023)
         XCTAssertEqual(clip.filenameTimestamp?.second, 11)
+        XCTAssertEqual(clip.family, .dji)
+        XCTAssertNil(clip.recordingNumber)
+    }
+
+    // MARK: - DJIClip: family / recordingNumber (G1.3)
+
+    /// `DJIClip.from(parsed:)` carries `family`/`recordingNumber` through for a GoPro name too.
+    func testDJIClipFactoryFromParsedGoProFilenameCarriesFamilyAndRecordingNumber() throws {
+        let parsed = try XCTUnwrap(DJIFilenameParser.parse("GX016338.MP4"))
+        let clip = DJIClip.from(
+            parsed: parsed,
+            videoURL: URL(fileURLWithPath: "/x/GX016338.MP4"),
+            duration: CMTime(value: 60, timescale: 1)
+        )
+        XCTAssertEqual(clip.family, .goPro)
+        XCTAssertEqual(clip.index, 1)              // chapter number
+        XCTAssertEqual(clip.recordingNumber, 6338)  // GoPro file number
+    }
+
+    /// A GoPro clip's `family`/`recordingNumber` survive a JSON round-trip.
+    func testDJIClipFamilyAndRecordingNumberRoundTrip() throws {
+        let clip = DJIClip(
+            videoURL: URL(fileURLWithPath: "/x/GX016338.MP4"),
+            index: 1,
+            stem: "GX016338",
+            family: .goPro,
+            recordingNumber: 6338,
+            duration: CMTime(value: 60, timescale: 1)
+        )
+        let decoded = try roundTrip(clip, as: DJIClip.self)
+        XCTAssertEqual(decoded.family, .goPro)
+        XCTAssertEqual(decoded.recordingNumber, 6338)
+        XCTAssertEqual(decoded, clip)
+    }
+
+    /// The 1.0.4-restore path: a persisted clip predating this field carries no `"family"` key at
+    /// all — it must decode as `.dji`, not throw and take the user's whole queue with it.
+    func testDJIClipMissingFamilyKeyDecodesAsDJI() throws {
+        let json = Data("""
+        {
+          "id": "\(UUID().uuidString)",
+          "videoFilePath": "/x/DJI_0001.MP4",
+          "index": 1,
+          "stem": "DJI_0001",
+          "durationValue": 60,
+          "durationTimescale": 1
+        }
+        """.utf8)
+        let clip = try JSONDecoder().decode(DJIClip.self, from: json)
+        XCTAssertEqual(clip.family, .dji)
+        XCTAssertNil(clip.recordingNumber)
+    }
+
+    /// A `family` value this build doesn't recognise (e.g. a future Osmo family) must decode to
+    /// the `.dji` fallback rather than throwing — mirrors G0.3's tolerant enum decode.
+    func testDJIClipUnrecognisedFamilyRawValueDecodesToFallback() throws {
+        let json = Data("""
+        {
+          "id": "\(UUID().uuidString)",
+          "videoFilePath": "/x/OSMO_0001.MP4",
+          "index": 1,
+          "stem": "OSMO_0001",
+          "family": "osmo",
+          "durationValue": 60,
+          "durationTimescale": 1
+        }
+        """.utf8)
+        let clip = try JSONDecoder().decode(DJIClip.self, from: json)
+        XCTAssertEqual(clip.family, .dji)
     }
 
     // MARK: - ConversionSettings

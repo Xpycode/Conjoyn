@@ -386,4 +386,60 @@ final class QueuePersistenceCompatTests: XCTestCase {
         XCTAssertEqual(decoded[0].sourceTargetResult?.checks.last?.kind, .unknown)
         XCTAssertEqual(decoded[0].sourceTargetResult?.tier, .fast)
     }
+
+    // MARK: - The encoder half (G1.3)
+
+    /// The mirror of the `keyNotFound` hazard above, introduced when `DJIClip.encode(to:)` stopped
+    /// being synthesized in G1.3. A field added to `CodingKeys` and decoded in `init(from:)` but
+    /// forgotten in the hand-written encoder is **never written to disk**: it round-trips as its
+    /// default forever, the queue reloads subtly wrong, and nothing goes red — the failure is
+    /// silent in the opposite direction from a decode throw.
+    ///
+    /// Walking `CodingKeys.allCases` is what makes that loud: populate every field with a
+    /// non-default, non-nil value, encode, and require the JSON to carry all of them.
+    ///
+    /// **If this goes red, the encoder is missing a field — add it there, don't edit this list.**
+    func testEncoderWritesEveryCodingKeyForAFullyPopulatedClip() throws {
+        var timestamp = DateComponents()
+        timestamp.year = 2026; timestamp.month = 8; timestamp.day = 3
+        timestamp.hour = 11; timestamp.minute = 52; timestamp.second = 11
+
+        // Deliberately a GoPro clip: `family` is the one key the encoder omits at its `.dji`
+        // default, so only a non-default family exercises that branch.
+        let clip = DJIClip(
+            videoURL: URL(fileURLWithPath: "/Volumes/CARD/DCIM/100GOPRO/GX016338.MP4"),
+            srtURL: URL(fileURLWithPath: "/Volumes/CARD/DCIM/100GOPRO/GX016338.SRT"),
+            lrfURL: URL(fileURLWithPath: "/Volumes/CARD/DCIM/100GOPRO/GX016338.LRF"),
+            index: 1,
+            variantSuffix: "D",
+            filenameTimestamp: timestamp,
+            stem: "GX016338",
+            family: .goPro,
+            recordingNumber: 6338,
+            creationDate: Date(timeIntervalSince1970: 1_785_500_000),
+            cameraModel: "HERO11 Black",
+            duration: CMTime(value: 1_536_014, timescale: 1000),
+            streamInfo: try XCTUnwrap(decodeFixture().first?.clips.first?.streamInfo)
+        )
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: encoder.encode(clip)) as? [String: Any]
+        )
+
+        XCTAssertEqual(
+            Set(json.keys),
+            Set(DJIClip.CodingKeys.allCases.map(\.rawValue)),
+            "DJIClip.encode(to:) is hand-written — a CodingKey missing from it never reaches disk"
+        )
+
+        // And the round trip actually preserves the two new fields, not just their keys.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let reloaded = try decoder.decode(DJIClip.self, from: encoder.encode(clip))
+        XCTAssertEqual(reloaded.family, .goPro)
+        XCTAssertEqual(reloaded.recordingNumber, 6338)
+        XCTAssertEqual(reloaded, clip)
+    }
 }

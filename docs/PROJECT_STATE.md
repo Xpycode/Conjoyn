@@ -17,7 +17,7 @@
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.4 / build 104**
   (shipped 2026-07-18: output-folder-popover crash fix + saved rename templates; notarized DMG + signed
-  appcast + 104→103 binary delta live). **Tests: 512 app / 0 fail · 10 FeedbackKit pkg.**
+  appcast + 104→103 binary delta live). **Tests: 525 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is AHEAD of the shipped build** since 2026-08-06: the renamed-footage parser fix is on
   `main` but not in 1.0.4, so renamed folders still scan empty in the installed app until the next bump.
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
@@ -38,8 +38,24 @@
   Rationale in `decisions.md` (2026-08-07, "Queue persistence"). Standing rule for every later wave:
   a new `DJIClip` field goes in `CodingKeys` **and** uses `decodeIfPresent`; a red
   `QueuePersistenceCompatTests` is stop-the-line, never a test to update.
-- **Next:** **`/execute` Wave G1** (`G1.1`/`G1.2` — `CameraFamily` + tail-anchored GoPro `GX`/`GH`
-  regex, then parser tests over all 71 corpus filenames), continuing the thin vertical slice
+- **Wave G1 — DONE (2026-08-07, `faae069` + `83e878f`).** Conjoyn now *parses* GoPro: a
+  `CameraFamily` layer around the DJI parser, a third tail-anchored `G[XH]CCNNNN` regex behind the
+  same optional prefix (so the archive's `H11--…--GX016338.MP4` rename parses), and `family` +
+  `recordingNumber` threaded onto `DJIClip` and through folder discovery. All 71 real Hero 11
+  corpus filenames are asserted to parse with the correct (chapter, recordingNumber). The folder
+  scan needed **no code change** — `containsDJIMedia` only asks the parser about filenames, so
+  `DCIM/100GOPRO` resolved for free. **Tests: 525 app / 0 fail** (512 → +13).
+  **New standing rule — the encoder half of G0's.** `DJIClip.encode(to:)` had to become
+  hand-written (a non-Optional `family` under a synthesized encoder would have written
+  `"family":"dji"` into every DJI clip and changed the shape 1.0.4 wrote). That trades G0's
+  `keyNotFound` hazard for its mirror: a field added to `CodingKeys` **and** `init(from:)` but
+  forgotten in the encoder is silently never persisted and reloads as its default, with nothing
+  red. Closed by `CodingKeys: CaseIterable` + a test pinning the encoded key set against
+  `allCases`, **verified by reproduction** (an injected probe key failed it with exactly that
+  diagnosis, then was reverted). Every new `DJIClip` field now needs all three: key, decode,
+  **encode**.
+- **Next:** **`/execute` Wave G2** (`G2.1` — retain the gpmd stream index, codec tag and start
+  timecode from ffprobe), continuing the thin vertical slice
   **G1.1/G1.2 → G2.1 → G4.1/G4.3**: prove a real GoPro seam joins with telemetry intact before
   building grouping/gate/copy on top — that retires the two highest technical risks (does
   `-map 0:<i>` actually work against the concat demuxer, and is the index resolved from the right

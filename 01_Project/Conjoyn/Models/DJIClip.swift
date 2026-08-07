@@ -34,6 +34,14 @@ struct DJIClip: Identifiable, Hashable, Codable, Sendable {
     let filenameTimestamp: DateComponents?
     /// Filename minus extension (e.g. `DJI_0001`). A video and its sidecars share this.
     let stem: String
+    /// Camera family that produced this clip, from `DJIFilenameParser.Parsed.family`. Defaults to
+    /// `.dji` when absent from the JSON — every clip persisted before this field existed was DJI,
+    /// so a 1.0.4 blob (which has no such key) restores as DJI, which is the whole point.
+    let family: DJIFilenameParser.CameraFamily
+    /// GoPro's four-digit file number (the recording identity), from `parsed.recordingNumber`;
+    /// `nil` for DJI clips. Two chapters of the same recording share this — a later wave uses it
+    /// to bucket chapters before grouping ever asks about temporal adjacency.
+    let recordingNumber: Int?
 
     // MARK: Metadata-read fields (authoritative grouping signals)
 
@@ -108,6 +116,8 @@ struct DJIClip: Identifiable, Hashable, Codable, Sendable {
         variantSuffix: String? = nil,
         filenameTimestamp: DateComponents? = nil,
         stem: String,
+        family: DJIFilenameParser.CameraFamily = .dji,
+        recordingNumber: Int? = nil,
         creationDate: Date? = nil,
         cameraModel: String? = nil,
         duration: CMTime,
@@ -121,6 +131,8 @@ struct DJIClip: Identifiable, Hashable, Codable, Sendable {
         self.variantSuffix = variantSuffix
         self.filenameTimestamp = filenameTimestamp
         self.stem = stem
+        self.family = family
+        self.recordingNumber = recordingNumber
         self.creationDate = creationDate
         self.cameraModel = cameraModel
         self.durationValue = duration.value
@@ -132,12 +144,18 @@ struct DJIClip: Identifiable, Hashable, Codable, Sendable {
 // MARK: - Codable (hand-written decoder — queue-compatibility critical)
 
 extension DJIClip {
-    /// Explicit keys for all 13 stored properties. Nothing is decoded that isn't listed here, so a
+    /// Explicit keys for all 15 stored properties. Nothing is decoded that isn't listed here, so a
     /// property added *without* a key simply keeps its default instead of breaking old blobs.
-    enum CodingKeys: String, CodingKey {
+    ///
+    /// `CaseIterable` is load-bearing, not decoration: `QueuePersistenceCompatTests`
+    /// enumerates these to prove `encode(to:)` below actually writes every one of them. Since
+    /// that encoder is hand-written, a key added here but forgotten there would otherwise never
+    /// reach disk — silently, with no test red.
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case id
         case videoFilePath, srtFilePath, lrfFilePath
         case index, variantSuffix, filenameTimestamp, stem
+        case family, recordingNumber
         case creationDate, cameraModel
         case durationValue, durationTimescale
         case streamInfo
@@ -180,18 +198,59 @@ extension DJIClip {
         streamInfo = try container.decodeIfPresent(
             StreamParameterGuard.SegmentStreamInfo.self, forKey: .streamInfo
         )
+
+        // `family` predates GoPro support only in the sense that no blob before this field existed
+        // ever carried anything else — absent key ⇒ `.dji`. (An unrecognised-but-present raw value
+        // is handled by `CameraFamily.init(from:)` itself, which the `decodeIfPresent` below defers
+        // to — see that type for the tolerant-decode rationale.)
+        family = try container.decodeIfPresent(
+            DJIFilenameParser.CameraFamily.self, forKey: .family
+        ) ?? .dji
+        recordingNumber = try container.decodeIfPresent(Int.self, forKey: .recordingNumber)
     }
 
-    // `encode(to:)` stays synthesized: it uses the `CodingKeys` above and writes Optionals with
-    // `encodeIfPresent`, so the on-disk shape is byte-identical to what 1.0.4 wrote.
+    /// Hand-written for the same reason `init(from:)` is: `family` is non-Optional (every clip has
+    /// one), but a *fully* synthesized encoder would write `"family": "dji"` into every DJI clip's
+    /// JSON — the overwhelming majority of clips on disk today — changing the shape 1.0.4 wrote and
+    /// breaking `QueuePersistenceCompatTests`' pinned key set. Omitting the default `.dji` keeps a
+    /// DJI clip's on-disk shape byte-identical to 1.0.4; a GoPro clip's non-default family is written
+    /// explicitly, and `init(from:)` above maps an absent key back to `.dji` either way. Every other
+    /// field keeps the same shape the synthesized encoder produced (`encodeIfPresent` for Optionals).
+    ///
+    /// **Rule for every new field, encoder half:** write it here too. Hand-writing this trades the
+    /// decoder's `keyNotFound` hazard for its mirror image — a field added to `CodingKeys` and to
+    /// `init(from:)` but forgotten *here* is simply never persisted, and reloads as its default
+    /// every launch with nothing going red. `QueuePersistenceCompatTests` pins that by walking
+    /// `CodingKeys.allCases`.
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(videoFilePath, forKey: .videoFilePath)
+        try container.encodeIfPresent(srtFilePath, forKey: .srtFilePath)
+        try container.encodeIfPresent(lrfFilePath, forKey: .lrfFilePath)
+        try container.encode(index, forKey: .index)
+        try container.encodeIfPresent(variantSuffix, forKey: .variantSuffix)
+        try container.encodeIfPresent(filenameTimestamp, forKey: .filenameTimestamp)
+        try container.encode(stem, forKey: .stem)
+        if family != .dji {
+            try container.encode(family, forKey: .family)
+        }
+        try container.encodeIfPresent(recordingNumber, forKey: .recordingNumber)
+        try container.encodeIfPresent(creationDate, forKey: .creationDate)
+        try container.encodeIfPresent(cameraModel, forKey: .cameraModel)
+        try container.encode(durationValue, forKey: .durationValue)
+        try container.encode(durationTimescale, forKey: .durationTimescale)
+        try container.encodeIfPresent(streamInfo, forKey: .streamInfo)
+    }
 }
 
 // MARK: - Factory
 
 extension DJIClip {
     /// Builds a clip from a parsed filename plus probed/optional metadata, pairing the given
-    /// sidecars. `parsed` supplies the index/variant/timestamp/stem; `duration`, `creationDate`,
-    /// `cameraModel`, and `streamInfo` come from the metadata reader / param probe (tasks 2.2/2.6).
+    /// sidecars. `parsed` supplies the index/variant/timestamp/stem/family/recordingNumber;
+    /// `duration`, `creationDate`, `cameraModel`, and `streamInfo` come from the metadata reader /
+    /// param probe (tasks 2.2/2.6).
     static func from(
         parsed: DJIFilenameParser.Parsed,
         videoURL: URL,
@@ -210,6 +269,8 @@ extension DJIClip {
             variantSuffix: parsed.variantSuffix,
             filenameTimestamp: parsed.timestamp,
             stem: parsed.stem,
+            family: parsed.family,
+            recordingNumber: parsed.recordingNumber,
             creationDate: creationDate,
             cameraModel: cameraModel,
             duration: duration,
