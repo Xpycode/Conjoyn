@@ -17,7 +17,7 @@
 ## Now
 - **Phase:** implementation — **100% feature-complete + SHIPPED PUBLIC**, version **1.0.4 / build 104**
   (shipped 2026-07-18: output-folder-popover crash fix + saved rename templates; notarized DMG + signed
-  appcast + 104→103 binary delta live). **Tests: 495 app / 1 skip / 0 fail · 10 FeedbackKit pkg.**
+  appcast + 104→103 binary delta live). **Tests: 512 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is AHEAD of the shipped build** since 2026-08-06: the renamed-footage parser fix is on
   `main` but not in 1.0.4, so renamed folders still scan empty in the installed app until the next bump.
 - **Focus:** **Wave 5 (watch-folder ingest) is fully closed AND daemon-hardened** — engine + multi-folder
@@ -30,15 +30,20 @@
   names (rename deferred) · GX/GH chaptered naming only. Osmo Action 1 + GoPro 7 remain
   footage-gated (hardware in hand, nothing shot yet).
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
-- **Next:** **`/execute` Wave G0** of the new plan — `IMPLEMENTATION_PLAN-gopro.md` (written 2026-08-07
-  from the resolved spec; 20 tasks / 9 waves; sprint checkboxes in `docs/TASKS.md`). Recommended thin
-  vertical slice: **G0 → G1.1/G1.2 → G2.1 → G4.1/G4.3**, i.e. prove a real GoPro seam joins with telemetry
-  intact before building grouping/gate/copy on top — that retires the two highest technical risks (does
-  `-map 0:<i>` actually work against the concat demuxer, and is the index resolved from the right file).
-  **G0 blocks every other wave:** the `DJIClip` `Codable` hazard is armed today — any **non-Optional** new
-  stored property, *even with a default value*, throws `keyNotFound` at `QueueManager.swift:256`, and the
-  catch at `:301` discards a shipped-1.0.4 user's **entire** persisted queue. Fixed order: 1.0.4-shaped
-  `queue.json` fixture test → custom decoder → new fields. Five further design calls were locked while
+- **Wave G0 — DONE (2026-08-07, merged `38752f8`).** The queue-persistence safety net is in: a real
+  shipped-1.0.4 `queue.json` checked in as a fixture, a hand-written `DJIClip` decoder (explicit
+  `CodingKeys` + `decodeIfPresent`), and tolerant decode for the three persisted verification enums.
+  The hazard was **reproduced against the net before fixing** — a probe `var` on `DJIClip` failed all
+  10 fixture tests with `keyNotFound` at `[0].clips[0]`. **Tests: 512 app / 0 fail** (495 → +17).
+  Rationale in `decisions.md` (2026-08-07, "Queue persistence"). Standing rule for every later wave:
+  a new `DJIClip` field goes in `CodingKeys` **and** uses `decodeIfPresent`; a red
+  `QueuePersistenceCompatTests` is stop-the-line, never a test to update.
+- **Next:** **`/execute` Wave G1** (`G1.1`/`G1.2` — `CameraFamily` + tail-anchored GoPro `GX`/`GH`
+  regex, then parser tests over all 71 corpus filenames), continuing the thin vertical slice
+  **G1.1/G1.2 → G2.1 → G4.1/G4.3**: prove a real GoPro seam joins with telemetry intact before
+  building grouping/gate/copy on top — that retires the two highest technical risks (does
+  `-map 0:<i>` actually work against the concat demuxer, and is the index resolved from the right
+  file). Five further design calls were locked while
   planning (recorded in the plan, to `decisions.md` at close-out): chapter number rides in `DJIClip.index`
   (so "last segment" and the consecutive check keep working) while a new `recordingNumber` carries
   recording identity; the grouping bucket key becomes `family|variant|recordingNumber`; the gpmd `-map`
