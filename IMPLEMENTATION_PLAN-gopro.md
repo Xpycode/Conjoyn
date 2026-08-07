@@ -83,7 +83,21 @@ a new `DJIClip` field must be added to `CodingKeys` *and* decoded with `decodeIf
 
 ---
 
-## Wave G1 — Parsing (depends G0)
+## Wave G1 — Parsing (**CLOSED 2026-08-07**)
+
+All three tasks done and merged (`faae069` + `83e878f`) — suite **525 / 0 fail** (512 → +13).
+Folder scan needed **no code change**: `containsDJIMedia` only asks the parser about filenames and
+`resolveMediaFolders` special-cases only `DCIM` as a container, so `DCIM/100GOPRO` resolved for
+free — covered by a test rather than an invented fix.
+
+**New standing rule (the encoder half of G0's).** `DJIClip.encode(to:)` is now hand-written, because
+a non-Optional `family` under a synthesized encoder would write `"family":"dji"` into every DJI clip
+and change the on-disk shape 1.0.4 wrote. That trades G0's `keyNotFound` hazard for its mirror: a
+field added to `CodingKeys` and `init(from:)` but **forgotten in the encoder** is silently never
+persisted and reloads as its default, with nothing red. Closed by making `CodingKeys` `CaseIterable`
+and pinning the encoded key set against `allCases`
+(`QueuePersistenceCompatTests.testEncoderWritesEveryCodingKeyForAFullyPopulatedClip`) — the guard was
+verified by injecting a probe key and watching it fail, not assumed.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
