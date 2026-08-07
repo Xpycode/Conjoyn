@@ -25,6 +25,11 @@ final class FFmpegWrapper: @unchecked Sendable {
         /// file rotated under the same path) — refusing to join the wrong bytes. Carries the segment
         /// filename. Deterministic, so never retried (cookbook #127).
         case sourceIdentityChanged(String)
+        /// A `.preserveTelemetry` join found segment 1's gpmd (GoPro telemetry) presence disagreeing
+        /// with another segment's — refusing before ffmpeg runs rather than silently dropping or
+        /// misdirecting the telemetry stream. Carries the offending-segment description (number +
+        /// filename). Distinct from `StreamParameterGuard`'s AV parameter mismatch (`ensureJoinable`).
+        case dataStreamLayoutMismatch(String)
 
         var errorDescription: String? {
             switch self {
@@ -38,6 +43,8 @@ final class FFmpegWrapper: @unchecked Sendable {
                 return "Conversion was cancelled"
             case .sourceIdentityChanged(let name):
                 return "Source file changed before joining: \(name). The card may have been swapped or the file replaced — re-add the recording and try again."
+            case .dataStreamLayoutMismatch(let reason):
+                return "Telemetry data stream layout mismatch: \(reason)"
             }
         }
     }

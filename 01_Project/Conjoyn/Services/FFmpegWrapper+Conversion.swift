@@ -29,6 +29,15 @@ extension FFmpegWrapper {
         }
     }
 
+    /// What `mergeClips` does with each segment's in-container data stream(s).
+    enum DataStreamPolicy: Equatable, Sendable {
+        /// Today's DJI behaviour, unchanged since 1.0.4: `-map -0:d` drops every data stream.
+        case drop
+        /// GoPro: resolve the gpmd telemetry stream's absolute index at join time and map it
+        /// explicitly (`buildMergeArguments`'s `gpmdStreamIndex` branch).
+        case preserveTelemetry
+    }
+
     // MARK: - Pure builders (unit-testable)
 
     /// Builds the concat-demuxer list-file body for an ordered set of segment URLs.
@@ -111,6 +120,39 @@ extension FFmpegWrapper {
         return args
     }
 
+    /// Resolves the gpmd telemetry stream's absolute index for a `.preserveTelemetry` join from
+    /// each segment's probed `SegmentStreamInfo`, in segment order (`infos[0]` / `segmentNames[0]`
+    /// is segment 1). Refuses with `FFmpegError.dataStreamLayoutMismatch` if any segment's gpmd
+    /// presence disagrees with segment 1's — a later segment recorded without telemetry (or vice
+    /// versa) would otherwise map an index that doesn't mean the same thing in that file, silently
+    /// dropping or corrupting the joined stream.
+    ///
+    /// Segment 1's index is the one returned: the concat demuxer presents *segment 1's* stream
+    /// layout to the output, so `-map 0:<i>` is positional into that file specifically (see
+    /// `buildMergeArguments`'s doc comment). This is a pure comparison — no process, no I/O — so
+    /// the refusal path is unit-testable against synthetic `SegmentStreamInfo` values.
+    static func resolveGpmdStreamIndex(
+        for infos: [StreamParameterGuard.SegmentStreamInfo],
+        segmentNames: [String]
+    ) throws -> Int? {
+        guard let reference = infos.first else { return nil }
+        let referenceHasGpmd = reference.dataStreamIndex != nil
+
+        for (offset, info) in infos.enumerated().dropFirst() {
+            let hasGpmd = info.dataStreamIndex != nil
+            guard hasGpmd == referenceHasGpmd else {
+                let name = offset < segmentNames.count ? segmentNames[offset] : "segment \(offset + 1)"
+                let (got, expected) = hasGpmd
+                    ? ("has a gpmd stream", "no gpmd stream")
+                    : ("has no gpmd stream", "a gpmd stream")
+                throw FFmpegError.dataStreamLayoutMismatch(
+                    "segment \(offset + 1) (\(name)) \(got), expected \(expected) (from segment 1)"
+                )
+            }
+        }
+        return reference.dataStreamIndex
+    }
+
     /// Escapes a filesystem path for a concat-demuxer `file '…'` directive: a literal single
     /// quote becomes `'\''` (close-quote, escaped quote, re-open-quote).
     static func concatEscape(_ path: String) -> String {
@@ -134,6 +176,10 @@ extension FFmpegWrapper {
     ///     is a valid single-file export.
     ///   - outputURL: Destination for the joined file.
     ///   - metadata: Optional `creation_time` / start timecode to stamp on the output.
+    ///   - dataStreamPolicy: `.drop` (default) reproduces the 1.0.4 DJI vector exactly — no
+    ///     probing beyond the existing param guard. `.preserveTelemetry` (GoPro) probes segment 1
+    ///     at join time to resolve the gpmd stream's absolute index and refuses up front if any
+    ///     segment's gpmd presence disagrees with segment 1's.
     ///   - totalFrames: Optional combined frame count for progress estimation.
     ///   - verifyParameters: When true (default), runs the stream-parameter guard (task 2.6)
     ///     and refuses the `-c copy` join if the segments' codec/res/fps/timebase/audio differ.
@@ -141,6 +187,7 @@ extension FFmpegWrapper {
         _ segments: [URL],
         to outputURL: URL,
         metadata: JoinMetadata = JoinMetadata(),
+        dataStreamPolicy: DataStreamPolicy = .drop,
         totalFrames: Int? = nil,
         verifyParameters: Bool = true,
         progress: @escaping ProgressHandler,
@@ -167,6 +214,19 @@ extension FFmpegWrapper {
             try ensureJoinable(segments, logHandler: logHandler)
         }
 
+        // GoPro: resolve the gpmd stream's absolute index fresh at join time, from segment 1's
+        // probed layout — never from a clip's persisted `streamInfo.dataStreamIndex`, which is a
+        // grouping/verification signal only. Skipped entirely under `.drop`, so the DJI path never
+        // pays for a probe it doesn't need.
+        var gpmdStreamIndex: Int? = nil
+        if dataStreamPolicy == .preserveTelemetry {
+            let infos = try segments.map { try probeStreamInfo($0) }
+            gpmdStreamIndex = try Self.resolveGpmdStreamIndex(
+                for: infos,
+                segmentNames: segments.map(\.lastPathComponent)
+            )
+        }
+
         // Write the concat list to a temp file (TempDirectoryManager lands in Wave 1.5).
         let listFileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("conjoyn-concat-\(UUID().uuidString).txt")
@@ -177,7 +237,8 @@ extension FFmpegWrapper {
         let args = Self.buildMergeArguments(
             listFileURL: listFileURL,
             outputURL: outputURL,
-            metadata: metadata
+            metadata: metadata,
+            gpmdStreamIndex: gpmdStreamIndex
         )
         logHandler("Command: ffmpeg " + args.joined(separator: " "))
         logHandler(isSingle
