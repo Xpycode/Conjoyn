@@ -1105,3 +1105,40 @@ Suite 525 → 531, 0 fail, with **0 deletions** in the test diff. Three fixtures
 basename — the repo is public); the DJI case is an inline literal explicitly labelled hand-built,
 because no DJI card was mounted and a fabricated fixture presented as a capture would be worse than
 an honest one.
+
+---
+
+### 2026-08-07 - The seam fixture cannot be camera-shaped, which makes G8.2 load-bearing
+**Context:** Wave G4.3 needed a checked-in fixture proving a GoPro chapter seam joins with its
+`gpmd` telemetry intact. Cutting one from real Hero 11 footage runs into a hard tool constraint:
+ffmpeg **cannot copy GoPro's source `tmcd` track**. Attempting it (`-map 0`) fails with *"Could not
+find tag for codec none in stream #2"* and leaves a **zero-byte output** — the same finding that
+forces the production join to map streams explicitly. So any cut must map streams by hand, and
+ffmpeg then drops the source `tmcd` and regenerates one **after** `gpmd`.
+**Consequence discovered:** the fixtures carry `hvc1 | mp4a | gpmd | tmcd` — **gpmd at index 2** —
+whereas every camera original carries `hvc1 | mp4a | tmcd | gpmd` — **gpmd at index 3**.
+**Options Considered:**
+1. Ship the fixture and call G4 fully proven — **rejected as a false claim**. The end-to-end path
+   would be proven only for the stream order the fixture happens to have, which is *not* the order
+   any real card produces.
+2. Synthesize a fixture with `tmcd` ahead of `gpmd` — not possible with this toolchain; the
+   constraint above is exactly what prevents it.
+3. Ship the fixture, state the limit precisely, and name the task that closes it. **Chosen.**
+
+**Decision:** Accept the index-2 fixture, and record that **index 3 — the shape of every camera
+original — is covered only by `FFmpegConcatArgsTests`' exact-vector assertions and by the join-time
+probe, never end-to-end.** **Task G8.2 (a real full join of an unsliced GoPro group) is therefore
+the only thing that closes the gap**, and is promoted from "final eyeball" to load-bearing coverage.
+**Rationale:** This is written to `decisions.md` rather than left in `IMPLEMENTATION_PLAN-gopro.md`
+because that plan declares itself disposable ("regenerate if the trajectory diverges"). A regenerated
+plan would silently lose the fact that the wave's end-to-end proof has a hole in it — and the hole is
+invisible: the test is green, the numbers are byte-exact, and nothing about the passing run hints
+that the stream order under test is not the one users have.
+**Consequences:**
+- G8.2 must not be skipped or deferred as ceremony; it is the coverage.
+- The limit is stated in three places that a future contributor will actually hit:
+  `Fixtures/gopro-seam/README.md`, the test's own header doc comment, and PROJECT_STATE's `Now`.
+- If a later change makes the join index-sensitive again, the fixture will **not** catch it.
+- Related: the byte-total assertions carry the weight over packet counts — gpmd runs at 1 packet per
+  second against a 1.04 s keyframe floor, so each slice holds exactly one telemetry packet. That
+  thinness is a measured floor of `-c copy`, not a shortcut.

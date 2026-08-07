@@ -35,11 +35,9 @@
   end-to-end proof G4 just established can't be exercised on real footage. **G3.4 adds a visible UI
   chip → `36_ui-changes-protocol.md` sign-off before implementing.** One ~30 s Hero 11 clip in
   **H.264** is still owed from capture (G8.1).
-- **G8.2 got more important (2026-08-07).** It is no longer just a final eyeball. The G4.3 seam
-  fixtures are **remux-shaped — gpmd at index 2** — because ffmpeg cannot copy GoPro's source `tmcd`
-  and regenerates it after gpmd. Camera originals carry **gpmd at index 3**, and that shape is
-  covered only by unit tests and the join-time probe, never end-to-end. G8.2 is the one task that
-  closes it.
+- **G8.2 is now load-bearing coverage, not a final eyeball** — the G4.3 seam fixtures can't match a
+  camera original's stream order, so the real-footage join is the only thing that covers it. Full
+  reasoning → `decisions.md` (2026-08-07, "The seam fixture cannot be camera-shaped").
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
