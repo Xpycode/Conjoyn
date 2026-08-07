@@ -3,9 +3,21 @@
 Completed sprint tasks, newest first. Execution detail lives in the plan the task came from;
 rationale lives in `decisions.md`. Sprint checkboxes are in `TASKS.md`.
 
-**Total archived:** 7 · **Last updated:** 2026-08-07
+**Total archived:** 10 · **Last updated:** 2026-08-07
 
 ## Completed
+
+### Wave G4 — join with telemetry (`IMPLEMENTATION_PLAN-gopro.md`)
+
+- [x] **G4.1** `buildMergeArguments` learns a gpmd index — `nil` reproduces the 1.0.4 DJI vector
+      byte-for-byte; non-`nil` emits `-map 0:v:0 -map 0:a? -map 0:<i> -c copy -copy_unknown`
+      (2026-08-07)
+- [x] **G4.2** `dataStreamPolicy` on `mergeClips` — resolves the index from segment 1 at join time
+      (never from persisted state) and refuses a presence mismatch before ffmpeg runs, naming the
+      segment; `.drop` does no extra probing at all (2026-08-07)
+- [x] **G4.3** Real seam-slice fixtures + end-to-end join test through the production path — gpmd,
+      video and audio all byte-exact across a genuine chapter boundary; verified by falsification
+      (2026-08-07)
 
 ### Wave G2 — probe extension (`IMPLEMENTATION_PLAN-gopro.md`)
 

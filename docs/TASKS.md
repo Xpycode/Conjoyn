@@ -3,18 +3,32 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro wave G4 (join with telemetry)
+## Current Sprint — GoPro wave G3 (grouping)
 
-*(G0.1–G0.3, G1.1–G1.3 and G2.1 completed 2026-08-07 → `tasks-archive.md`.)*
+*(G0.1–G0.3, G1.1–G1.3, G2.1 and G4.1–G4.3 completed 2026-08-07 → `tasks-archive.md`.)*
 
-Taken before G3 on purpose: the plan's vertical slice is **G1 → G2.1 → G4.1/G4.3**, proving a real
-GoPro seam joins with telemetry intact *before* grouping/gate/copy get built on top. That retires the
-two highest technical risks — whether `-map 0:<i>` works against the concat demuxer at all, and
-whether the index is resolved from the right file.
+**G5 (verification) is equally unblocked** — the plan's serial spine reads G0 → G2 → G4 → G5. G3 is
+taken first because it is on the critical path to the **G8.2 final gate**: until GoPro chapters
+actually group, a real recording can't reach the join path from the UI at all, so the end-to-end
+proof G4 just established can't be exercised on real footage. G5 hardens a path that already works.
 
-- [ ] **G4.1** `buildMergeArguments` learns a gpmd index (`nil` ⇒ arg vector byte-identical to 1.0.4)
-- [ ] **G4.2** Resolve the index at join time + refuse mixed layouts
-- [ ] **G4.3** Real seam-slice fixtures + end-to-end join test (cut from 6347 or 6345, **not** 6338)
+- [ ] **G3.1** Extend `SegmentMeta` + composite bucket key (`family|variantSuffix|recordingNumber`)
+- [ ] **G3.2** Family-dispatched `continues()` — timecode continuity, no size-cap gate
+- [ ] **G3.3** Corpus grouping fixtures (6 multi-chapter groups + 51 singles)
+- [ ] **G3.4** Incomplete-set flag — **new visible UI chip, needs `36_ui-changes-protocol.md` sign-off first**
+
+> **Wave G4 is CLOSED (2026-08-07)** — suite **542 / 0 fail**. Both headline risks are retired on
+> real footage, not unit tests: **`-map 0:<i>` does work against the concat demuxer**, and gpmd
+> survives a genuine chapter seam byte-exact (7,084 + 6,916 = 14,000 bytes; video and audio match to
+> the byte too). The end-to-end test was verified by **falsification** — flipping the policy to
+> `.drop` fails it with 0 gpmd streams found — so it detects the mechanism rather than merely
+> passing. Two things worth carrying forward: (a) **finding C reproduced first-hand** — `-map 0` on a
+> GoPro source errors on the tmcd track and leaves a **zero-byte output**, which is *why* streams are
+> mapped explicitly; (b) the seam fixtures are **remux-shaped (gpmd at index 2)**, not
+> camera-original-shaped (index 3), because ffmpeg cannot copy GoPro's source tmcd and regenerates it
+> after gpmd. Index 3 is covered by unit tests and the join-time probe but **not** end-to-end — G8.2
+> closes that. Also open: a GoPro join now probes each segment **twice** (param guard + telemetry
+> index); correct but wasteful, worth folding together only if join latency becomes noticeable.
 
 > **Wave G2 is CLOSED (2026-08-07)** — suite **531 / 0 fail**. The gpmd index genuinely moves
 > (**3** with audio, **2** without, **2** on a remux where ffmpeg put `tmcd` *after* gpmd), so G4.1
@@ -39,8 +53,7 @@ whether the index is resolved from the right file.
 
 ## Backlog (later waves — see the plan)
 
-- **G3** Grouping: composite bucket key, family-dispatched `continues()`, corpus fixtures, incomplete-set flag
-- **G5** Verification: gpmd in Tier 0/1 parity checks and the Tier 2 hash
+- **G5** Verification: gpmd in Tier 0/1 parity checks and the Tier 2 hash (**unblocked** — G4 closed)
 - **G6** Watch-folder: relative complete-set rule (no absolute split constant for GoPro)
 - **G7** UI copy: camera-neutral empty state, no file-size figure
 - **G8** Real-footage validation (GH H.264 probe — *user capture owed*; full real join) + docs close-out

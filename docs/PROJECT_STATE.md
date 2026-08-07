@@ -17,22 +17,29 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 531 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 542 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
 - **Focus:** **GoPro camera-family support** — spec `specs/gopro-camera-family.md` (all 6 open
   questions resolved 2026-08-07), plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). **G0
-  (queue-persistence safety net), G1 (filename parsing) and G2 (probe extension) are closed**; G4 is
-  next. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
+  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension) and G4 (join with
+  telemetry) are closed**; G3 is next. The vertical slice is complete: **a real GoPro seam now joins
+  with its telemetry byte-exact**, so both headline technical risks are retired on actual footage
+  rather than unit tests. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G4** (G4.1–G4.3) — teach the ffmpeg arg builder a gpmd `-map` index,
-  resolve that index at join time, and prove a **real** GoPro seam joins with telemetry intact. Taken
-  before G3 deliberately (the plan's vertical slice **G1 → G2.1 → G4.1/G4.3**), because it retires the
-  two highest technical risks: whether `-map 0:<i>` works against the concat demuxer at all, and
-  whether the index is resolved from the right file. Seam slices must come from recording **6347 or
-  6345**, not 6338 (its ch01 left the archive). One ~30 s Hero 11 clip in **H.264** is still owed from
-  capture (G8.1).
+- **Next:** **`/execute` Wave G3** (G3.1–G3.4) — composite bucket key, family-dispatched
+  `continues()` with timecode continuity, corpus grouping fixtures, incomplete-set flag. Taken ahead
+  of the equally-unblocked G5 because it is on the critical path to the **G8.2 final gate**: until
+  GoPro chapters actually group, a real recording can't reach the join path from the UI, so the
+  end-to-end proof G4 just established can't be exercised on real footage. **G3.4 adds a visible UI
+  chip → `36_ui-changes-protocol.md` sign-off before implementing.** One ~30 s Hero 11 clip in
+  **H.264** is still owed from capture (G8.1).
+- **G8.2 got more important (2026-08-07).** It is no longer just a final eyeball. The G4.3 seam
+  fixtures are **remux-shaped — gpmd at index 2** — because ffmpeg cannot copy GoPro's source `tmcd`
+  and regenerates it after gpmd. Camera originals carry **gpmd at index 3**, and that shape is
+  covered only by unit tests and the join-time probe, never end-to-end. G8.2 is the one task that
+  closes it.
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
@@ -43,7 +50,18 @@
   71-file measurements (grouping tests are in-memory), so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **The app now keeps track of where GoPro's telemetry lives inside a
+- **2026-08-07 (latest)** — **A real GoPro recording now joins with its telemetry intact.** This was
+  the piece nobody could be sure of: GoPro hides its flight/sensor data in a track *inside* the video
+  file, and the joining tool had to be told exactly which track to carry across — with the added trap
+  that the timecode track looks like the same kind of track, so a natural-looking shortcut would have
+  silently carried the wrong one and still looked like it worked. Proven on actual Hero 11 footage
+  cut across a genuine chapter boundary: every byte of telemetry, video and audio arrives on the
+  other side. The test was checked by deliberately breaking the feature to confirm the test notices —
+  a green test that can't fail proves nothing. Two useful things fell out: the "just carry
+  everything" approach doesn't merely fail, it writes a **zero-byte file**; and the test footage
+  can't quite match a camera original's internal layout, so the real-footage run (G8.2) matters more
+  than the plan assumed. 531 → 542 tests.
+- **2026-08-07** — **The app now keeps track of where GoPro's telemetry lives inside a
   file.** Nothing uses it yet; this only stops the information being thrown away when a file is
   inspected. Worth doing carefully because the position moves — it sits in a different slot when a
   clip has no sound, and different again in a re-wrapped file — so anything assuming a fixed slot

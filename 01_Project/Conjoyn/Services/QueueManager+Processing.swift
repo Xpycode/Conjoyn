@@ -264,6 +264,12 @@ extension QueueManager {
             throw FFmpegWrapper.FFmpegError.sourceIdentityChanged(changedSegment)
         }
 
+        // GoPro carries an in-container gpmd telemetry stream that must survive the join; DJI
+        // data streams keep being dropped. A record group is single-family (never mixes DJI and
+        // GoPro segments), so the first clip's family speaks for the whole job.
+        let dataStreamPolicy: FFmpegWrapper.DataStreamPolicy =
+            job.clips.first?.family == .goPro ? .preserveTelemetry : .drop
+
         do {
             defer { if staged { try? FileManager.default.removeItem(at: writeURL) } }
 
@@ -271,6 +277,7 @@ extension QueueManager {
                 segments,
                 to: writeURL,
                 metadata: metadata,
+                dataStreamPolicy: dataStreamPolicy,
                 totalFrames: job.estimatedFrameCount,
                 progress: { [weak self] progress, _ in
                     Task { @MainActor in
@@ -390,8 +397,9 @@ extension QueueManager {
             switch e {
             case .conversionFailed: return true
             // A swapped card / rotated file won't heal on a retry — the path still resolves to the
-            // wrong bytes — so this is deterministic, never retried.
-            case .cancelled, .ffmpegNotFound, .invalidInput, .sourceIdentityChanged: return false
+            // wrong bytes — so this is deterministic, never retried. A gpmd layout mismatch is the
+            // same: the segments' telemetry presence won't change between attempts.
+            case .cancelled, .ffmpegNotFound, .invalidInput, .sourceIdentityChanged, .dataStreamLayoutMismatch: return false
             }
         }
         if let e = error as? StreamParameterGuard.GuardError {
