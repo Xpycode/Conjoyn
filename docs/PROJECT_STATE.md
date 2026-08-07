@@ -94,7 +94,18 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **Built the safety net that had to exist before GoPro support can touch
+- **2026-08-07 (latest)** — **The app can now read GoPro filenames.** GoPro splits a long recording
+  into numbered chapters, and the app previously understood only DJI's naming, so a GoPro card read as
+  empty. It now recognises both, including footage an archiving tool has renamed — checked against all
+  71 real Hero 11 files from the August archive, every one landing on the right chapter and the right
+  recording. The DJI side is provably untouched: the existing tests weren't edited at all, only added
+  to. The scan that finds media folders turned out to need no change — worth checking rather than
+  assuming, and it was. One real catch: storing which camera a clip came from forced the save-to-disk
+  code to be written by hand, which quietly created the opposite of the problem last session fixed —
+  a future field could be read correctly but never *saved*, reloading as a blank every launch with no
+  test complaining. That's now guarded, and the guard was proven by deliberately breaking it first.
+  512 → 525 tests.
+- **2026-08-07** — **Built the safety net that had to exist before GoPro support can touch
   the app's saved data.** The app remembers its queue between launches, and the way it re-reads that
   file was strict enough that adding a single new piece of information to a recording would make the
   whole file unreadable — at which point the app quietly throws the user's entire queue away and says

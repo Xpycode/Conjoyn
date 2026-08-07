@@ -5,11 +5,8 @@ backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tra
 
 ## Current Sprint — GoPro waves G1–G2 (parse + probe)
 
-*(G0.1–G0.3 completed 2026-08-07 → `tasks-archive.md`.)*
+*(G0.1–G0.3 and G1.1–G1.3 completed 2026-08-07 → `tasks-archive.md`.)*
 
-- [x] **G1.1** `CameraFamily` + tail-anchored GoPro `GX`/`GH` regex in `DJIFilenameParser`
-- [x] **G1.2** Parser acceptance tests (incl. all 71 corpus filenames)
-- [x] **G1.3** Thread family + `recordingNumber` through `DJIClip` and folder discovery
 - [ ] **G2.1** Retain gpmd stream index, codec tag and start timecode from ffprobe
 
 > **Wave G1 is CLOSED (2026-08-07)** — parser, tests and model threading merged. Suite **525 / 0

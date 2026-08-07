@@ -1012,3 +1012,40 @@ DMG after running a newer build may lose a pending queue.
 it emits a per-stream telemetry check alongside the existing per-stream packet checks (two would
 share `packetCount`), and which two `.unknown` checks would also break. Not touched here (it's a UI
 change and G0 is engine-only); noted on the G5.1 row of the plan.
+
+### 2026-08-07 - The persisted-clip encoder is hand-written too, and that needs its own guard
+**Context:** Wave G1 added `family` (a `CameraFamily`) to `DJIClip`, the first non-Optional field
+added since G0 hand-wrote the *decoder*. `DJIClip` is persisted in `queue.json`. A synthesized
+`encode(to:)` writes every non-Optional property unconditionally, so it would have emitted
+`"family":"dji"` into every DJI clip on disk — the overwhelming majority of clips users have — which
+changes the on-disk shape shipped 1.0.4 writes and trips G0.1's pinned key set
+(`testReEncodingAClipProducesTheSameKeysAsShipped104`). That test exists precisely so a *downgrade*
+or rollback DMG isn't handed a shape it never wrote.
+**Options Considered:**
+1. Make `family` Optional (`CameraFamily?`) — the synthesized encoder would then use
+   `encodeIfPresent` and omit it when nil. Rejected: it pushes `nil`-vs-`.dji` ambiguity into every
+   read site forever, to dodge a one-time encoder problem. The model fact is that every clip *has* a
+   family.
+2. Accept the new key on disk and update the pinned key set. Rejected: that is exactly the
+   "edit the stop-the-line test to go green" move G0 forbids, and it silently widens what an older
+   build must tolerate.
+3. **Hand-write `encode(to:)`, omitting `family` at its `.dji` default.** Chosen.
+**Decision:** `DJIClip.encode(to:)` is hand-written. A DJI clip's JSON stays byte-identical to what
+1.0.4 wrote; a GoPro clip writes `family` explicitly; `init(from:)` maps an absent key back to `.dji`,
+so missing-key and default converge. `CameraFamily` carries a `String` raw value (not an integer
+ordinal, which would shift under existing blobs when a third family — Osmo — is inserted) and decodes
+tolerantly to `.dji` on an unrecognised value, following G0.3's pattern for the verification enums.
+**Rationale:** The default-omission keeps the *shape* stable, which is the thing old builds and
+rollback DMGs actually depend on, without deforming the model to suit its serializer.
+**Consequences — the important half.** Hand-writing the encoder trades G0's hazard for its **mirror
+image**, and the mirror is quieter. G0's failure was a `keyNotFound` throw that discarded the queue:
+catastrophic but detectable. This one is a field added to `CodingKeys` and to `init(from:)` but
+**forgotten in `encode(to:)`** — it is simply never written, reloads as its default every launch, and
+*no test goes red*. So the G0 standing rule now has three parts, not two: **a new `DJIClip` field
+needs a `CodingKey`, a `decodeIfPresent`, and a line in `encode(to:)`.** Enforced by making
+`CodingKeys` `CaseIterable` and pinning the encoded key set against `allCases`
+(`QueuePersistenceCompatTests.testEncoderWritesEveryCodingKeyForAFullyPopulatedClip`), which lives in
+the G0 stop-the-line file where the next contributor will already be looking. Per the G0 precedent the
+guard was **verified by reproduction, not assumption**: a `probeFutureField` key injected into
+`CodingKeys` made it fail naming exactly the missing key, and was then reverted. A guard never
+observed to fail is not yet a guard.

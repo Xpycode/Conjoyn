@@ -3,9 +3,16 @@
 Completed sprint tasks, newest first. Execution detail lives in the plan the task came from;
 rationale lives in `decisions.md`. Sprint checkboxes are in `TASKS.md`.
 
-**Total archived:** 3 · **Last updated:** 2026-08-07
+**Total archived:** 6 · **Last updated:** 2026-08-07
 
 ## Completed
+
+### Wave G1 — GoPro filename parsing (`IMPLEMENTATION_PLAN-gopro.md`)
+
+- [x] **G1.1** `CameraFamily` + tail-anchored GoPro `GX`/`GH` regex in `DJIFilenameParser` (2026-08-07)
+- [x] **G1.2** Parser acceptance tests, incl. all 71 corpus filenames (2026-08-07)
+- [x] **G1.3** Thread family + `recordingNumber` through `DJIClip` and folder discovery — folder scan
+      needed no code change; added the encoder-completeness guard (2026-08-07)
 
 ### Wave G0 — persistence safety net (`IMPLEMENTATION_PLAN-gopro.md`)
 
