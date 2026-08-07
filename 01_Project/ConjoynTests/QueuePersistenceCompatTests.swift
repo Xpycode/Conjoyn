@@ -299,4 +299,91 @@ final class QueuePersistenceCompatTests: XCTestCase {
         // A clip with no probed frame rate yields no estimate — degraded, never a decode failure.
         XCTAssertNil(decoded[0].estimatedFrameCount)
     }
+
+    // MARK: - G0.3: tolerant enum decode
+
+    /// A check kind written by a *newer* build (G5.1's telemetry check is the one actually coming)
+    /// must coarsen to `.unknown` — not throw and take the whole queue with it.
+    func testAnUnrecognisedCheckKindDecodesInsteadOfThrowing() throws {
+        let json = Data("""
+        {
+          "kind": "telemetryParity",
+          "severity": 0,
+          "label": "Telemetry (gpmd)",
+          "detail": "1,653 packets, exact"
+        }
+        """.utf8)
+
+        let check = try JSONDecoder().decode(VerificationCheck.self, from: json)
+
+        XCTAssertEqual(check.kind, .unknown)
+        // The user-visible half is plain strings, so it survives intact.
+        XCTAssertEqual(check.label, "Telemetry (gpmd)")
+        XCTAssertEqual(check.detail, "1,653 packets, exact")
+        XCTAssertEqual(check.severity, .pass)
+    }
+
+    /// Known kinds must keep decoding to themselves — the fallback must not swallow everything.
+    func testKnownCheckKindsStillDecodeExactly() throws {
+        for kind in ["readability", "packetCount", "packetBytes", "duration",
+                     "avDrift", "codecParams", "timecodeWriteback", "hashMatch"] {
+            let json = Data(#"{"kind":"\#(kind)","severity":0,"label":"L","detail":"D"}"#.utf8)
+            let check = try JSONDecoder().decode(VerificationCheck.self, from: json)
+            XCTAssertEqual(check.kind.rawValue, kind)
+            XCTAssertNotEqual(check.kind, .unknown)
+        }
+    }
+
+    /// `CheckSeverity` is `Int`-raw and `Tier` is `String`-raw; both sit in the same persisted blob,
+    /// so both need the same tolerance. An unknown severity clamps to `.warning` (worth surfacing),
+    /// an unknown tier to `.fast` (the weaker claim — never over-state what was verified).
+    func testUnrecognisedSeverityAndTierDegradeInsteadOfThrowing() throws {
+        let json = Data("""
+        {
+          "tier": "forensic",
+          "checks": [{"kind": "readability", "severity": 99, "label": "L", "detail": "D"}],
+          "verifiedAt": "2026-07-18T20:30:37Z",
+          "duration": 1.5
+        }
+        """.utf8)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let result = try decoder.decode(SourceTargetResult.self, from: json)
+
+        XCTAssertEqual(result.tier, .fast)
+        XCTAssertEqual(result.checks.first?.severity, .warning)
+        XCTAssertEqual(result.overall, .warning)
+        XCTAssertTrue(result.hasWarning)
+    }
+
+    /// The end-to-end shape of the hazard: a foreign check kind buried in one job's verification
+    /// result must not cost the user the other three jobs.
+    func testAForeignCheckKindInsideTheQueueDoesNotDiscardEveryJob() throws {
+        let data = try Data(contentsOf: try fixtureURL("queue-1.0.4"))
+        var jobs = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [[String: Any]])
+
+        var job = jobs[0]
+        var result = try XCTUnwrap(job["sourceTargetResult"] as? [String: Any])
+        var checks = try XCTUnwrap(result["checks"] as? [[String: Any]])
+        checks.append(["kind": "telemetryParity", "severity": 0,
+                       "label": "Telemetry (gpmd)", "detail": "1,653 packets, exact"])
+        result["checks"] = checks
+        result["tier"] = "forensic"
+        job["sourceTargetResult"] = result
+        jobs[0] = job
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(
+            [ConversionJob].self,
+            from: try JSONSerialization.data(withJSONObject: jobs)
+        )
+
+        XCTAssertEqual(decoded.count, 4)
+        XCTAssertEqual(decoded.map(\.clips.count), [4, 5, 2, 2])
+        XCTAssertEqual(decoded[0].sourceTargetResult?.checks.count, 7)
+        XCTAssertEqual(decoded[0].sourceTargetResult?.checks.last?.kind, .unknown)
+        XCTAssertEqual(decoded[0].sourceTargetResult?.tier, .fast)
+    }
 }
