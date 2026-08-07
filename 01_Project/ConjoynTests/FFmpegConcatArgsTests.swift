@@ -65,6 +65,87 @@ final class FFmpegConcatArgsTests: XCTestCase {
         XCTAssertLessThan(tcIndex, yIndex)
     }
 
+    // MARK: - Argument vector (gpmd / GoPro shape, task G4.1)
+
+    func testMergeArgumentsNilGpmdIndexIsByteIdenticalToDJIShape() {
+        let args = FFmpegWrapper.buildMergeArguments(listFileURL: listURL, outputURL: outURL, gpmdStreamIndex: nil)
+        XCTAssertEqual(args, [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "/tmp/list.txt",
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-map", "-0:d",
+            "-c", "copy",
+            "-fflags", "+genpts",
+            "-movflags", "+faststart",
+            "-y", "/Users/me/Movies/joined.mp4",
+        ])
+    }
+
+    func testMergeArgumentsGoProShapeNoMetadataIndex3() {
+        let args = FFmpegWrapper.buildMergeArguments(
+            listFileURL: listURL, outputURL: outURL, gpmdStreamIndex: 3
+        )
+        XCTAssertEqual(args, [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "/tmp/list.txt",
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-map", "0:3",
+            "-c", "copy",
+            "-copy_unknown",
+            "-fflags", "+genpts",
+            "-movflags", "+faststart",
+            "-y", "/Users/me/Movies/joined.mp4",
+        ])
+    }
+
+    func testMergeArgumentsGoProShapeIndex2() {
+        let args = FFmpegWrapper.buildMergeArguments(
+            listFileURL: listURL, outputURL: outURL, gpmdStreamIndex: 2
+        )
+        XCTAssertEqual(args, [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "/tmp/list.txt",
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-map", "0:2",
+            "-c", "copy",
+            "-copy_unknown",
+            "-fflags", "+genpts",
+            "-movflags", "+faststart",
+            "-y", "/Users/me/Movies/joined.mp4",
+        ])
+    }
+
+    func testMergeArgumentsGoProShapeWithMetadataAndTimecode() {
+        let meta = FFmpegWrapper.JoinMetadata(
+            creationTime: "2023-08-13T10:20:11.000000Z",
+            timecode: "01:02:03:04"
+        )
+        let args = FFmpegWrapper.buildMergeArguments(
+            listFileURL: listURL, outputURL: outURL, metadata: meta, gpmdStreamIndex: 3
+        )
+        XCTAssertEqual(args, [
+            "-f", "concat",
+            "-safe", "0",
+            "-i", "/tmp/list.txt",
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-map", "0:3",
+            "-c", "copy",
+            "-copy_unknown",
+            "-fflags", "+genpts",
+            "-movflags", "+faststart",
+            "-metadata", "creation_time=2023-08-13T10:20:11.000000Z",
+            "-timecode", "01:02:03:04",
+            "-y", "/Users/me/Movies/joined.mp4",
+        ])
+    }
+
     // MARK: - Helpers
 
     /// Asserts that `needle` appears as a contiguous run inside `haystack`.
