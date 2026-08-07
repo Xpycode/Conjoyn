@@ -1,0 +1,603 @@
+[
+  {
+    "actualOutputPathStrings": [
+      "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-05-21--19.53.03.mp4"
+    ],
+    "appliedTimecode": "19:53:03:11",
+    "clips": [
+      {
+        "creationDate": "2026-05-21T17:53:03Z",
+        "durationTimescale": 100000,
+        "durationValue": 79484000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 19,
+          "minute": 53,
+          "month": 5,
+          "second": 3,
+          "year": 2026
+        },
+        "id": "D43CFEF7-262C-434F-9B40-16C7DBFF82BC",
+        "index": 6,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195303_0006_D.SRT",
+        "stem": "DJI_20260521195303_0006_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195303_0006_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T17:56:23Z",
+        "durationTimescale": 100000,
+        "durationValue": 79432000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 19,
+          "minute": 56,
+          "month": 5,
+          "second": 21,
+          "year": 2026
+        },
+        "id": "D1F84C6F-C6FB-4148-AE4D-51179D5FDDE5",
+        "index": 7,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195621_0007_D.SRT",
+        "stem": "DJI_20260521195621_0007_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195621_0007_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T17:59:41Z",
+        "durationTimescale": 100000,
+        "durationValue": 79456000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 19,
+          "minute": 59,
+          "month": 5,
+          "second": 40,
+          "year": 2026
+        },
+        "id": "EC52DED7-AA55-41EF-A8B7-6DF7129B5862",
+        "index": 8,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195940_0008_D.SRT",
+        "stem": "DJI_20260521195940_0008_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521195940_0008_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T18:03:00Z",
+        "durationTimescale": 100000,
+        "durationValue": 48800000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 20,
+          "minute": 2,
+          "month": 5,
+          "second": 59,
+          "year": 2026
+        },
+        "id": "936D384B-78E0-4819-BDA5-CD3CDB5D33CF",
+        "index": 9,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521200259_0009_D.SRT",
+        "stem": "DJI_20260521200259_0009_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521200259_0009_D.MP4"
+      }
+    ],
+    "createdAt": "2026-07-18T20:21:56Z",
+    "destinationPathString": "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-05-21--19.53.03.mp4",
+    "folderName": "DJI-M4P--2026-05-21",
+    "id": "7C30DF6A-3DA5-4031-AEE1-307E3C5BC08F",
+    "outputBookmarkData": "Ym9va8gDAAAAAAUQQAAAAKHpBXGBVGv3pFJ0d08UIB33+eo9GQBDK9VdWdt2snMYAAAAAAAAAAAAAAAAAAAAANgCAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkNVTEwtSU4GAAAAAQEAAElOLU00UAAAEAAAAAEGAAAQAAAAIAAAADAAAABAAAAACAAAAAQDAAA4SAAAAAAAAAgAAAAEAwAAAgAAAAAAAAAIAAAABAMAABTYAAAAAAAACAAAAAQDAABv/gAAAAAAABAAAAABBgAAaAAAAHgAAACIAAAAmAAAAAgAAAAABAAAQcgF3bxjV8oYAAAAAQIAAAIAAAAAAAAADwAAAAAAAAAAAAAAAAAAABYAAAABCQAAZmlsZTovLy9Wb2x1bWVzLzJDVUxMLwAACAAAAAQDAAAAwJC00QEAAAgAAAAABAAAQccaca1T++YkAAAAAQEAADhFMjRDMDhGLUY1NDYtNDk0Mi1CRjMwLTBFOEY0RjNCOTI4ORgAAAABAgAAAQEAAAEAAADvEwAAAQAAAAAAAAAAAAAADgAAAAEBAAAvVm9sdW1lcy8yQ1VMTAAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50b3NoIEhECAAAAAQDAAAAUKEbcwAAAAgAAAAABAAAQcf/mYiAAAAkAAAAAQEAADIxNzZDNkVBLTU3OUYtNDlENC04N0I0LURGRTU4QkU0MUNCRRgAAAABAgAAgQAAAAEAAADvEwAAAQAAAAAAAAAAAAAAAQAAAAEBAAAvAAAAYAAAAP7///8A8AAAAAAAAAcAAAACIAAAJAIAAAAAAAAFIAAAlAEAAAAAAAAQIAAApAEAAAAAAAARIAAA2AEAAAAAAAASIAAAuAEAAAAAAAATIAAAyAEAAAAAAAAgIAAABAIAAAAAAAAEAAAAAwMAAADwAAAEAAAAAwMAAAAAAAAEAAAAAwMAAAEAAAAUAAAAAQYAAJgCAACkAgAAsAIAAKQCAACkAgAAqAAAAP7///8BAAAAMAIAAA0AAAAEEAAAUAAAAAAAAAAFEAAAqAAAAAAAAAAQEAAA0AAAAAAAAABAEAAAwAAAAAAAAAAAIAAAvAIAAAAAAAACIAAAfAEAAAAAAAAFIAAA8AAAAAAAAAAQIAAAIAAAAAAAAAARIAAAMAEAAAAAAAASIAAAEAEAAAAAAAATIAAAIAEAAAAAAAAgIAAAXAEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress": 1,
+    "settings": {
+      "deleteOriginalsAfterVerify": false,
+      "fixCreationDate": true,
+      "outputContainer": "MP4",
+      "outputFilename": "",
+      "preserveTimecode": true,
+      "reEncodeOnMismatch": false,
+      "stitchSRT": true,
+      "useFolderNameAsFilename": false
+    },
+    "sourceBookmarkData": "Ym9vawAEAAAAAAUQQAAAAC0cTSZG+MlUFbEO4RNFXol/nLJVul630MpDKGipWKvyAAAAAAAAAAAAAAAAAAAAABADAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkpPSU4tSU4GAAAAAQEAAElOLU00UAAAEwAAAAEBAABESkktTTRQLS0yMDI2LTA1LTIxABQAAAABBgAAEAAAACAAAAAwAAAAQAAAAFAAAAAIAAAABAMAADhIAAAAAAAACAAAAAQDAAACAAAAAAAAAAgAAAAEAwAAav4AAAAAAAAIAAAABAMAADP+AAAAAAAACAAAAAQDAADi9gAAAAAAABQAAAABBgAAiAAAAJgAAACoAAAAuAAAAMgAAAAIAAAAAAQAAEHH8af3+HKHGAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAWAAAAAQkAAGZpbGU6Ly8vVm9sdW1lcy8yQ1VMTC8AAAgAAAAEAwAAAMCQtNEBAAAIAAAAAAQAAEHHGnGtU/vmJAAAAAEBAAA4RTI0QzA4Ri1GNTQ2LTQ5NDItQkYzMC0wRThGNEYzQjkyODkYAAAAAQIAAAEBAAABAAAA7xMAAAEAAAAAAAAAAAAAAA4AAAABAQAAL1ZvbHVtZXMvMkNVTEwAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAFChG3MAAAAIAAAAAAQAAEHH/5mIgAAAJAAAAAEBAAAyMTc2QzZFQS01NzlGLTQ5RDQtODdCNC1ERkU1OEJFNDFDQkUYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAGAAAAD+////APAAAAAAAAAHAAAAAiAAAFgCAAAAAAAABSAAAMgBAAAAAAAAECAAANgBAAAAAAAAESAAAAwCAAAAAAAAEiAAAOwBAAAAAAAAEyAAAPwBAAAAAAAAICAAADgCAAAAAAAABAAAAAMDAAAA8AAABAAAAAMDAAAAAAAABAAAAAMDAAABAAAAGAAAAAEGAADMAgAA2AIAAOQCAADYAgAA2AIAANgCAACoAAAA/v///wEAAABkAgAADQAAAAQQAABsAAAAAAAAAAUQAADYAAAAAAAAABAQAAAEAQAAAAAAAEAQAAD0AAAAAAAAAAAgAADwAgAAAAAAAAIgAACwAQAAAAAAAAUgAAAkAQAAAAAAABAgAAAgAAAAAAAAABEgAABkAQAAAAAAABIgAABEAQAAAAAAABMgAABUAQAAAAAAACAgAACQAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21",
+    "sourceTargetResult": {
+      "checks": [
+        {
+          "detail": "",
+          "kind": "readability",
+          "label": "Readability",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "packetCount",
+          "label": "Packet count (video)",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "packetBytes",
+          "label": "Packet bytes (video)",
+          "severity": 0
+        },
+        {
+          "detail": "\u0394 0ms (within \u00b11 frame)",
+          "kind": "duration",
+          "label": "Duration",
+          "severity": 1
+        },
+        {
+          "detail": "",
+          "kind": "codecParams",
+          "label": "Codec parameters",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "timecodeWriteback",
+          "label": "Timecode write-back",
+          "severity": 0
+        }
+      ],
+      "duration": 142.58042705059052,
+      "tier": "fast",
+      "verifiedAt": "2026-07-18T20:30:37Z"
+    },
+    "startedAt": "2026-07-18T20:25:37Z",
+    "status": {
+      "type": "completed"
+    },
+    "verificationProgress": 1,
+    "verificationStatus": {
+      "type": "verified"
+    }
+  },
+  {
+    "actualOutputPathStrings": [
+      "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-05-21--20.48.13.mp4"
+    ],
+    "appliedTimecode": "20:48:13:18",
+    "clips": [
+      {
+        "creationDate": "2026-05-21T18:48:13Z",
+        "durationTimescale": 100000,
+        "durationValue": 79456000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 20,
+          "minute": 48,
+          "month": 5,
+          "second": 13,
+          "year": 2026
+        },
+        "id": "ACF0A14D-E1CB-45C9-9778-135773425F8E",
+        "index": 14,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521204813_0014_D.SRT",
+        "stem": "DJI_20260521204813_0014_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521204813_0014_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T18:51:33Z",
+        "durationTimescale": 100000,
+        "durationValue": 79420000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 20,
+          "minute": 51,
+          "month": 5,
+          "second": 32,
+          "year": 2026
+        },
+        "id": "CFFFF5AA-3FF5-41CA-962A-62E3A9CA1719",
+        "index": 15,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205132_0015_D.SRT",
+        "stem": "DJI_20260521205132_0015_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205132_0015_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T18:54:51Z",
+        "durationTimescale": 100000,
+        "durationValue": 79420000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 20,
+          "minute": 54,
+          "month": 5,
+          "second": 50,
+          "year": 2026
+        },
+        "id": "B34CC37B-62E7-4B36-8740-777F99345E94",
+        "index": 16,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205450_0016_D.SRT",
+        "stem": "DJI_20260521205450_0016_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205450_0016_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T18:58:10Z",
+        "durationTimescale": 100000,
+        "durationValue": 79424000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 20,
+          "minute": 58,
+          "month": 5,
+          "second": 9,
+          "year": 2026
+        },
+        "id": "C77BD696-855E-4120-B925-B994C55E3274",
+        "index": 17,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205809_0017_D.SRT",
+        "stem": "DJI_20260521205809_0017_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521205809_0017_D.MP4"
+      },
+      {
+        "creationDate": "2026-05-21T19:01:28Z",
+        "durationTimescale": 100000,
+        "durationValue": 40636000,
+        "filenameTimestamp": {
+          "day": 21,
+          "hour": 21,
+          "minute": 1,
+          "month": 5,
+          "second": 27,
+          "year": 2026
+        },
+        "id": "8A811F8E-B8F0-416E-950A-AFB9B1D3A956",
+        "index": 18,
+        "srtFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521210127_0018_D.SRT",
+        "stem": "DJI_20260521210127_0018_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21/DJI_20260521210127_0018_D.MP4"
+      }
+    ],
+    "createdAt": "2026-07-18T20:21:56Z",
+    "destinationPathString": "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-05-21--20.48.13.mp4",
+    "folderName": "DJI-M4P--2026-05-21",
+    "id": "6A045C81-83AC-4D20-82CB-8443ADBC0C6E",
+    "outputBookmarkData": "Ym9va8gDAAAAAAUQQAAAAKHpBXGBVGv3pFJ0d08UIB33+eo9GQBDK9VdWdt2snMYAAAAAAAAAAAAAAAAAAAAANgCAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkNVTEwtSU4GAAAAAQEAAElOLU00UAAAEAAAAAEGAAAQAAAAIAAAADAAAABAAAAACAAAAAQDAAA4SAAAAAAAAAgAAAAEAwAAAgAAAAAAAAAIAAAABAMAABTYAAAAAAAACAAAAAQDAABv/gAAAAAAABAAAAABBgAAaAAAAHgAAACIAAAAmAAAAAgAAAAABAAAQcgF3bxjV8oYAAAAAQIAAAIAAAAAAAAADwAAAAAAAAAAAAAAAAAAABYAAAABCQAAZmlsZTovLy9Wb2x1bWVzLzJDVUxMLwAACAAAAAQDAAAAwJC00QEAAAgAAAAABAAAQccaca1T++YkAAAAAQEAADhFMjRDMDhGLUY1NDYtNDk0Mi1CRjMwLTBFOEY0RjNCOTI4ORgAAAABAgAAAQEAAAEAAADvEwAAAQAAAAAAAAAAAAAADgAAAAEBAAAvVm9sdW1lcy8yQ1VMTAAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50b3NoIEhECAAAAAQDAAAAUKEbcwAAAAgAAAAABAAAQcf/mYiAAAAkAAAAAQEAADIxNzZDNkVBLTU3OUYtNDlENC04N0I0LURGRTU4QkU0MUNCRRgAAAABAgAAgQAAAAEAAADvEwAAAQAAAAAAAAAAAAAAAQAAAAEBAAAvAAAAYAAAAP7///8A8AAAAAAAAAcAAAACIAAAJAIAAAAAAAAFIAAAlAEAAAAAAAAQIAAApAEAAAAAAAARIAAA2AEAAAAAAAASIAAAuAEAAAAAAAATIAAAyAEAAAAAAAAgIAAABAIAAAAAAAAEAAAAAwMAAADwAAAEAAAAAwMAAAAAAAAEAAAAAwMAAAEAAAAUAAAAAQYAAJgCAACkAgAAsAIAAKQCAACkAgAAqAAAAP7///8BAAAAMAIAAA0AAAAEEAAAUAAAAAAAAAAFEAAAqAAAAAAAAAAQEAAA0AAAAAAAAABAEAAAwAAAAAAAAAAAIAAAvAIAAAAAAAACIAAAfAEAAAAAAAAFIAAA8AAAAAAAAAAQIAAAIAAAAAAAAAARIAAAMAEAAAAAAAASIAAAEAEAAAAAAAATIAAAIAEAAAAAAAAgIAAAXAEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress": 1,
+    "settings": {
+      "deleteOriginalsAfterVerify": false,
+      "fixCreationDate": true,
+      "outputContainer": "MP4",
+      "outputFilename": "",
+      "preserveTimecode": true,
+      "reEncodeOnMismatch": false,
+      "stitchSRT": true,
+      "useFolderNameAsFilename": false
+    },
+    "sourceBookmarkData": "Ym9vawAEAAAAAAUQQAAAAC0cTSZG+MlUFbEO4RNFXol/nLJVul630MpDKGipWKvyAAAAAAAAAAAAAAAAAAAAABADAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkpPSU4tSU4GAAAAAQEAAElOLU00UAAAEwAAAAEBAABESkktTTRQLS0yMDI2LTA1LTIxABQAAAABBgAAEAAAACAAAAAwAAAAQAAAAFAAAAAIAAAABAMAADhIAAAAAAAACAAAAAQDAAACAAAAAAAAAAgAAAAEAwAAav4AAAAAAAAIAAAABAMAADP+AAAAAAAACAAAAAQDAADi9gAAAAAAABQAAAABBgAAiAAAAJgAAACoAAAAuAAAAMgAAAAIAAAAAAQAAEHH8af3+HKHGAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAWAAAAAQkAAGZpbGU6Ly8vVm9sdW1lcy8yQ1VMTC8AAAgAAAAEAwAAAMCQtNEBAAAIAAAAAAQAAEHHGnGtU/vmJAAAAAEBAAA4RTI0QzA4Ri1GNTQ2LTQ5NDItQkYzMC0wRThGNEYzQjkyODkYAAAAAQIAAAEBAAABAAAA7xMAAAEAAAAAAAAAAAAAAA4AAAABAQAAL1ZvbHVtZXMvMkNVTEwAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAFChG3MAAAAIAAAAAAQAAEHH/5mIgAAAJAAAAAEBAAAyMTc2QzZFQS01NzlGLTQ5RDQtODdCNC1ERkU1OEJFNDFDQkUYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAGAAAAD+////APAAAAAAAAAHAAAAAiAAAFgCAAAAAAAABSAAAMgBAAAAAAAAECAAANgBAAAAAAAAESAAAAwCAAAAAAAAEiAAAOwBAAAAAAAAEyAAAPwBAAAAAAAAICAAADgCAAAAAAAABAAAAAMDAAAA8AAABAAAAAMDAAAAAAAABAAAAAMDAAABAAAAGAAAAAEGAADMAgAA2AIAAOQCAADYAgAA2AIAANgCAACoAAAA/v///wEAAABkAgAADQAAAAQQAABsAAAAAAAAAAUQAADYAAAAAAAAABAQAAAEAQAAAAAAAEAQAAD0AAAAAAAAAAAgAADwAgAAAAAAAAIgAACwAQAAAAAAAAUgAAAkAQAAAAAAABAgAAAgAAAAAAAAABEgAABkAQAAAAAAABIgAABEAQAAAAAAABMgAABUAQAAAAAAACAgAACQAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-05-21",
+    "sourceTargetResult": {
+      "checks": [
+        {
+          "detail": "",
+          "kind": "readability",
+          "label": "Readability",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "packetCount",
+          "label": "Packet count (video)",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "packetBytes",
+          "label": "Packet bytes (video)",
+          "severity": 0
+        },
+        {
+          "detail": "\u0394 0ms (within \u00b11 frame)",
+          "kind": "duration",
+          "label": "Duration",
+          "severity": 1
+        },
+        {
+          "detail": "",
+          "kind": "codecParams",
+          "label": "Codec parameters",
+          "severity": 0
+        },
+        {
+          "detail": "",
+          "kind": "timecodeWriteback",
+          "label": "Timecode write-back",
+          "severity": 0
+        }
+      ],
+      "duration": 227.25523698329926,
+      "tier": "fast",
+      "verifiedAt": "2026-07-18T20:41:33Z"
+    },
+    "startedAt": "2026-07-18T20:34:31Z",
+    "status": {
+      "type": "completed"
+    },
+    "verificationProgress": 1,
+    "verificationStatus": {
+      "type": "verified"
+    }
+  },
+  {
+    "actualOutputPathStrings": [],
+    "clips": [
+      {
+        "creationDate": "2026-03-22T17:20:05Z",
+        "durationTimescale": 100000,
+        "durationValue": 79468000,
+        "filenameTimestamp": {
+          "day": 22,
+          "hour": 18,
+          "minute": 20,
+          "month": 3,
+          "second": 5,
+          "year": 2026
+        },
+        "id": "57B5A44C-D5DA-4524-8BEE-FE085CE46310",
+        "index": 34,
+        "stem": "DJI_20260322182005_0034_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22/DJI_20260322182005_0034_D.MP4"
+      },
+      {
+        "creationDate": "2026-03-22T17:23:24Z",
+        "durationTimescale": 100000,
+        "durationValue": 47076000,
+        "filenameTimestamp": {
+          "day": 22,
+          "hour": 18,
+          "minute": 23,
+          "month": 3,
+          "second": 23,
+          "year": 2026
+        },
+        "id": "59E3E26D-4D76-4E25-BF3B-5E930F846D89",
+        "index": 35,
+        "stem": "DJI_20260322182323_0035_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22/DJI_20260322182323_0035_D.MP4"
+      }
+    ],
+    "createdAt": "2026-07-18T20:21:32Z",
+    "destinationPathString": "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-03-22--18.20.05.mp4",
+    "folderName": "DJI-M4P--2026-03-22",
+    "id": "0A1B2C3D-4E5F-4A6B-8C7D-000000000001",
+    "outputBookmarkData": "Ym9va8gDAAAAAAUQQAAAAKHpBXGBVGv3pFJ0d08UIB33+eo9GQBDK9VdWdt2snMYAAAAAAAAAAAAAAAAAAAAANgCAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkNVTEwtSU4GAAAAAQEAAElOLU00UAAAEAAAAAEGAAAQAAAAIAAAADAAAABAAAAACAAAAAQDAAA4SAAAAAAAAAgAAAAEAwAAAgAAAAAAAAAIAAAABAMAABTYAAAAAAAACAAAAAQDAABv/gAAAAAAABAAAAABBgAAaAAAAHgAAACIAAAAmAAAAAgAAAAABAAAQcgF3bxjV8oYAAAAAQIAAAIAAAAAAAAADwAAAAAAAAAAAAAAAAAAABYAAAABCQAAZmlsZTovLy9Wb2x1bWVzLzJDVUxMLwAACAAAAAQDAAAAwJC00QEAAAgAAAAABAAAQccaca1T++YkAAAAAQEAADhFMjRDMDhGLUY1NDYtNDk0Mi1CRjMwLTBFOEY0RjNCOTI4ORgAAAABAgAAAQEAAAEAAADvEwAAAQAAAAAAAAAAAAAADgAAAAEBAAAvVm9sdW1lcy8yQ1VMTAAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50b3NoIEhECAAAAAQDAAAAUKEbcwAAAAgAAAAABAAAQcf/mYiAAAAkAAAAAQEAADIxNzZDNkVBLTU3OUYtNDlENC04N0I0LURGRTU4QkU0MUNCRRgAAAABAgAAgQAAAAEAAADvEwAAAQAAAAAAAAAAAAAAAQAAAAEBAAAvAAAAYAAAAP7///8A8AAAAAAAAAcAAAACIAAAJAIAAAAAAAAFIAAAlAEAAAAAAAAQIAAApAEAAAAAAAARIAAA2AEAAAAAAAASIAAAuAEAAAAAAAATIAAAyAEAAAAAAAAgIAAABAIAAAAAAAAEAAAAAwMAAADwAAAEAAAAAwMAAAAAAAAEAAAAAwMAAAEAAAAUAAAAAQYAAJgCAACkAgAAsAIAAKQCAACkAgAAqAAAAP7///8BAAAAMAIAAA0AAAAEEAAAUAAAAAAAAAAFEAAAqAAAAAAAAAAQEAAA0AAAAAAAAABAEAAAwAAAAAAAAAAAIAAAvAIAAAAAAAACIAAAfAEAAAAAAAAFIAAA8AAAAAAAAAAQIAAAIAAAAAAAAAARIAAAMAEAAAAAAAASIAAAEAEAAAAAAAATIAAAIAEAAAAAAAAgIAAAXAEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress": 0,
+    "settings": {
+      "deleteOriginalsAfterVerify": false,
+      "fixCreationDate": true,
+      "outputContainer": "MP4",
+      "outputFilename": "",
+      "preserveTimecode": true,
+      "reEncodeOnMismatch": false,
+      "stitchSRT": true,
+      "useFolderNameAsFilename": false
+    },
+    "sourceBookmarkData": "Ym9vawAEAAAAAAUQQAAAAAm7ZX6X3vz9fxzhYVzmtJPJAw/GXnogLZtumv/7BLYHAAAAAAAAAAAAAAAAAAAAABADAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkpPSU4tSU4GAAAAAQEAAElOLU00UAAAEwAAAAEBAABESkktTTRQLS0yMDI2LTAzLTIyABQAAAABBgAAEAAAACAAAAAwAAAAQAAAAFAAAAAIAAAABAMAADhIAAAAAAAACAAAAAQDAAACAAAAAAAAAAgAAAAEAwAAav4AAAAAAAAIAAAABAMAADP+AAAAAAAACAAAAAQDAADj9gAAAAAAABQAAAABBgAAiAAAAJgAAACoAAAAuAAAAMgAAAAIAAAAAAQAAEHH8af7De+GGAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAWAAAAAQkAAGZpbGU6Ly8vVm9sdW1lcy8yQ1VMTC8AAAgAAAAEAwAAAMCQtNEBAAAIAAAAAAQAAEHHGnGtU/vmJAAAAAEBAAA4RTI0QzA4Ri1GNTQ2LTQ5NDItQkYzMC0wRThGNEYzQjkyODkYAAAAAQIAAAEBAAABAAAA7xMAAAEAAAAAAAAAAAAAAA4AAAABAQAAL1ZvbHVtZXMvMkNVTEwAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAFChG3MAAAAIAAAAAAQAAEHH/5mIgAAAJAAAAAEBAAAyMTc2QzZFQS01NzlGLTQ5RDQtODdCNC1ERkU1OEJFNDFDQkUYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAGAAAAD+////APAAAAAAAAAHAAAAAiAAAFgCAAAAAAAABSAAAMgBAAAAAAAAECAAANgBAAAAAAAAESAAAAwCAAAAAAAAEiAAAOwBAAAAAAAAEyAAAPwBAAAAAAAAICAAADgCAAAAAAAABAAAAAMDAAAA8AAABAAAAAMDAAAAAAAABAAAAAMDAAABAAAAGAAAAAEGAADMAgAA2AIAAOQCAADYAgAA2AIAANgCAACoAAAA/v///wEAAABkAgAADQAAAAQQAABsAAAAAAAAAAUQAADYAAAAAAAAABAQAAAEAQAAAAAAAEAQAAD0AAAAAAAAAAAgAADwAgAAAAAAAAIgAACwAQAAAAAAAAUgAAAkAQAAAAAAABAgAAAgAAAAAAAAABEgAABkAQAAAAAAABIgAABEAQAAAAAAABMgAABUAQAAAAAAACAgAACQAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22",
+    "status": {
+      "type": "pending"
+    },
+    "verificationProgress": 0,
+    "verificationStatus": {
+      "type": "unverified"
+    }
+  },
+  {
+    "actualOutputPathStrings": [],
+    "clips": [
+      {
+        "creationDate": "2026-03-22T17:20:05Z",
+        "durationTimescale": 100000,
+        "durationValue": 79468000,
+        "filenameTimestamp": {
+          "day": 22,
+          "hour": 18,
+          "minute": 20,
+          "month": 3,
+          "second": 5,
+          "year": 2026
+        },
+        "id": "57B5A44C-D5DA-4524-8BEE-FE085CE46310",
+        "index": 34,
+        "stem": "DJI_20260322182005_0034_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22/DJI_20260322182005_0034_D.MP4"
+      },
+      {
+        "creationDate": "2026-03-22T17:23:24Z",
+        "durationTimescale": 100000,
+        "durationValue": 47076000,
+        "filenameTimestamp": {
+          "day": 22,
+          "hour": 18,
+          "minute": 23,
+          "month": 3,
+          "second": 23,
+          "year": 2026
+        },
+        "id": "59E3E26D-4D76-4E25-BF3B-5E930F846D89",
+        "index": 35,
+        "stem": "DJI_20260322182323_0035_D",
+        "streamInfo": {
+          "video": {
+            "avgFrameRate": "25/1",
+            "codecName": "hevc",
+            "height": 2160,
+            "pixelFormat": "yuv420p10le",
+            "rFrameRate": "25/1",
+            "timeBase": "1/100000",
+            "width": 3840
+          }
+        },
+        "variantSuffix": "D",
+        "videoFilePath": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22/DJI_20260322182323_0035_D.MP4"
+      }
+    ],
+    "createdAt": "2026-07-18T20:21:32Z",
+    "destinationPathString": "/Volumes/2CULL/2CULL-IN/IN-M4P/M4P--2026-03-22--18.20.05.mp4",
+    "folderName": "DJI-M4P--2026-03-22",
+    "id": "0A1B2C3D-4E5F-4A6B-8C7D-000000000002",
+    "outputBookmarkData": "Ym9va8gDAAAAAAUQQAAAAKHpBXGBVGv3pFJ0d08UIB33+eo9GQBDK9VdWdt2snMYAAAAAAAAAAAAAAAAAAAAANgCAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkNVTEwtSU4GAAAAAQEAAElOLU00UAAAEAAAAAEGAAAQAAAAIAAAADAAAABAAAAACAAAAAQDAAA4SAAAAAAAAAgAAAAEAwAAAgAAAAAAAAAIAAAABAMAABTYAAAAAAAACAAAAAQDAABv/gAAAAAAABAAAAABBgAAaAAAAHgAAACIAAAAmAAAAAgAAAAABAAAQcgF3bxjV8oYAAAAAQIAAAIAAAAAAAAADwAAAAAAAAAAAAAAAAAAABYAAAABCQAAZmlsZTovLy9Wb2x1bWVzLzJDVUxMLwAACAAAAAQDAAAAwJC00QEAAAgAAAAABAAAQccaca1T++YkAAAAAQEAADhFMjRDMDhGLUY1NDYtNDk0Mi1CRjMwLTBFOEY0RjNCOTI4ORgAAAABAgAAAQEAAAEAAADvEwAAAQAAAAAAAAAAAAAADgAAAAEBAAAvVm9sdW1lcy8yQ1VMTAAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50b3NoIEhECAAAAAQDAAAAUKEbcwAAAAgAAAAABAAAQcf/mYiAAAAkAAAAAQEAADIxNzZDNkVBLTU3OUYtNDlENC04N0I0LURGRTU4QkU0MUNCRRgAAAABAgAAgQAAAAEAAADvEwAAAQAAAAAAAAAAAAAAAQAAAAEBAAAvAAAAYAAAAP7///8A8AAAAAAAAAcAAAACIAAAJAIAAAAAAAAFIAAAlAEAAAAAAAAQIAAApAEAAAAAAAARIAAA2AEAAAAAAAASIAAAuAEAAAAAAAATIAAAyAEAAAAAAAAgIAAABAIAAAAAAAAEAAAAAwMAAADwAAAEAAAAAwMAAAAAAAAEAAAAAwMAAAEAAAAUAAAAAQYAAJgCAACkAgAAsAIAAKQCAACkAgAAqAAAAP7///8BAAAAMAIAAA0AAAAEEAAAUAAAAAAAAAAFEAAAqAAAAAAAAAAQEAAA0AAAAAAAAABAEAAAwAAAAAAAAAAAIAAAvAIAAAAAAAACIAAAfAEAAAAAAAAFIAAA8AAAAAAAAAAQIAAAIAAAAAAAAAARIAAAMAEAAAAAAAASIAAAEAEAAAAAAAATIAAAIAEAAAAAAAAgIAAAXAEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress": 0,
+    "settings": {
+      "deleteOriginalsAfterVerify": false,
+      "fixCreationDate": true,
+      "outputContainer": "MP4",
+      "outputFilename": "",
+      "preserveTimecode": true,
+      "reEncodeOnMismatch": false,
+      "stitchSRT": true,
+      "useFolderNameAsFilename": false
+    },
+    "sourceBookmarkData": "Ym9vawAEAAAAAAUQQAAAAAm7ZX6X3vz9fxzhYVzmtJPJAw/GXnogLZtumv/7BLYHAAAAAAAAAAAAAAAAAAAAABADAAAEAAAAAwMAAAAIACgHAAAAAQEAAFZvbHVtZXMABQAAAAEBAAAyQ1VMTAAAAAgAAAABAQAAMkpPSU4tSU4GAAAAAQEAAElOLU00UAAAEwAAAAEBAABESkktTTRQLS0yMDI2LTAzLTIyABQAAAABBgAAEAAAACAAAAAwAAAAQAAAAFAAAAAIAAAABAMAADhIAAAAAAAACAAAAAQDAAACAAAAAAAAAAgAAAAEAwAAav4AAAAAAAAIAAAABAMAADP+AAAAAAAACAAAAAQDAADj9gAAAAAAABQAAAABBgAAiAAAAJgAAACoAAAAuAAAAMgAAAAIAAAAAAQAAEHH8af7De+GGAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAWAAAAAQkAAGZpbGU6Ly8vVm9sdW1lcy8yQ1VMTC8AAAgAAAAEAwAAAMCQtNEBAAAIAAAAAAQAAEHHGnGtU/vmJAAAAAEBAAA4RTI0QzA4Ri1GNTQ2LTQ5NDItQkYzMC0wRThGNEYzQjkyODkYAAAAAQIAAAEBAAABAAAA7xMAAAEAAAAAAAAAAAAAAA4AAAABAQAAL1ZvbHVtZXMvMkNVTEwAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAFChG3MAAAAIAAAAAAQAAEHH/5mIgAAAJAAAAAEBAAAyMTc2QzZFQS01NzlGLTQ5RDQtODdCNC1ERkU1OEJFNDFDQkUYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAGAAAAD+////APAAAAAAAAAHAAAAAiAAAFgCAAAAAAAABSAAAMgBAAAAAAAAECAAANgBAAAAAAAAESAAAAwCAAAAAAAAEiAAAOwBAAAAAAAAEyAAAPwBAAAAAAAAICAAADgCAAAAAAAABAAAAAMDAAAA8AAABAAAAAMDAAAAAAAABAAAAAMDAAABAAAAGAAAAAEGAADMAgAA2AIAAOQCAADYAgAA2AIAANgCAACoAAAA/v///wEAAABkAgAADQAAAAQQAABsAAAAAAAAAAUQAADYAAAAAAAAABAQAAAEAQAAAAAAAEAQAAD0AAAAAAAAAAAgAADwAgAAAAAAAAIgAACwAQAAAAAAAAUgAAAkAQAAAAAAABAgAAAgAAAAAAAAABEgAABkAQAAAAAAABIgAABEAQAAAAAAABMgAABUAQAAAAAAACAgAACQAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString": "/Volumes/2CULL/2JOIN-IN/IN-M4P/DJI-M4P--2026-03-22",
+    "status": {
+      "errorMessage": "Cannot access source folder (permission lost)",
+      "type": "failed"
+    },
+    "verificationProgress": 0,
+    "verificationStatus": {
+      "type": "unverified"
+    }
+  }
+]

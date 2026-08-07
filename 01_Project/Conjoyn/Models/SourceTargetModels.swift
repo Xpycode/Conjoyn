@@ -17,6 +17,14 @@ enum CheckSeverity: Int, Comparable, Codable, Sendable {
     static func < (lhs: CheckSeverity, rhs: CheckSeverity) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
+
+    /// Tolerant decode (see `VerificationCheck.Kind.init(from:)` for the full rationale). An
+    /// unrecognised severity clamps to `.warning` rather than throwing: a value this build doesn't
+    /// know is worth surfacing, and it must never be able to discard the persisted queue.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(Int.self)
+        self = CheckSeverity(rawValue: raw) ?? .warning
+    }
 }
 
 /// The return value of a pure comparator — a severity plus an optional human detail. Mapped into a
@@ -57,6 +65,29 @@ struct VerificationCheck: Codable, Sendable, Equatable {
         case codecParams    // Tier 1: codec params identical across segments + output.
         case timecodeWriteback  // Tier 1 (metadata): output `tmcd` matches the assigned start timecode.
         case hashMatch      // Tier 2: per-stream packet MD5 matches.
+
+        /// A kind written by a build that knew about a check this one doesn't. Never produced by
+        /// the verifier — only by decoding.
+        case unknown
+
+        /// Tolerant decode: an unrecognised `kind` becomes `.unknown` instead of throwing.
+        ///
+        /// **Why.** These values ride inside the persisted queue (`ConversionJob.sourceTargetResult`),
+        /// so a `RawRepresentable` decode failure here doesn't lose one check — it throws out of
+        /// `decode([ConversionJob].self)`, and `QueueManager.loadQueue`'s catch
+        /// (`QueueManager.swift:301`) discards the user's **entire** queue. A new check kind is
+        /// coming in this GoPro pass (the telemetry parity check, G5.1), and downgrade/rollback
+        /// paths are real, so the failure mode is not hypothetical. The check's `label` and
+        /// `detail` are plain strings and survive intact, so an unknown kind still displays
+        /// correctly — only the identity is coarsened.
+        ///
+        /// **Note the limit:** this protects builds from *this* one onward. A blob written by a
+        /// newer build and read by shipped 1.0.4 still throws — 1.0.4 has no such fallback, and
+        /// nothing here can change that retroactively.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Kind(rawValue: raw) ?? .unknown
+        }
     }
 
     let kind: Kind
@@ -71,6 +102,14 @@ struct SourceTargetResult: Codable, Sendable, Equatable {
     enum Tier: String, Codable, Sendable {
         case fast       // Tier 0+1 (container-index comparison).
         case thorough   // Tier 0+1+2 (byte-exact packet hash).
+
+        /// Tolerant decode, for the same reason as `VerificationCheck.Kind` — this value rides in
+        /// the persisted queue, so an unrecognised tier must degrade, not throw. An unknown tier
+        /// reads as `.fast`: the weaker claim, so a rollback can never over-state what was checked.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Tier(rawValue: raw) ?? .fast
+        }
     }
 
     let tier: Tier
