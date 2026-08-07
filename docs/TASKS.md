@@ -3,11 +3,10 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro waves G0–G2 (persistence safety net + parse + probe)
+## Current Sprint — GoPro waves G1–G2 (parse + probe)
 
-- [x] **G0.1** Check in a 1.0.4-shaped `queue.json` fixture + decode test (must pass against today's model)
-- [x] **G0.2** Hand-write `DJIClip` `CodingKeys` + `init(from:)` with `decodeIfPresent`
-- [x] **G0.3** Tolerant decode for `VerificationCheck.Kind` (unknown-case fallback)
+*(G0.1–G0.3 completed 2026-08-07 → `tasks-archive.md`.)*
+
 - [ ] **G1.1** `CameraFamily` + tail-anchored GoPro `GX`/`GH` regex in `DJIFilenameParser`
 - [ ] **G1.2** Parser acceptance tests (incl. all 71 corpus filenames)
 - [ ] **G1.3** Thread family + `recordingNumber` through `DJIClip` and folder discovery

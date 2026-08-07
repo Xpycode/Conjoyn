@@ -78,7 +78,18 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **Wrote the plan for GoPro support: 20 tasks, 9 waves.** Reading the
+- **2026-08-07 (latest)** — **Built the safety net that had to exist before GoPro support can touch
+  the app's saved data.** The app remembers its queue between launches, and the way it re-reads that
+  file was strict enough that adding a single new piece of information to a recording would make the
+  whole file unreadable — at which point the app quietly throws the user's entire queue away and says
+  nothing. Rather than assume that, it was reproduced first: adding a dummy field broke the read
+  exactly as predicted. It's now read leniently, so anything it doesn't recognise is skipped instead
+  of discarded, and a real saved queue from the shipped version is checked in as a permanent test —
+  if a future change would break someone's queue, that test goes red before the change ships. One
+  surprise worth keeping: the failure only happens for *some* ways of declaring a field, and the
+  other way looks identical and is silently safe, which is exactly how this would have been missed.
+  495 → 512 tests.
+- **2026-08-07** — **Wrote the plan for GoPro support: 20 tasks, 9 waves.** Reading the
   actual code before planning turned up five decisions the spec had left open, and two of them were
   traps. The chapter number has to be stored in the field the app already uses for "which piece of the
   recording is this" — the more obvious choice would have quietly broken how the watch-folder finds a
