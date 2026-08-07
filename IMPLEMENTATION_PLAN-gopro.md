@@ -150,7 +150,37 @@ The DJI case is inline and labelled hand-built; no DJI card was mounted.
 
 ---
 
-## Wave G4 — Join with telemetry (depends G2; G4.1 may start alongside G3)
+## Wave G4 — Join with telemetry (**CLOSED 2026-08-07**)
+
+All three tasks done and merged — suite **542 / 0 fail** (531 → +11). **Both headline risks are
+retired on real footage:** `-map 0:<i>` works against the concat demuxer, and gpmd crosses a genuine
+chapter seam byte-exact (7,084 + 6,916 = 14,000 bytes; video 12,164,470 and audio 49,459 likewise).
+G4.3's test was verified by **falsification** — flipping the policy to `.drop` fails it with 0 gpmd
+streams — so it detects the mechanism rather than merely passing.
+
+**Three corrections / findings from this wave:**
+1. **Finding C reproduced first-hand.** `-map 0` on a GoPro source errors with "Could not find tag
+   for codec none in stream #2" and leaves a **zero-byte output**. This is not just a join-time
+   constraint — it also means the *fixture cut* must map explicitly, which is what produces (2).
+2. **The seam fixtures are remux-shaped, not camera-original-shaped.** ffmpeg cannot copy GoPro's
+   source `tmcd`, so it drops and regenerates it *after* gpmd → the fixtures carry **gpmd at index
+   2**, while camera originals carry it at **index 3**. Index 3 is covered by `FFmpegConcatArgsTests`
+   and by the join-time probe, but **not** end-to-end. **G8.2 is what closes this** — it is no longer
+   merely a nice-to-have final gate.
+3. **Fixture source deviates from the task text, per the task's own rule.** Cut from recording
+   **6349**, not the 6347/6345 named as examples: 6349 is the lowest-bitrate intact multi-chapter
+   recording (**45 Mbps @ 25 fps** vs ~120 Mbps for 6345/6346/6347/6348), and at 120 Mbps a single
+   1.04 s GOP is ~11.5 MB — the pair would have doubled the 12 MB cap on its own. Actual total
+   **11.67 MB**. The GOP floor is 1.04 s, so slices cannot be shortened further under `-c copy`;
+   consequently gpmd is only **1 packet per slice** and the *byte* totals carry the assertion weight.
+   6338 remains excluded (its chapter 01 left the archive).
+
+**Known cost, deliberately not paid down:** a GoPro join probes each segment **twice** — once in
+`ensureJoinable` for the AV param guard, once for the telemetry index. Folding them together means
+threading `SegmentStreamInfo` through `ensureJoinable`'s signature, which several other call sites
+and tests depend on. Revisit only if GoPro join latency becomes noticeable.
+
+### Original task table (for reference)
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
