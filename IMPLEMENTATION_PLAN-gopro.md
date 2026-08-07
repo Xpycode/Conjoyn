@@ -66,9 +66,14 @@ These resolve ambiguities the spec left to implementation. **Recorded in `docs/d
 
 ---
 
-## Wave G0 — Persistence safety net (**blocks every other wave**)
+## Wave G0 — Persistence safety net (**CLOSED 2026-08-07**)
 
-Serial. Nothing may add a field to `DJIClip` until G0.2 is merged.
+Serial. Nothing may add a field to `DJIClip` until G0.2 is merged. **All three tasks are done and
+merged** — suite **512 / 0 fail** (495 → +17). The hazard was reproduced against the net before the
+fix: a probe `var` on `DJIClip` failed all 10 G0.1 tests with `keyNotFound` at `[0].clips[0]`.
+Rationale in `decisions.md` (2026-08-07, "Queue persistence"). **Standing rule for later waves:**
+a new `DJIClip` field must be added to `CodingKeys` *and* decoded with `decodeIfPresent`; a red
+`QueuePersistenceCompatTests` is stop-the-line, never a test to update.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
@@ -126,7 +131,7 @@ Serial. Nothing may add a field to `DJIClip` until G0.2 is merged.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
-| G5.1 | gpmd in the Tier 0/1 per-stream pass | `Services/SourceTargetVerifier.swift:141-220`, `Models/SourceTargetModels.swift`, `Services/QueueManager+Verification.swift:261` | `SourceTargetInput` gains `sourceGpmdIndex: Int?` + `outputGpmdIndex: Int?` (resolved separately — the output's index differs from the source's). When present, the `streams` tuple array `:159-162` gains a telemetry entry **selected by absolute index, never `d:0`** (decision 4), so packet-count and packet-bytes parity run for gpmd exactly as for video/audio. New `VerificationCheck.Kind` case for the telemetry check (safe under G0.3). `makeVerifierInput` fills the new fields from the job's family/streamInfo. Audio still gated by `hasAudio` — a no-audio GoPro file runs video+gpmd only. | `SourceTargetVerifierTests` + the G4.3 fixtures (6338 reference: 1,536+117 = 1,653 packets) |
+| G5.1 | gpmd in the Tier 0/1 per-stream pass | `Services/SourceTargetVerifier.swift:141-220`, `Models/SourceTargetModels.swift`, `Services/QueueManager+Verification.swift:261` | `SourceTargetInput` gains `sourceGpmdIndex: Int?` + `outputGpmdIndex: Int?` (resolved separately — the output's index differs from the source's). When present, the `streams` tuple array `:159-162` gains a telemetry entry **selected by absolute index, never `d:0`** (decision 4), so packet-count and packet-bytes parity run for gpmd exactly as for video/audio. New `VerificationCheck.Kind` case for the telemetry check (safe under G0.3). `makeVerifierInput` fills the new fields from the job's family/streamInfo. Audio still gated by `hasAudio` — a no-audio GoPro file runs video+gpmd only. **Found during G0 — fix here:** `QueuePanel.swift:660` renders flagged checks with `ForEach(flagged, id: \.kind)`, which assumes one check per kind. A per-stream telemetry check emitted alongside the existing per-stream `packetCount`/`packetBytes` breaks that (duplicate SwiftUI IDs), as would two `.unknown` checks. Give `VerificationCheck` a stable identity, or make the telemetry kinds distinct. | `SourceTargetVerifierTests` + the G4.3 fixtures (6338 reference: 1,536+117 = 1,653 packets) |
 | G5.2 | gpmd in the Tier 2 hash | `Services/SourceTargetVerifier.swift:245-265` | `mapArgs` is built **twice** — source side uses the concat-presented index, output side the probed output index — so the hash compares like with like. Absent gpmd ⇒ current args verbatim. | Tier-2 test over the G4.3 fixtures |
 
 ---

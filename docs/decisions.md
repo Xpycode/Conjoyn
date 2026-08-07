@@ -954,3 +954,61 @@ All 71 corpus files carry `tmcd`, so it should never fire in practice.
 overwriting `IMPLEMENTATION_PLAN.md` — the v1 file documents the shipped waves 0–6 that
 `PROJECT_STATE` still cites, and a feature plan for a shipped app doesn't replace it. `docs/TASKS.md`
 was introduced (the project had none) for sprint checkboxes only; execution detail stays in the plan.
+
+---
+
+### 2026-08-07 - Queue persistence: an explicit-key decoder, and every persisted enum decodes tolerantly
+
+**Context (Wave G0, implemented).** Everything in the queue — jobs, clips, verification results —
+round-trips through one `decode([ConversionJob].self)` in `QueueManager.loadQueue`
+(`QueueManager.swift:253`). Its `catch` at `:301` logs to the debug console and moves on, so *any*
+decode failure anywhere in the blob doesn't degrade one job: it silently discards the user's entire
+queue on the first launch after an update. The GoPro pass adds fields to `DJIClip` and a check kind
+to `VerificationCheck`, so this had to be closed before either landed.
+
+**Reproduced before fixing, not assumed.** A probe `var hazardProbe: Int = 0` on `DJIClip` failed all
+10 compat tests with `keyNotFound … Path: [0].clips[0]`, and the app's own "Failed to load queue"
+line appeared in the output. Worth recording the near-miss: the *first* probe used
+`let hazardProbe: Int = 0` and everything stayed green — Swift omits an immutable property with an
+inline default from Codable synthesis entirely. That exemption is invisible at the call site and
+evaporates the moment the property becomes a `var`, so it is not something to rely on. The plan's
+"even with a default value" is right for the case that matters.
+
+**Decision 1 — `DJIClip` gets hand-written `CodingKeys` + `init(from:)`.** Explicit keys for all 13
+stored properties; `decodeIfPresent` for every Optional; plain `decode` only for the six fields that
+existed in 1.0.4 and make a clip meaningless when absent (`id`, `videoFilePath`, `index`, `stem`,
+and the duration backing pair). `encode(to:)` stays synthesized — it uses the same keys and writes
+Optionals with `encodeIfPresent`, so the on-disk shape is byte-identical to 1.0.4's. The rejected
+alternative was "just make every new field Optional": it works, but it leaves the trap armed for
+whoever adds the next field, and the failure is invisible until a user loses their queue.
+
+**Decision 2 — the safety net is a real blob, not a synthetic one.** The fixture is the actual
+`queue.json` the shipped 1.0.4 wrote on 2026-07-18, trimmed to four jobs. Two are verbatim (a 4- and
+a 5-segment split, verified, with bookmarks and SRT sidecars); two are the same real job hand-edited
+to carry `pending` and `failed(String)` — the only statuses `loadQueue` actually restores, and
+neither occurs in a queue whose jobs all finished. A hand-built fixture would have encoded today's
+assumptions about the format, which is exactly what it exists to test.
+
+**Decision 3 — the tolerant fallback is a new `unknown` case, not a remap to an existing one.**
+`VerificationCheck.Kind` gains `unknown`; an unrecognised raw value decodes to it. Mapping to
+`.readability` (or any real kind) would have been less code but would assert a check that never ran.
+Nothing switches exhaustively on `Kind` — all four consumers do equality lookups — and `label` /
+`detail` are plain strings that survive intact, so an unknown check still displays correctly; only
+its identity is coarsened.
+
+**Decision 4 — the same tolerance extends to `Tier` and `CheckSeverity`.** The plan named only
+`Kind`, but both siblings are `RawRepresentable` and sit in the same blob, so either one defeats the
+protection on its own. `Tier` falls back to `.fast` (the weaker claim — a rollback must never
+over-state what was verified); `CheckSeverity` clamps to `.warning` (a value this build doesn't
+understand is worth surfacing, not hiding).
+
+**The limit, stated plainly:** all of this protects builds from here forward. A blob written by a
+future build and read by the *shipped* 1.0.4 still throws — 1.0.4 has no fallback, and nothing here
+can change that retroactively. The practical consequence is that a user who rolls back to the 1.0.4
+DMG after running a newer build may lose a pending queue.
+
+**Also found, deferred:** `QueuePanel.swift:660` renders flagged checks with
+`ForEach(flagged, id: \.kind)`. That assumes kind is unique per result — which G5.1 breaks the moment
+it emits a per-stream telemetry check alongside the existing per-stream packet checks (two would
+share `packetCount`), and which two `.unknown` checks would also break. Not touched here (it's a UI
+change and G0 is engine-only); noted on the G5.1 row of the plan.
