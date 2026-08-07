@@ -120,4 +120,16 @@ final class DJIFolderResolveTests: XCTestCase {
         // DCIM/DJI_001 holds no media itself (only the NESTED subdir), so nothing is found.
         assertResolved(DJIFolderReader.resolveMediaFolders(startingAt: root), [root])
     }
+
+    /// A card holding only GoPro-named clips (`GX016338.MP4`) in its `100GOPRO` media folder must
+    /// resolve to that folder instead of reading empty — `containsDJIMedia` delegates to
+    /// `DJIFilenameParser.parse(...)?.mediaKind == .video`, which recognises GoPro names too, and
+    /// nothing here filters by the media subfolder's own name (`100GOPRO` vs `100MEDIA`).
+    func testGoProOnlyCardResolvesToItsMediaFolder() throws {
+        let media = try dir("DCIM/100GOPRO")
+        try clip("GX016338.MP4", in: media)
+        try clip("GX026338.MP4", in: media)
+
+        assertResolved(DJIFolderReader.resolveMediaFolders(startingAt: root), [media])
+    }
 }

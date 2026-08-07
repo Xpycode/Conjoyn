@@ -32,9 +32,25 @@ enum DJIFilenameParser {
     /// Which camera family produced the name. GoPro support is layered around the DJI parser
     /// rather than a parallel pipeline — every GoPro rule is a branch inside this shared function,
     /// so the DJI path stays byte-identical to what it was before GoPro existed.
-    enum CameraFamily: Equatable {
+    ///
+    /// `String`-backed (not the default integer ordinal) so the on-disk form (`DJIClip.family`
+    /// rides in the persisted queue) is a readable, stable label that doesn't shift if a case is
+    /// inserted — a third family (Osmo) is expected in a later wave.
+    enum CameraFamily: String, Equatable, Codable, Sendable {
         case dji
         case goPro
+
+        /// Tolerant decode, mirroring `VerificationCheck.Kind`/`CheckSeverity`/`SourceTargetResult.Tier`
+        /// (G0.3, `SourceTargetModels.swift`): an unrecognised raw value — e.g. a future family this
+        /// build doesn't know about — decodes to `.dji` instead of throwing. `family` rides inside the
+        /// persisted queue (`DJIClip`), so a decode failure here would take the user's entire queue
+        /// with it (`QueueManager.loadQueue`'s catch, `QueueManager.swift:301`). `.dji` is the safe
+        /// fallback: every clip persisted before this field existed was DJI, so an unrecognised value
+        /// degrades to the same case an absent key already defaults to.
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = CameraFamily(rawValue: raw) ?? .dji
+        }
     }
 
     /// The kind of file, inferred from its extension.
