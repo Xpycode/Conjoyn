@@ -125,6 +125,100 @@ final class StreamParameterGuardTests: XCTestCase {
         XCTAssertThrowsError(try Guard.parse(ffprobeJSON: json))
     }
 
+    // MARK: - GoPro data-stream + timecode retention (task G2.1)
+
+    func testParseFFprobeJSONWithoutGpmdLeavesNewFieldsNil() throws {
+        // Hand-built to the shape a DJI file probes as (no captured DJI probe is available here):
+        // video + audio only, no data streams at all.
+        let json = """
+        { "streams": [
+            { "index": 0, "codec_type": "video", "codec_name": "hevc", "width": 3840,
+              "height": 2160, "pix_fmt": "yuv420p10le", "avg_frame_rate": "30000/1001",
+              "r_frame_rate": "25/1", "time_base": "1/30000" },
+            { "index": 1, "codec_type": "audio", "codec_name": "aac", "sample_rate": "48000",
+              "channels": 2, "channel_layout": "stereo" }
+        ] }
+        """.data(using: .utf8)!
+
+        let info = try Guard.parse(ffprobeJSON: json, source: "DJI_0001.MP4")
+        XCTAssertNil(info.dataStreamIndex)
+        XCTAssertNil(info.dataCodecTag)
+        XCTAssertNil(info.startTimecode)
+    }
+
+    func testParseGoProOriginalRetainsDataStreamAndTimecode() throws {
+        let data = try Data(contentsOf: try fixtureURL("ffprobe-gopro-original"))
+        let info = try Guard.parse(ffprobeJSON: data, source: "GX026338.MP4")
+        XCTAssertEqual(info.dataStreamIndex, 3)
+        XCTAssertEqual(info.dataCodecTag, "gpmd")
+        XCTAssertEqual(info.startTimecode, "14:17:47:64")
+        XCTAssertNotNil(info.audio)
+    }
+
+    func testParseGoProNoAudioUsesUnshiftedDataStreamIndex() throws {
+        // Proves the index isn't hardcoded: with no audio stream, gpmd moves from 3 to 2.
+        let data = try Data(contentsOf: try fixtureURL("ffprobe-gopro-noaudio"))
+        let info = try Guard.parse(ffprobeJSON: data, source: "GX014617.MP4")
+        XCTAssertEqual(info.dataStreamIndex, 2)
+        XCTAssertEqual(info.dataCodecTag, "gpmd")
+        XCTAssertEqual(info.startTimecode, "16:45:07:05")
+        XCTAssertNil(info.audio)
+        XCTAssertEqual(info.video.width, 5312)
+    }
+
+    func testParseGoProRemuxFindsDataStreamDespiteTmcdSittingAfterIt() throws {
+        // The remux regenerated tmcd after gpmd, so gpmd (index 2) sits before tmcd (index 3) —
+        // selection must be by codec_tag_string, not by scanning for the first data stream.
+        let data = try Data(contentsOf: try fixtureURL("ffprobe-gopro-remux"))
+        let info = try Guard.parse(ffprobeJSON: data, source: "GX026338-remux.MP4")
+        XCTAssertEqual(info.dataStreamIndex, 2)
+        XCTAssertEqual(info.dataCodecTag, "gpmd")
+        XCTAssertEqual(info.startTimecode, "14:17:47:64")
+    }
+
+    func testSegmentStreamInfoRoundTripsNewFields() throws {
+        var info = segment(video(), audio: aac)
+        info.dataStreamIndex = 3
+        info.dataCodecTag = "gpmd"
+        info.startTimecode = "14:17:47:64"
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(info)
+        let decoded = try JSONDecoder().decode(Guard.SegmentStreamInfo.self, from: data)
+        XCTAssertEqual(decoded, info)
+    }
+
+    func testSegmentStreamInfoWithNilNewFieldsOmitsThemFromJSON() throws {
+        // This is what proves DJI's persisted queue.json shape is unchanged: no gpmd/timecode
+        // keys appear when the fields are nil.
+        let info = segment(video(), audio: aac)
+        let data = try JSONEncoder().encode(info)
+        let jsonString = String(data: data, encoding: .utf8) ?? ""
+
+        XCTAssertFalse(jsonString.contains("dataStreamIndex"))
+        XCTAssertFalse(jsonString.contains("dataCodecTag"))
+        XCTAssertFalse(jsonString.contains("startTimecode"))
+    }
+
+    // MARK: - Fixture loading
+
+    /// Locates a checked-in fixture. Copied from `QueuePersistenceCompatTests.fixtureURL(_:)`:
+    /// prefers the test bundle's copy (XcodeGen files it as a resource); falls back to the source
+    /// tree beside this file.
+    private func fixtureURL(_ name: String, file: StaticString = #filePath, line: UInt = #line) throws -> URL {
+        if let url = Bundle(for: Self.self).url(forResource: name, withExtension: "json") {
+            return url
+        }
+        let sibling = URL(fileURLWithPath: "\(file)")
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/\(name).json")
+        guard FileManager.default.fileExists(atPath: sibling.path) else {
+            XCTFail("Fixture \(name).json not found in the test bundle or at \(sibling.path)", file: file, line: line)
+            throw CocoaError(.fileNoSuchFile)
+        }
+        return sibling
+    }
+
     // MARK: - Integration (real ffprobe; skips without ffmpeg/ffprobe)
 
     func testEnsureJoinableAgainstRealProbe() throws {
