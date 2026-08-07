@@ -1049,3 +1049,59 @@ the G0 stop-the-line file where the next contributor will already be looking. Pe
 guard was **verified by reproduction, not assumption**: a `probeFutureField` key injected into
 `CodingKeys` made it fail naming exactly the missing key, and was then reverted. A guard never
 observed to fail is not yet a guard.
+
+---
+
+### 2026-08-07 - The telemetry probe keeps synthesized Codable, and its two "harmless" assumptions were not
+
+**Context:** Wave G2.1 had to make `StreamParameterGuard.parse(ffprobeJSON:)` retain three new facts
+about a GoPro file — the `gpmd` telemetry stream's index, its codec tag, and the file's start
+timecode — so Wave G4 can hand the index to `-map`. The struct that carries them,
+`SegmentStreamInfo`, is embedded on `DJIClip` and therefore lives in the user's `queue.json`, which
+is exactly the blast radius waves G0 and G1 spent themselves protecting.
+
+**Decision 1 — `SegmentStreamInfo` keeps *synthesized* `Codable`; it does NOT follow `DJIClip`'s
+hand-written treatment.** The three new properties are declared as Optionals with `= nil` defaults.
+Under synthesis that yields `decodeIfPresent` on the way in (a shipped-1.0.4 blob lacking the keys
+still decodes) and `encodeIfPresent` on the way out (nil fields are omitted), plus a
+source-compatible memberwise initializer so the six existing test files that construct
+`SegmentStreamInfo(video:audio:)` needed no edits.
+
+**Why:** The G0/G1 rule is often mis-stated as "hand-write the Codable conformance." That is the
+remedy, not the rule. The actual rule is *decode leniently and encode completely*, and Optionals
+under synthesis already satisfy both — `DJIClip` only needed hand-writing because it has
+non-Optional fields (`family`) whose synthesized encoding would have changed the on-disk shape.
+Hand-writing `SegmentStreamInfo` would buy nothing and would newly arm G1's encoder-omission hazard
+here, where it currently cannot exist. Applying the remedy where the disease is absent is how a
+safety rule becomes cargo cult.
+
+**Decision 2 — select the data stream by `codec_tag_string`, never by `codec_name` or position.**
+Measured on real Hero 11 footage before writing any code: gpmd sits at index **3** in an original
+with audio, index **2** in a no-audio original, and index **2** in a remux where ffmpeg regenerated
+`tmcd` *after* gpmd. `codec_name` is unusable as a predicate because `tmcd`'s is `null`, and
+position is unusable because it moves for two independent reasons. This is the concrete evidence
+behind the plan's standing rule never to resolve telemetry as `d:0`.
+
+**Two assumptions in the task description that turned out false — both corrected, neither absorbed
+silently:**
+1. **The specified fallback was unreachable.** The task said to read the timecode from the `tmcd`
+   stream's tags, "falling back to format tags". But `probeStreamInfo` invoked ffprobe with
+   `-show_streams` only, so no `format` object was ever returned and the fallback could never have
+   run. `-show_format` is now passed and `FFProbeStreams.format` is Optional, so existing tests whose
+   fixtures are streams-only literals still decode. A fallback that cannot execute is worse than no
+   fallback: it reads as coverage.
+2. **"DJI's persisted shape is unchanged" is only two-thirds true.** It holds for the two gpmd
+   fields, which stay nil on DJI footage. It does **not** hold for `startTimecode` — DJI files carry
+   a `tmcd` track, so a DJI clip probed by this build now writes a `startTimecode` key it did not
+   write before. This is additive and safe in both directions (Codable ignores unknown keys, so
+   shipped 1.0.4 still reads such a blob) and G3.2 needs the value, so it was kept — but it is a
+   shape change, and the round-trip test that "proves DJI's shape is unchanged" only proves it for
+   the nil case.
+
+**Consequences:** `check(_:)` is untouched, so join-compatibility verdicts are byte-for-byte the
+decisions 1.0.4 made; refusing a mixed telemetry layout is deferred to G4.2 with its own message.
+Suite 525 → 531, 0 fail, with **0 deletions** in the test diff. Three fixtures are real
+`-show_streams -show_format` captures from actual Hero 11 files (`format.filename` sanitized to a
+basename — the repo is public); the DJI case is an inline literal explicitly labelled hand-built,
+because no DJI card was mounted and a fabricated fixture presented as a capture would be worse than
+an honest one.

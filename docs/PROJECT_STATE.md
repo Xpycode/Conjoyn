@@ -9,7 +9,7 @@
   folder `Conjoyn` (renamed from the `DJIjoiner` placeholder 2026-06-11).
 - **One-liner:** native macOS app that auto-stitches split DJI drone MP4 segments into one lossless
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
-- **Started:** 2026-06-07 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
+- **Started:** 2026-06-07 · **Last updated:** 2026-08-07 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
 - **Git:** canonical history at `github.com/Xpycode/Conjoyn` (public, **HTTPS via `gh`**, no SSH).
   Code syncs across Macs via **Syncthing, which excludes `.git`** → history travels **only via
   `origin`**. A fresh Mac (no `.git`) → run the **`git-bootstrap` skill**; **never `reset --hard`
