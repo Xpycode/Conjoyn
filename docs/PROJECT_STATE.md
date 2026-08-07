@@ -30,21 +30,24 @@
   names (rename deferred) · GX/GH chaptered naming only. Osmo Action 1 + GoPro 7 remain
   footage-gated (hardware in hand, nothing shot yet).
 - **Blockers:** none. 🎉 1.0-public is live; the last gate (Sparkle auto-update) is closed.
-- **Next:** **`/make-plan` for the GoPro spec** — all 6 open questions are answered (2026-08-07): gpmd
-  concatenation is **semantically** sound, not just byte-exact (GPMF payloads walk clean across the seam
-  and `STMP` is recording-relative, so nothing re-bases per chapter — parser kept at
-  `01_Project/scripts/gpmf-dump.py`); **no absolute split-size constant** for GoPro (the cap isn't fixed —
-  10.847 GiB at 25 fps vs 10.718 at 100 — and the Hero 7 splits near 4 GB), so grouping rests on chapter
-  numbering + stream params + timecode with a *relative* complete-set signal; the empty-state copy **drops
-  the file-size figure** entirely; `DJIClip` gets a **hand-written `init(from:)`/`CodingKeys`** with
-  `decodeIfPresent`; GH ships parsed-by-symmetry with one ~30 s H.264 clip as the only capture owed; and
-  the "cross-month chapters" worry was a false premise (no 2026-07 folder exists).
-  Highest remaining risk is still the `DJIClip` `Codable` hazard: any **non-Optional** new stored property
-  — *even with a default value* — throws `keyNotFound` at `QueueManager.swift:256`, and the catch at
-  `:301` discards a shipped-1.0.4 user's **entire** persisted queue. **Fixed order: 1.0.4-shaped
-  `queue.json` fixture test → custom decoder → new fields.** Also proven on real footage: the concat join
-  carries `gpmd` byte-exactly (6338 pair → 165,299 video / 77,484 audio / 1,653 gpmd packets, all exact
-  sums), and `-map 0` fails outright because the `tmcd` track has codec `none`.
+- **Next:** **`/execute` Wave G0** of the new plan — `IMPLEMENTATION_PLAN-gopro.md` (written 2026-08-07
+  from the resolved spec; 20 tasks / 9 waves; sprint checkboxes in `docs/TASKS.md`). Recommended thin
+  vertical slice: **G0 → G1.1/G1.2 → G2.1 → G4.1/G4.3**, i.e. prove a real GoPro seam joins with telemetry
+  intact before building grouping/gate/copy on top — that retires the two highest technical risks (does
+  `-map 0:<i>` actually work against the concat demuxer, and is the index resolved from the right file).
+  **G0 blocks every other wave:** the `DJIClip` `Codable` hazard is armed today — any **non-Optional** new
+  stored property, *even with a default value*, throws `keyNotFound` at `QueueManager.swift:256`, and the
+  catch at `:301` discards a shipped-1.0.4 user's **entire** persisted queue. Fixed order: 1.0.4-shaped
+  `queue.json` fixture test → custom decoder → new fields. Five further design calls were locked while
+  planning (recorded in the plan, to `decisions.md` at close-out): chapter number rides in `DJIClip.index`
+  (so "last segment" and the consecutive check keep working) while a new `recordingNumber` carries
+  recording identity; the grouping bucket key becomes `family|variant|recordingNumber`; the gpmd `-map`
+  index is probed from **segment 1 at join time**, never from persisted state; nothing selects telemetry as
+  `d:0` (ffprobe calls `tmcd` a data stream too, so `d:0` can silently verify the timecode track instead);
+  and a GoPro chain without timecode on both sides simply doesn't chain. Already proven on real footage:
+  the concat join carries `gpmd` byte-exactly (6338 pair → 165,299 video / 77,484 audio / 1,653 gpmd
+  packets, all exact sums), and `-map 0` fails outright because the `tmcd` track has codec `none`. Only
+  capture still owed: one ~30 s Hero 11 clip shot in **H.264** (G8.1).
   ⚠️ **Source-footage note (2026-08-07):** `H11--2026-08-03--11-52-11--GX016338.MP4` (ch01 of recording
   6338, 11.5 GB) is no longer in the V26 archive folder — 71 files at the 2026-08-06/07 probe, 70 now.
   User-side clear-out (the separate `2026-07` folder was deleted the same day); no Conjoyn run touched it.
@@ -70,7 +73,17 @@
   reachable): unbounded ledger, `nil`-vs-`""` fingerprint, decorative `WatchGroupState`, shared GCD label.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **Settled every open question about GoPro support, so it can be planned.**
+- **2026-08-07 (latest)** — **Wrote the plan for GoPro support: 20 tasks, 9 waves.** Reading the
+  actual code before planning turned up five decisions the spec had left open, and two of them were
+  traps. The chapter number has to be stored in the field the app already uses for "which piece of the
+  recording is this" — the more obvious choice would have quietly broken how the watch-folder finds a
+  recording's last piece. And the telemetry track can't be picked by asking for "the first data
+  stream", because the timecode track answers to that name too — the check would have passed while
+  looking at the wrong thing. Both are now written down so they can't be re-discovered the hard way.
+  The plan's first task is the safety net: prove a queue saved by the shipped version still loads,
+  *before* anything touches the file format, because getting that wrong silently empties a user's
+  queue. Nothing built yet.
+- **2026-08-07** — **Settled every open question about GoPro support, so it can be planned.**
   The one that actually mattered: we already knew the telemetry track survives a join byte-for-byte,
   but not whether anything could still *read* it afterwards — a camera that restarts its clock in each
   chapter would produce a file that looks perfect and reads as nonsense. It doesn't: the timestamps run
@@ -113,15 +126,6 @@
   a clean build plus the user re-running the real repro on the 2CULL card: no crash. On `main` and
   pushed; **ships with the next planned version update** — the installed 1.0.3 still crashes until
   then.
-- **2026-07-14** — **Captured a roadmap idea: honour photos on a DJI SD card (preserve,
-  don't process).** No code changed. Found that discovery (`DJIFolderReader.read`) silently drops any
-  file that isn't `mp4/mov/srt/lrf` — a `.JPG`/`.DNG` next to the clips vanishes with no trace, a
-  latent data-loss footgun if the card is treated as ingest-then-format. Logged the scope guard to
-  `decisions.md`: SD-card mode offers a checksum-verified byte copy → `Photos/` sibling; watch-folder
-  mode just surfaces a count; **no** panorama stitching / HDR / RAW dev. Rides existing seams
-  (`.photo` mediaKind, DCIM descent, `VerificationService`) — no new subsystems. Post-v1; promote to
-  `/spec` once a real photo-bearing card is on hand. Design camera-agnostic (GoPro/Osmo also shoot
-  stills). Backlog entry added below.
 *(older entries trimmed per the lean-digest rule — full history in
 `docs/sessions/_index.md` and dated logs under `docs/sessions/`.)*
 
@@ -189,5 +193,6 @@
 ## Detail (read only if needed)
 - `docs/decisions.md` — why behind every choice · `docs/sessions/_index.md` — per-session logs ·
   `specs/dji-auto-stitcher.md` — spec + acceptance criteria · `specs/gopro-camera-family.md` — GoPro
-  camera-family spec (2026-08-07, Draft) · `IMPLEMENTATION_PLAN.md` (repo root) —
-  the 7-wave plan · **2026-06-20 log Resume block** — exact SD-card (5.14) test steps.
+  camera-family spec (2026-08-07, Draft) · `IMPLEMENTATION_PLAN-gopro.md` (repo root) — **the active
+  plan**, waves G0–G8 · `IMPLEMENTATION_PLAN.md` — the shipped v1 7-wave plan · `docs/TASKS.md` —
+  sprint checkboxes · **2026-06-20 log Resume block** — exact SD-card (5.14) test steps.

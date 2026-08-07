@@ -901,3 +901,56 @@ throughout — and decisively **`STMP` is recording-relative, not chapter-relati
 first payload reads 1,536.014 s, continuing chapter 01's clock instead of resetting). The feared
 failure mode — a consumer re-basing time per chapter — cannot occur because the camera never
 re-bases it.
+
+---
+
+### 2026-08-07 - GoPro plan: five implementation-level design calls
+
+**Context:** Writing `IMPLEMENTATION_PLAN-gopro.md` from the decision-complete spec required reading
+the real integration points, which surfaced five questions the spec had left to implementation. All
+five are structural — they decide what the code looks like, not just what it does — so they belong
+here rather than only in a plan file, which is disposable by design.
+
+**Decision 1 — the chapter number rides in `DJIClip.index`; a new `recordingNumber` carries identity.**
+GoPro's `GXccnnnn` gives a 2-digit chapter and a 4-digit file number. The natural-looking mapping
+(`index` = file number, the recording's identity) breaks two existing consumers that read `index` as
+*position within the recording*: `WatchFolderCoordinator.swift:402` picks a group's last segment via
+`max(by: index)`, and `continues()` checks `next.index == prev.index + 1`. Mapping **chapter →
+`index`** keeps both correct with no change, and the file number becomes `recordingNumber` (GoPro
+only, `nil` for DJI), used for bucketing.
+**Consequences:** `index` is no longer unique across GoPro recordings, so the cross-group sort
+tie-break (`ConversionViewModel.swift:204/247`) degrades to arbitrary order for two recordings that
+share a `creationDate` — cosmetic. `ProcessedGroupLedger.fingerprint` is unaffected (it includes
+`stem`, `:92`).
+
+**Decision 2 — the grouping bucket key becomes `family|variantSuffix|recordingNumber`.**
+`groupMetas` buckets on `variantSuffix ?? ""` (`DJIFolderReader.swift:180`). Every GoPro clip has a
+`nil` suffix, so without this change all GoPro recordings would share one bucket with the legacy
+DJI clips. Bucketing on the recording number is also what makes "different file number ⇒ different
+recording" hold for free, independent of temporal adjacency.
+
+**Decision 3 — the gpmd `-map` index is probed from segment 1 at join time, never from persisted state.**
+The concat demuxer presents the **first file's** stream layout, and the measured index differs by
+source (3 in a camera original, 2 after a remux — spec finding D). `streamInfo.dataStreamIndex`
+persisted on a clip is therefore a grouping/verification signal only; the join resolves its own.
+**Consequences:** `mergeClips` gains a data-stream policy and does the probe itself; a group whose
+segments disagree on gpmd presence is refused before ffmpeg runs.
+
+**Decision 4 — nothing selects the telemetry stream as `d:0`.**
+ffprobe reports `tmcd` with `codec_type=data`, so `-select_streams d:0` can resolve to the timecode
+track instead of gpmd. That failure is silent and *worse than a crash*: it would yield a **passing**
+telemetry check that had verified the wrong stream. Every gpmd selection — merge args, Tier 0/1
+parity, Tier 2 hash — uses the resolved absolute index with `codec_tag_string == "gpmd"` as the
+predicate.
+
+**Decision 5 — a GoPro chain requires timecode on both sides, or it doesn't chain.**
+GoPro chapters share one `creation_time`, so the DJI wall-clock rule is inapplicable and timecode
+continuity is the continuity signal. With timecode missing on either side we cannot confirm, so we
+split into singles rather than guess — the same "can't confirm ⇒ don't chain" stance step 5 of the
+DJI rule already takes. Safe failure (an unjoined recording the user can see), never a wrong join.
+All 71 corpus files carry `tmcd`, so it should never fire in practice.
+
+**Also decided (process, not architecture):** the GoPro plan lives in its own file rather than
+overwriting `IMPLEMENTATION_PLAN.md` — the v1 file documents the shipped waves 0–6 that
+`PROJECT_STATE` still cites, and a feature plan for a shipped app doesn't replace it. `docs/TASKS.md`
+was introduced (the project had none) for sprint checkboxes only; execution detail stays in the plan.

@@ -3,6 +3,9 @@
 > Generated 2026-06-07 from `specs/dji-auto-stitcher.md`, the two briefs in `docs/`, the
 > P2toMXF port inventory, and four research sweeps (DJI domain, Apple APIs, FFmpeg/exiftool/
 > notarization). Plans are disposable — regenerate if trajectory diverges.
+>
+> **This is the v1 (DJI) plan — waves 0–6, shipped as 1.0.4.** The active plan for the next
+> feature is **`IMPLEMENTATION_PLAN-gopro.md`** (GoPro camera family, waves G0–G8, 2026-08-07).
 
 ## Goal
 A native macOS app (SwiftUI/Swift 6, macOS 14+, arm64, direct-distribution + notarized) that
