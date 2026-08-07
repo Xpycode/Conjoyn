@@ -3,9 +3,15 @@
 Completed sprint tasks, newest first. Execution detail lives in the plan the task came from;
 rationale lives in `decisions.md`. Sprint checkboxes are in `TASKS.md`.
 
-**Total archived:** 6 · **Last updated:** 2026-08-07
+**Total archived:** 7 · **Last updated:** 2026-08-07
 
 ## Completed
+
+### Wave G2 — probe extension (`IMPLEMENTATION_PLAN-gopro.md`)
+
+- [x] **G2.1** Retain gpmd stream index, codec tag and start timecode from ffprobe — three Optionals
+      on `SegmentStreamInfo`, selected by `codec_tag_string`; `check(_:)` untouched; `-show_format`
+      added to make the specified format-tags fallback reachable (2026-08-07)
 
 ### Wave G1 — GoPro filename parsing (`IMPLEMENTATION_PLAN-gopro.md`)
 

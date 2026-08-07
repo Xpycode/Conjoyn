@@ -17,20 +17,22 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 525 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 531 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
 - **Focus:** **GoPro camera-family support** — spec `specs/gopro-camera-family.md` (all 6 open
   questions resolved 2026-08-07), plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). **G0
-  (queue-persistence safety net) and G1 (filename parsing) are closed**; G2 is next. Osmo Action 1 +
-  GoPro 7 stay footage-gated — hardware in hand, nothing shot.
+  (queue-persistence safety net), G1 (filename parsing) and G2 (probe extension) are closed**; G4 is
+  next. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G2.1** — retain the gpmd stream index, codec tag and start timecode
-  from ffprobe. Continues the thin vertical slice **G1 → G2.1 → G4.1/G4.3**: prove a real GoPro seam
-  joins with telemetry intact before building grouping/gate/copy on top, retiring the two highest
-  technical risks (does `-map 0:<i>` work against the concat demuxer, and is the index resolved from
-  the right file). One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
+- **Next:** **`/execute` Wave G4** (G4.1–G4.3) — teach the ffmpeg arg builder a gpmd `-map` index,
+  resolve that index at join time, and prove a **real** GoPro seam joins with telemetry intact. Taken
+  before G3 deliberately (the plan's vertical slice **G1 → G2.1 → G4.1/G4.3**), because it retires the
+  two highest technical risks: whether `-map 0:<i>` works against the concat demuxer at all, and
+  whether the index is resolved from the right file. Seam slices must come from recording **6347 or
+  6345**, not 6338 (its ch01 left the archive). One ~30 s Hero 11 clip in **H.264** is still owed from
+  capture (G8.1).
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
@@ -41,7 +43,15 @@
   71-file measurements (grouping tests are in-memory), so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **The app can now read GoPro filenames.** It recognises GoPro's numbered
+- **2026-08-07 (latest)** — **The app now keeps track of where GoPro's telemetry lives inside a
+  file.** Nothing uses it yet; this only stops the information being thrown away when a file is
+  inspected. Worth doing carefully because the position moves — it sits in a different slot when a
+  clip has no sound, and different again in a re-wrapped file — so anything assuming a fixed slot
+  would quietly point at the wrong track. Checked against real Hero 11 footage rather than invented
+  examples. Two things the plan had wrong turned up: a fallback it specified could never have run,
+  and the change isn't quite invisible to existing DJI footage the way it assumed — both written
+  down rather than papered over. 525 → 531 tests.
+- **2026-08-07** — **The app can now read GoPro filenames.** It recognises GoPro's numbered
   chapters alongside DJI's naming, including footage an archiving tool has renamed; checked against
   all 71 real Hero 11 files. The folder scan needed no change — worth checking rather than assuming.
   One real catch: storing which camera a clip came from forced the save-to-disk code to be written by
@@ -57,11 +67,6 @@
 - **2026-08-07** — **Settled every open question about GoPro support.** The one that mattered:
   telemetry in a joined file is still *readable*, not merely byte-identical — the camera's clock runs
   from the start of the whole recording, not each chapter, so a joined file is coherent end to end.
-- **2026-08-06** — **Fixed: a folder of renamed footage scanned as completely empty.** The parser
-  demanded names *begin* with `DJI_`, so archived clips carrying a prefix were all rejected with no
-  explanation. A prefix is now allowed; a trailing addition is still refused, which is what stops the
-  app re-reading its own joined output. +7 tests → 495. **Ships with the next version bump.**
-
 ## Backlog (all optional / post-ship)
 - **More camera families** — GoPro is specced and in progress (above); **Osmo Action 1 + GoPro 7**
   remain footage-gated. The empty state's "4 GB card limit" figure (`RecordingsList.swift:501`) will

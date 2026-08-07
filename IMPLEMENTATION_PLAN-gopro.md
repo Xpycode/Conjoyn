@@ -107,7 +107,26 @@ verified by injecting a probe key and watching it fail, not assumed.
 
 ---
 
-## Wave G2 — Probe extension (parallel with G1; depends G0)
+## Wave G2 — Probe extension (**CLOSED 2026-08-07**)
+
+Done and merged — suite **531 / 0 fail** (525 → +6). The measured payoff: the gpmd index really does
+move (**3** on a Hero 11 original with audio, **2** on a no-audio original, **2** on a remux where
+ffmpeg regenerated `tmcd` *after* gpmd), so G4's `-map` must use the probed value and selection must
+key on `codec_tag_string`, never `codec_name` (tmcd's is `null`) and never position. `check(_:)` was
+left untouched, so join verdicts are unchanged.
+
+**Two corrections to what this wave assumed:**
+1. The specified "falling back to format tags" path was **dead** — `probeStreamInfo` ran
+   `-show_streams` only, so no `format` object ever came back. `-show_format` is now passed and
+   `FFProbeStreams.format` is Optional so the existing streams-only literal fixtures still decode.
+2. "DJI's persisted shape is unchanged" holds for the two gpmd fields but **not** for
+   `startTimecode` — DJI files carry a `tmcd` track, so a DJI clip probed by this build now writes a
+   `startTimecode` key it didn't before. Additive and safe both ways (Codable ignores unknown keys,
+   so 1.0.4 still reads the blob), and G3.2 needs the value — but it is a shape change, not a no-op.
+
+Fixtures `ConjoynTests/Fixtures/ffprobe-gopro-{original,noaudio,remux}.json` are **real** bundled-
+ffprobe output from actual Hero 11 files (`format.filename` sanitized to a basename — public repo).
+The DJI case is inline and labelled hand-built; no DJI card was mounted.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
