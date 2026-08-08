@@ -657,7 +657,10 @@ private struct TimecodeDisclosurePanel: View {
                     .foregroundStyle(Theme.txt3)
             } else {
                 HStack(spacing: 4) {
-                    ForEach(flagged, id: \.kind) { check in
+                    // `label`, not `kind` — a per-stream check kind (packetCount/packetBytes/
+                    // gpmdParity) is emitted once per stream (video/audio/telemetry), so `kind`
+                    // alone collides; each `label` (e.g. "Packet count (video)") is unique per result.
+                    ForEach(flagged, id: \.label) { check in
                         VerificationChip(check: check)
                     }
                 }

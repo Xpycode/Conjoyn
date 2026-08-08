@@ -31,6 +31,34 @@ final class SourceTargetVerifier: @unchecked Sendable {
         /// The start timecode the join stamped onto the output `tmcd` (what was passed to ffmpeg's
         /// `-timecode`). `nil` when no timecode was applied → the write-back check is skipped.
         let appliedTimecode: String?
+        /// Absolute index of the GoPro gpmd telemetry stream **in each source segment** (decision 3:
+        /// all segments in a group share one layout, so segment 1's probed index speaks for all of
+        /// them). `nil` for DJI, or a GoPro job with no gpmd track — either way, the telemetry check
+        /// is skipped entirely.
+        let sourceGpmdIndex: Int?
+        /// Absolute index of the gpmd stream **in the joined output**. Resolved separately from
+        /// `sourceGpmdIndex`: the join's `-map` order fixes the output layout to video, then audio
+        /// (when kept), then gpmd — a different position than wherever gpmd sat in the source. `nil`
+        /// whenever `sourceGpmdIndex` is `nil`.
+        let outputGpmdIndex: Int?
+
+        init(
+            sourceSegments: [URL],
+            outputURL: URL,
+            hasAudio: Bool,
+            sourceParams: [StreamParameterGuard.SegmentStreamInfo?],
+            appliedTimecode: String?,
+            sourceGpmdIndex: Int? = nil,
+            outputGpmdIndex: Int? = nil
+        ) {
+            self.sourceSegments = sourceSegments
+            self.outputURL = outputURL
+            self.hasAudio = hasAudio
+            self.sourceParams = sourceParams
+            self.appliedTimecode = appliedTimecode
+            self.sourceGpmdIndex = sourceGpmdIndex
+            self.outputGpmdIndex = outputGpmdIndex
+        }
     }
 
     typealias ProgressHandler = @Sendable (Double) -> Void
@@ -155,10 +183,22 @@ final class SourceTargetVerifier: @unchecked Sendable {
         }
 
         // --- Tier 1: per-stream fast comparison ---------------------------------------
-        // Video stream (v:0) is always kept; audio (a:0) only when hasAudio.
-        var streams: [(select: String, label: String)] = [("v:0", "video")]
+        // Video stream (v:0) is always kept; audio (a:0) only when hasAudio. `outputSelect` and
+        // `sourceSelect` are almost always identical (`v:0`/`a:0` mean the same positional stream in
+        // any file) — they diverge only for gpmd, whose absolute index differs between the source
+        // layout and the joined output (see `SourceTargetInput.outputGpmdIndex`'s doc comment).
+        var streams: [(outputSelect: String, sourceSelect: String, label: String,
+                       countKind: VerificationCheck.Kind, bytesKind: VerificationCheck.Kind)] = [
+            ("v:0", "v:0", "video", .packetCount, .packetBytes)
+        ]
         if input.hasAudio {
-            streams.append(("a:0", "audio"))
+            streams.append(("a:0", "a:0", "audio", .packetCount, .packetBytes))
+        }
+        // Telemetry: selected by absolute index on both sides — never `d:0`, which ffprobe would
+        // just as happily resolve to the `tmcd` timecode track (decision 4). Both indices must be
+        // present; either `nil` (DJI, or a GoPro job with no gpmd track) skips the check entirely.
+        if let outIdx = input.outputGpmdIndex, let srcIdx = input.sourceGpmdIndex {
+            streams.append(("\(outIdx)", "\(srcIdx)", "telemetry", .gpmdParity, .gpmdParity))
         }
 
         // Frame interval for the duration tolerance (from the first source's fps, 30 fallback).
@@ -167,15 +207,15 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
         for (idx, stream) in streams.enumerated() {
             // Packet count: output == Σ(sources), exact.
-            let outCount = await packetCount(url: input.outputURL, select: stream.select)
-            let srcCounts = await packetCounts(urls: input.sourceSegments, select: stream.select)
-            checks.append(make(.packetCount, "Packet count (\(stream.label))",
+            let outCount = await packetCount(url: input.outputURL, select: stream.outputSelect)
+            let srcCounts = await packetCounts(urls: input.sourceSegments, select: stream.sourceSelect)
+            checks.append(make(stream.countKind, "Packet count (\(stream.label))",
                                compareCounts(output: outCount, sources: srcCounts)))
 
             // Packet bytes: output == Σ(sources), exact.
-            let outBytes = await packetByteSize(url: input.outputURL, select: stream.select)
-            let srcBytes = await packetByteSizes(urls: input.sourceSegments, select: stream.select)
-            checks.append(make(.packetBytes, "Packet bytes (\(stream.label))",
+            let outBytes = await packetByteSize(url: input.outputURL, select: stream.outputSelect)
+            let srcBytes = await packetByteSizes(urls: input.sourceSegments, select: stream.sourceSelect)
+            checks.append(make(stream.bytesKind, "Packet bytes (\(stream.label))",
                                compareByteSizes(output: outBytes, sources: srcBytes)))
 
             progress?(0.1 + 0.7 * Double(idx + 1) / Double(streams.count))

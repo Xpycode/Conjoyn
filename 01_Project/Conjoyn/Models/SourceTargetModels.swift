@@ -64,6 +64,13 @@ struct VerificationCheck: Codable, Sendable, Equatable {
         case avDrift        // Tier 1: output v:0 vs a:0 duration within tolerance.
         case codecParams    // Tier 1: codec params identical across segments + output.
         case timecodeWriteback  // Tier 1 (metadata): output `tmcd` matches the assigned start timecode.
+        // Named `gpmdParity`, not `telemetryParity`: `QueuePersistenceCompatTests` (G0.3) already
+        // uses the JSON string "telemetryParity" as its stand-in for "a kind this build doesn't
+        // recognize yet" — reusing that literal here would turn a protected test's placeholder into
+        // a real, decodable case and break it.
+        case gpmdParity     // Tier 1 (GoPro only): gpmd packet-count/bytes parity, mirroring
+                             // `packetCount`/`packetBytes` for the telemetry stream (decision 4 —
+                             // selected by absolute index, never `d:0`).
         case hashMatch      // Tier 2: per-stream packet MD5 matches.
 
         /// A kind written by a build that knew about a check this one doesn't. Never produced by

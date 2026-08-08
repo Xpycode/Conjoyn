@@ -204,6 +204,75 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(status, VerificationStatus.verified)
     }
 
+    // MARK: - makeVerifierInput (gpmd, G5.1)
+
+    /// A GoPro clip carrying a probed gpmd `dataStreamIndex` (or `nil`, for the no-telemetry case),
+    /// for `makeVerifierInput`'s family/streamInfo-driven resolution.
+    private func makeGoProClip(hasAudio: Bool, dataStreamIndex: Int?) -> DJIClip {
+        let url = URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString).mp4")
+        let audio: StreamParameterGuard.AudioStreamParams? = hasAudio
+            ? StreamParameterGuard.AudioStreamParams(codecName: "aac", sampleRate: "48000",
+                                                      channels: 2, channelLayout: "stereo")
+            : nil
+        let streamInfo = StreamParameterGuard.SegmentStreamInfo(
+            video: .init(codecName: "hevc", width: 3840, height: 2160,
+                         pixelFormat: "yuv420p", avgFrameRate: "30/1", timeBase: "1/30"),
+            audio: audio,
+            dataStreamIndex: dataStreamIndex,
+            dataCodecTag: dataStreamIndex != nil ? "gpmd" : nil
+        )
+        return DJIClip(
+            videoURL: url,
+            index: 1,
+            stem: "GX016349",
+            family: .goPro,
+            recordingNumber: 6349,
+            duration: CMTime(seconds: 60, preferredTimescale: 600),
+            streamInfo: streamInfo
+        )
+    }
+
+    private func makeGoProJob(outputName: String, clip: DJIClip) -> ConversionJob {
+        var job = ConversionJob(
+            folderName: "100GOPRO",
+            sourceFolderURL: tmpDir,
+            clips: [clip],
+            settings: ConversionSettings(),
+            destinationURL: tmpDir.appendingPathComponent(outputName)
+        )
+        job.status = .pending
+        return job
+    }
+
+    func testMakeVerifierInputDJILeavesGpmdFieldsNil() {
+        let input = makeManager().makeVerifierInput(for: makeJob(outputName: "DJIJob.mp4"))
+        XCTAssertNil(input.sourceGpmdIndex)
+        XCTAssertNil(input.outputGpmdIndex)
+    }
+
+    func testMakeVerifierInputGoProWithAudioResolvesOutputIndexTwo() {
+        // Camera-original layout (hvc1 | mp4a | tmcd | gpmd) — gpmd measured at source index 3.
+        let clip = makeGoProClip(hasAudio: true, dataStreamIndex: 3)
+        let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProJob.mp4", clip: clip))
+        XCTAssertEqual(input.sourceGpmdIndex, 3)
+        XCTAssertEqual(input.outputGpmdIndex, 2, "video(0) + audio(1) → the mapped gpmd lands at 2")
+    }
+
+    func testMakeVerifierInputGoProNoAudioResolvesOutputIndexOne() {
+        let clip = makeGoProClip(hasAudio: false, dataStreamIndex: 2)
+        let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProNoAudio.mp4", clip: clip))
+        XCTAssertEqual(input.sourceGpmdIndex, 2)
+        XCTAssertEqual(input.outputGpmdIndex, 1, "no audio kept → the mapped gpmd lands at 1")
+    }
+
+    func testMakeVerifierInputGoProWithoutGpmdLeavesFieldsNil() {
+        // A GoPro clip whose probe found no gpmd track — the telemetry check must not run.
+        let clip = makeGoProClip(hasAudio: true, dataStreamIndex: nil)
+        let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProNoGpmd.mp4", clip: clip))
+        XCTAssertNil(input.sourceGpmdIndex)
+        XCTAssertNil(input.outputGpmdIndex)
+    }
+
     func testDirectoriesDifferNilSafety() {
         XCTAssertFalse(QueueManager.directoriesDiffer(nil, tmpDir))
         XCTAssertFalse(QueueManager.directoriesDiffer(tmpDir, nil))

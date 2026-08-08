@@ -258,13 +258,25 @@ extension QueueManager {
     /// the ordered source segment URLs; `outputURL` prefers the recorded actual URL (handles
     /// conflict-resolution renames); `hasAudio` is keyed off the first clip's probed audio stream;
     /// `sourceParams` is the per-segment probed stream info in source order.
+    ///
+    /// `sourceGpmdIndex`/`outputGpmdIndex` are gated on the job's family — a DJI clip's `streamInfo`
+    /// never carries a `dataStreamIndex` anyway (no gpmd tag to match), but checking `family` too
+    /// keeps the "DJI leaves both nil" guarantee explicit rather than incidental. The output index
+    /// isn't probed here: the join's `-map` order (video, audio?, gpmd) fixes it deterministically —
+    /// video 0, then gpmd at 2 when audio was kept, 1 otherwise (matches `buildMergeArguments`).
     func makeVerifierInput(for job: ConversionJob) -> SourceTargetVerifier.SourceTargetInput {
-        SourceTargetVerifier.SourceTargetInput(
+        let firstClip = job.clips.first
+        let hasAudio = firstClip?.streamInfo?.audio != nil
+        let sourceGpmdIndex = firstClip?.family == .goPro ? firstClip?.streamInfo?.dataStreamIndex : nil
+
+        return SourceTargetVerifier.SourceTargetInput(
             sourceSegments: job.clips.map(\.videoURL),
             outputURL: job.actualOutputURLs.first ?? job.destinationURL,
-            hasAudio: job.clips.first?.streamInfo?.audio != nil,
+            hasAudio: hasAudio,
             sourceParams: job.clips.map(\.streamInfo),
-            appliedTimecode: job.appliedTimecode
+            appliedTimecode: job.appliedTimecode,
+            sourceGpmdIndex: sourceGpmdIndex,
+            outputGpmdIndex: sourceGpmdIndex != nil ? (hasAudio ? 2 : 1) : nil
         )
     }
 
