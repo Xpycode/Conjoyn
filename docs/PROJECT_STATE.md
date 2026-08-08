@@ -17,24 +17,28 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 542 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 561 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
 - **Focus:** **GoPro camera-family support** — spec `specs/gopro-camera-family.md` (all 6 open
   questions resolved 2026-08-07), plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). **G0
-  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension) and G4 (join with
-  telemetry) are closed**; G3 is next. The vertical slice is complete: **a real GoPro seam now joins
-  with its telemetry byte-exact**, so both headline technical risks are retired on actual footage
-  rather than unit tests. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
+  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension), G3 (grouping) and G4
+  (join with telemetry) are closed**; G5 is next. The vertical slice is complete end to end: a real
+  GoPro recording's chapters now **group** into one recording and **join with telemetry byte-exact**,
+  so both headline technical risks are retired on actual footage rather than unit tests. Osmo Action 1
+  + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G3** (G3.1–G3.4) — composite bucket key, family-dispatched
-  `continues()` with timecode continuity, corpus grouping fixtures, incomplete-set flag. Taken ahead
-  of the equally-unblocked G5 because it is on the critical path to the **G8.2 final gate**: until
-  GoPro chapters actually group, a real recording can't reach the join path from the UI, so the
-  end-to-end proof G4 just established can't be exercised on real footage. **G3.4 adds a visible UI
-  chip → `36_ui-changes-protocol.md` sign-off before implementing.** One ~30 s Hero 11 clip in
-  **H.264** is still owed from capture (G8.1).
+- **Next:** **`/execute` Wave G5** (verification) — the last unblocked engine wave; it hardens a path
+  that already works. Then G6 (watch-folder complete-set rule, depends G3) and the **G8.2 final
+  gate**, which G3 has now cleared the path to: GoPro chapters group, so a real recording can reach
+  the join path from the UI. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
+- **A user decision overturned the spec in G3.4** — an incomplete chapter set (chapters 02..N with no
+  01, or a mid-recording gap) is **flagged but still joinable**, against the spec's "flagged
+  incomplete and not joined". A joined partial file is valid and playable, and the corpus holds a
+  real specimen (6338's chapter 01 left the archive) a hard block would lock out permanently. The
+  rationale sits on `RecordGroup.completeness` and is pinned by a test; spec + plan carry amendment
+  notes rather than rewrites. Full reasoning → `decisions.md` (2026-08-08).
 - **G8.2 is now load-bearing coverage, not a final eyeball** — the G4.3 seam fixtures can't match a
   camera original's stream order, so the real-footage join is the only thing that covers it. Full
   reasoning → `decisions.md` (2026-08-07, "The seam fixture cannot be camera-shaped").
@@ -48,7 +52,20 @@
   71-file measurements (grouping tests are in-memory), so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-07 (latest)** — **A real GoPro recording now joins with its telemetry intact.** This was
+- **2026-08-08 (latest)** — **GoPro recordings split across several files now get put back together
+  as one.** The app already knew how to join them; it didn't know which files belonged together.
+  DJI's rule — a file is "full" at a size limit, and the next one starts where it left off by the
+  clock — doesn't work for GoPro: there is no fixed size limit, and one real recording writes the
+  *same* start time onto both its parts, so the clock test would have refused a perfectly good pair.
+  The camera's internal timecode is the signal that does work, and it's exact to the millionth of a
+  second on real footage. All 71 test files from the archive are now pinned as a permanent check.
+  One trap avoided: the tolerance was originally measured with a different stopwatch than the app
+  actually uses, which happened to agree here but wouldn't in general — re-measured against the real
+  one. A recording missing its first part is now flagged in the list, but **still joinable** — a
+  decision the user made against what the written spec said, because the archive contains exactly
+  such a recording and blocking it would have locked those files out of the app for good.
+  542 → 561 tests.
+- **2026-08-07** — **A real GoPro recording now joins with its telemetry intact.** This was
   the piece nobody could be sure of: GoPro hides its flight/sensor data in a track *inside* the video
   file, and the joining tool had to be told exactly which track to carry across — with the added trap
   that the timecode track looks like the same kind of track, so a natural-looking shortcut would have

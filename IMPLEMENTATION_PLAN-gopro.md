@@ -134,7 +134,7 @@ The DJI case is inline and labelled hand-built; no DJI card was mounted.
 
 ---
 
-## Wave G3 — Grouping (depends G1, G2)
+## Wave G3 — Grouping (**CLOSED 2026-08-08**)
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
@@ -147,6 +147,23 @@ The DJI case is inline and labelled hand-built; no DJI card was mounted.
 > `36_ui-changes-protocol.md`: locate the comparable existing chip in `RecordingsList.swift`
 > (the integrity/`+ N telemetry .SRT` row, `:262-270`), state the exact insertion point, and get
 > user confirmation **before** implementing. No new control, no new pane.
+>
+> **Sign-off obtained 2026-08-08 — and it changed the task.** The user chose to render the warning
+> as a **new `RecordingIntegrity.Flag.Kind` case flowing through the existing `IntegrityChip`**
+> (`RecordingsList.swift:344`), so `RecordingsList.swift` needed **no edit at all** — the flags
+> `ForEach` already draws it. Accepted trade-off: the chip appears only once the async integrity
+> build finishes, a beat after the row.
+>
+> **The user also overturned this row's "not joinable" clause** — an incomplete group **warns but
+> still joins**. Rationale in `decisions.md` (2026-08-08): a joined chapters-02..N file is a valid,
+> playable MP4, and the corpus holds a real specimen (6338's chapter 01 left the archive) that a
+> hard block would lock out permanently. The success-criteria text above is left as originally
+> written; this note is the amendment.
+>
+> **Boundary the row under-specified:** completeness is decided **per bucket, not per run**. A naive
+> per-run test (first chapter > 1) misfires on a 01+03 set — the `[3]` run reads as "missing chapter
+> 01" although chapter 01 sits in the sibling run. Chapter 01's presence is evaluated across the
+> whole `family|variant|recordingNumber` bucket.
 
 ---
 

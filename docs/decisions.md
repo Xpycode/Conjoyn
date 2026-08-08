@@ -1142,3 +1142,64 @@ that the stream order under test is not the one users have.
 - Related: the byte-total assertions carry the weight over packet counts — gpmd runs at 1 packet per
   second against a 1.04 s keyframe floor, so each slice holds exactly one telemetry packet. That
   thinness is a measured floor of `-c copy`, not a shortcut.
+
+---
+
+## 2026-08-08 — An incomplete GoPro chapter set warns, but still joins
+
+**Context.** The spec (`specs/gopro-camera-family.md`, Grouping criteria) said a folder holding
+chapters 02..N with no chapter 01 should be "flagged incomplete **and not joined**", and the G3.4
+plan row repeated it as "**not joinable** (excluded from enqueue)".
+
+**Decision (user's, at G3.4 sign-off).** Flag it, but leave it joinable and enqueueable. No
+exclusion gate, no confirmation dialog.
+
+**Why.**
+- A joined chapters-02..N output is a **valid, playable, correct MP4** — it just isn't the whole
+  recording. Nothing corrupts, so there is no correctness argument for the block, only a
+  did-you-mean one; a chip says that just as well.
+- The measured corpus contains a **real specimen**: recording 6338's chapter 01 left the V26
+  archive in the user's own 2026-08-07 clear-out, leaving chapter 02 alone. A hard block would
+  permanently lock those files out of the app.
+- This is the mirror of the index-gap guard's reasoning (2026-06-24) but lands the other way, and
+  the difference is the point: that guard prevents a **silent corrupt merge** — a real
+  data-integrity failure the user cannot see. This one would prevent a **correct join the user
+  asked for**. Refusing to act is only the safe default when acting can produce a wrong artefact.
+
+**Consequences.**
+- `RecordGroup.completeness` is **display-only**. The rationale lives on that property's doc
+  comment so the next reader doesn't "fix" the code back to the spec text, and a test
+  (`testIncompleteGroupIsStillReturnedAndJoinable`) pins it.
+- The spec's acceptance criterion and the G3.4 plan row are now **superseded on this point**; both
+  carry an amendment note rather than being rewritten, so the change of mind stays visible.
+- If a "don't let me do this by accident" signal is ever wanted, it should be a confirmation, not
+  an exclusion — the group must stay reachable.
+
+## 2026-08-08 — GoPro chapters chain on timecode, and the 1 ms slack was measured against the right clock
+
+**Context.** DJI chains segments on the **file-size split cap + wall-clock `creation_time`**. Neither
+signal works for GoPro: the split cap is not a constant (6349 capped at 10.8471 GiB @25 fps vs
+~10.718 GiB for the 100 fps recordings), and recording 6338's two chapters carry an **identical**
+`creation_time`, so DJI's wall-clock rule would refuse a real, valid chain.
+
+**Decision.** `continues()` dispatches on `family`. `continuesDJI` is the shipped body, untouched.
+`continuesGoPro` chains on same recording number + consecutive chapter + stream-param compatibility
++ **timecode continuity**: `tc(N+1) − tc(N)` must equal chapter N's container duration within
+`timecodeContinuitySlackSeconds` (1 ms). No size-cap gate, no wall-clock gate.
+
+**The part worth writing down.** The slack was first derived from ffprobe's `format.duration` in the
+corpus CSV — but production feeds this check `DJIClip.durationInSeconds`, i.e. **AVFoundation's
+`CMTime`**. Those are not the same number in general: ffprobe's own `format` and `video` stream
+durations already disagree by up to **0.667 ms** on this corpus, which would have eaten most of a
+1 ms budget while every unit test still passed, because the fixtures carry CSV numbers rather than
+the production source. Re-measured on all 13 non-final chapters via `asset.load(.duration)`:
+AVFoundation reports the format duration **exactly** (768.000000000 s and 2063.360000000 s at
+timescale 90000), so every residual is zero and the ~9 orders of margin is real. Recorded in the
+tolerance's doc comment.
+
+**Also locked:** timecode→seconds divides `totalFrames` by the **actual** fps, never the rounded one.
+`Timecode.totalFrames` deliberately decomposes `HH:MM:SS:FF` at the rounded rate (correct — non-drop
+counts 30 frames per timecode-second at 29.97), but converting that count to real elapsed seconds
+needs the true rate: 1800 frames of 29.97 non-drop is **60.06** real seconds, not 60.00. The error is
+invisible on this integer-fps corpus (25/50/100/200) and silently wrong on the NTSC rates a Hero 11
+can also shoot.

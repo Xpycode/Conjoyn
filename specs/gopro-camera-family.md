@@ -202,9 +202,14 @@ Measured corpus = the 71-file 2026-08 folder (the only folder holding MP4s — s
       6330→6332), when scanned, then no warning — gaps between *recordings* are normal (deleted
       or elsewhere; unknowable from headers). Only gaps between *chapters of one recording*
       block grouping.
-- [ ] Given a folder containing chapters 02..N but no 01, when scanned, then the set is flagged
-      incomplete and not joined (a recording never starts above chapter 01 on camera —
+- [x] Given a folder containing chapters 02..N but no 01, when scanned, then the set is flagged
+      incomplete ~~and not joined~~ (a recording never starts above chapter 01 on camera —
       measured; ch01 elsewhere means the user split the copy).
+      **Amended 2026-08-08 (G3.4 sign-off): flagged but STILL JOINABLE.** The "not joined" clause is
+      superseded — a joined chapters-02..N file is a valid, playable, correct MP4, and this very
+      corpus holds a specimen (6338's chapter 01 left the archive) that a hard block would lock out
+      permanently. Implemented as `RecordGroup.completeness` → a warning chip; no enqueue gate.
+      Rationale → `docs/decisions.md` (2026-08-08).
 - [ ] Given the archive's month-folder split, when a recording's chapters are looked for, then
       they are assumed co-located: all chapters share `creation_time`, so the rename-then-file
       workflow puts a whole recording in **one** month folder (**assumption** — holds for all 6

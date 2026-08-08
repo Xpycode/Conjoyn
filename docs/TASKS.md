@@ -3,19 +3,30 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro wave G3 (grouping)
+## Current Sprint — GoPro wave G5 (verification)
 
-*(G0.1–G0.3, G1.1–G1.3, G2.1 and G4.1–G4.3 completed 2026-08-07 → `tasks-archive.md`.)*
+*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4 and G4.1–G4.3 completed → `tasks-archive.md`.)*
 
-**G5 (verification) is equally unblocked** — the plan's serial spine reads G0 → G2 → G4 → G5. G3 is
-taken first because it is on the critical path to the **G8.2 final gate**: until GoPro chapters
-actually group, a real recording can't reach the join path from the UI at all, so the end-to-end
-proof G4 just established can't be exercised on real footage. G5 hardens a path that already works.
+Wave G5 is next: it was equally unblocked all along (the plan's serial spine is G0 → G2 → G4 → G5),
+and with G3 closed the critical path to the **G8.2 final gate** is clear — GoPro chapters now group,
+so a real recording can reach the join path from the UI.
 
-- [ ] **G3.1** Extend `SegmentMeta` + composite bucket key (`family|variantSuffix|recordingNumber`)
-- [ ] **G3.2** Family-dispatched `continues()` — timecode continuity, no size-cap gate
-- [ ] **G3.3** Corpus grouping fixtures (6 multi-chapter groups + 51 singles)
-- [ ] **G3.4** Incomplete-set flag — **new visible UI chip, needs `36_ui-changes-protocol.md` sign-off first**
+> **Wave G3 is CLOSED (2026-08-08)** — suite **561 / 0 fail** (542 → 561). GoPro chapters group on
+> **timecode continuity**, not DJI's size-cap + wall-clock rule: the cap isn't a constant and
+> recording 6338's two chapters share an identical `creation_time`, so the DJI rule would have
+> refused a real, valid chain. `continuesDJI` is the shipped body moved verbatim — DJI verdicts are
+> untouched, and the composite bucket key `family|variantSuffix|recordingNumber` is a 1:1 relabel
+> for DJI (whose `recordingNumber` is always nil). All **71** measured corpus files are pinned as
+> fixtures: 6 multi-chapter groups + 51 singles, transcribed by script and re-verified field-by-field
+> against the CSV (781 comparisons, 0 mismatches). Three things worth carrying forward:
+> (a) the 1 ms continuity slack was re-measured against the source production actually feeds it —
+> **AVFoundation's `CMTime`, not ffprobe's `format.duration`** that the corpus CSV records; they
+> agree exactly on all 13 non-final chapters, but ffprobe's own format-vs-video durations differ by
+> up to 0.667 ms, so measuring the wrong clock would have eaten most of the budget while every unit
+> test still passed. (b) timecode→seconds divides by the **actual** fps, never the rounded one —
+> invisible at 25/50/100/200 fps, silently wrong on the NTSC rates a Hero 11 can also shoot.
+> (c) the incomplete-set flag **warns but does not block the join** — a user decision that overturns
+> the spec's "not joined" line; see `decisions.md` (2026-08-08).
 
 > **Wave G4 is CLOSED (2026-08-07)** — suite **542 / 0 fail**. Both headline risks are retired on
 > real footage, not unit tests: **`-map 0:<i>` does work against the concat demuxer**, and gpmd
