@@ -64,10 +64,20 @@ struct RecordingIntegrity: Equatable, Sendable {
             case embeddedDateUnusable(RecordingStartResolver.Provenance)
             /// Container playback runs longer than real time (SRT-derived).
             case slowMotionDualTimebase
+            /// A GoPro run's first chapter number is above 01 — chapter 01 isn't in this folder
+            /// (`RecordGroup.Completeness.missingFirstChapter`, G3.4). The group still joins; this is
+            /// advisory only (see `RecordGroup.completeness`'s doc for why).
+            case missingFirstChapter
+            /// A GoPro recording's chapters exist but couldn't all be bridged into one run
+            /// (`RecordGroup.Completeness.chapterGap`, G3.4). The group still joins; this is
+            /// advisory only (see `RecordGroup.completeness`'s doc for why).
+            case chapterGap
 
             var severity: Severity {
                 switch self {
-                case .noSignalAtAll, .srtFilenameMismatch, .embeddedDateUnusable: return .warning
+                case .noSignalAtAll, .srtFilenameMismatch, .embeddedDateUnusable,
+                     .missingFirstChapter, .chapterGap:
+                    return .warning
                 case .slowMotionDualTimebase: return .info
                 }
             }
@@ -82,6 +92,10 @@ struct RecordingIntegrity: Equatable, Sendable {
                     return "bad embedded date"
                 case .slowMotionDualTimebase:
                     return "slow-mo"
+                case .missingFirstChapter:
+                    return "missing chapter 01"
+                case .chapterGap:
+                    return "missing a chapter"
                 }
             }
 
@@ -99,6 +113,15 @@ struct RecordingIntegrity: Equatable, Sendable {
                 case .slowMotionDualTimebase:
                     return "Slow-motion: playback runs longer than real time. The timecode starts at "
                         + "the real recording instant and advances at the playback rate."
+                case .missingFirstChapter:
+                    return "This recording's chapter 01 isn't in this folder — a GoPro recording "
+                        + "never starts above chapter 01 on camera, so it was likely moved or left "
+                        + "out of the copy. Joining still produces a valid file, just not the whole "
+                        + "recording."
+                case .chapterGap:
+                    return "Not every chapter of this recording could be joined into one file — a "
+                        + "chapter is missing or broke continuity partway through. Joining still "
+                        + "produces a valid file, just not the whole recording."
                 }
             }
         }
@@ -147,6 +170,14 @@ extension RecordingIntegrity {
         // A manual override makes the "SRT value is used" copy untrue, so suppress the mismatch there.
         if provenance != .manualOverride, resolution.mismatch != nil {
             flags.append(Flag(kind: .srtFilenameMismatch(deltaSeconds: resolution.mismatch!.deltaSeconds)))
+        }
+        // GoPro incomplete-set warning, read straight off the group (DJI groups are always
+        // `.complete`, so this never fires for DJI). Advisory only — the group stays joinable/
+        // enqueueable regardless (see `RecordGroup.completeness`'s doc for the rationale).
+        switch group.completeness {
+        case .complete: break
+        case .missingFirstChapter: flags.append(Flag(kind: .missingFirstChapter))
+        case .chapterGap: flags.append(Flag(kind: .chapterGap))
         }
 
         // Info ───────────────────────────────────────────────────────────────

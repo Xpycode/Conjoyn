@@ -1,4 +1,5 @@
 import XCTest
+import CoreMedia
 @testable import Conjoyn
 
 /// Backpressure for task 2.4 — metadata-continuity grouping (`DJIFolderReader.groupMetas`).
@@ -530,5 +531,109 @@ final class DJIFolderGroupingTests: XCTestCase {
         let rows = Self.corpusRows.filter { $0.recording == 6347 && [1, 3].contains($0.chapter) }
         let groups = DJIFolderReader.groupMetas(rows.map(corpusMeta))
         XCTAssertEqual(groups.map { $0.map(\.stem) }, [["GX016347"], ["GX036347"]])
+    }
+
+    // MARK: - Incomplete-set flag (G3.4)
+
+    // `RecordGroup.completeness` is computed by the `DJIClip`-level `group(_:)` adapter, not by
+    // `groupMetas` itself, so these fixtures build `DJIClip`s (nonexistent paths — only
+    // `totalFileSize` touches disk, and it's read by the DJI cap rule only, which none of these
+    // clips exercise) instead of bare `SegmentMeta`s.
+
+    /// Stream params carrying a start timecode, matching the real Hero 11 corpus shape
+    /// (`hevc|aac|tmcd|gpmd`, gpmd at index 3) — `startTimecode` is what `group(_:)` reads to derive
+    /// `SegmentMeta.startTimecodeSeconds` for `continuesGoPro`'s timecode-continuity rule.
+    private func goProClipStreamInfo(tc: String, fps: Double) -> Guard.SegmentStreamInfo {
+        .init(video: .init(codecName: "hevc", width: 3840, height: 2160, pixelFormat: "yuv420p",
+                           avgFrameRate: "\(Int(fps))/1", timeBase: "1/90000", rFrameRate: "\(Int(fps))/1"),
+              audio: .init(codecName: "aac", sampleRate: "48000", channels: 2, channelLayout: "stereo"),
+              dataStreamIndex: 3, dataCodecTag: "gpmd", startTimecode: tc)
+    }
+
+    /// Builds a GoPro `DJIClip` fixture for `group(_:)`, the same real corpus values (recording
+    /// 6347's chapters) the `groupMetas` fixtures above use for chaining.
+    private func goProClip(_ stem: String, recording: Int, chapter: Int, tc: String, fps: Double,
+                           creation: Date, durS: Double) -> DJIClip {
+        DJIClip(
+            videoURL: URL(fileURLWithPath: "/nonexistent/\(stem).MP4"),
+            index: chapter,
+            stem: stem,
+            family: .goPro,
+            recordingNumber: recording,
+            creationDate: creation,
+            duration: CMTime(seconds: durS, preferredTimescale: 90_000),
+            streamInfo: goProClipStreamInfo(tc: tc, fps: fps)
+        )
+    }
+
+    /// The spec's own edge case verbatim: chapters 02..N present, no 01 — a recording never starts
+    /// above chapter 01 on camera (measured), so the set is flagged `.missingFirstChapter`.
+    func testMissingFirstChapterFlagsWhenRunStartsAboveChapterOne() {
+        let creation = gpUtc("2026-08-04", "16:40:00")
+        let clips = [
+            goProClip("GX026347", recording: 6347, chapter: 2, tc: "18:52:48:24", fps: 100,
+                      creation: creation, durS: 768.0),
+            goProClip("GX036347", recording: 6347, chapter: 3, tc: "19:05:36:24", fps: 100,
+                      creation: creation, durS: 768.0),
+        ]
+        let groups = DJIFolderReader.group(clips)
+        XCTAssertEqual(groups.count, 1)
+        XCTAssertEqual(groups.first?.clipCount, 2)
+        XCTAssertEqual(groups.first?.completeness, .missingFirstChapter)
+    }
+
+    /// A gap in the middle of a recording — chapters 01 and 03 present, 02 withheld — splits into
+    /// two runs of the same recording number. Chapter 01 *is* present (just in the other run), so
+    /// both runs are flagged `.chapterGap`, not `.missingFirstChapter`.
+    func testChapterGapFlagsBothRunsWhenAMiddleChapterIsMissing() {
+        let creation = gpUtc("2026-08-04", "16:40:00")
+        let clips = [
+            goProClip("GX016347", recording: 6347, chapter: 1, tc: "18:40:00:24", fps: 100,
+                      creation: creation, durS: 768.0),
+            // chapter 02 absent — the hole.
+            goProClip("GX036347", recording: 6347, chapter: 3, tc: "19:05:36:24", fps: 100,
+                      creation: creation, durS: 768.0),
+        ]
+        let groups = DJIFolderReader.group(clips)
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertTrue(groups.allSatisfy { $0.completeness == .chapterGap })
+    }
+
+    /// A DJI group is always `.complete`, regardless of split/single shape — behaviour is unchanged
+    /// by G3.4 for the family this app shipped with.
+    func testDJIGroupCompletenessIsAlwaysComplete() {
+        let split = DJIClip(
+            videoURL: URL(fileURLWithPath: "/nonexistent/0104.MP4"),
+            index: 104, variantSuffix: "D",
+            stem: "0104", creationDate: utc("14:44:34"),
+            duration: CMTime(seconds: 326.8, preferredTimescale: 600), streamInfo: params()
+        )
+        let single = DJIClip(
+            videoURL: URL(fileURLWithPath: "/nonexistent/0107.MP4"),
+            index: 107, variantSuffix: "D",
+            stem: "0107", creationDate: utc("15:00:12"),
+            duration: CMTime(seconds: 62.8, preferredTimescale: 600), streamInfo: params()
+        )
+        let groups = DJIFolderReader.group([split, single])
+        XCTAssertFalse(groups.isEmpty)
+        XCTAssertTrue(groups.allSatisfy { $0.completeness == .complete })
+    }
+
+    /// Locked decision 2 (G3.4): an incomplete group is warned about but never excluded from
+    /// `group(_:)`'s output — the same list `ConversionViewModel.selectedGroups`/`addToQueue` reads
+    /// with no completeness check of its own. A joined chapters-02..N file is a valid, playable,
+    /// correct MP4, just not the whole recording, and the real corpus holds a specimen where a hard
+    /// block would matter (recording 6338's chapter 01 left the archive). Pinned here so a future
+    /// change can't silently reintroduce a join-time exclusion for this case.
+    func testIncompleteGroupIsStillReturnedAndJoinable() {
+        let creation = gpUtc("2026-08-04", "16:40:00")
+        let clip = goProClip("GX026347", recording: 6347, chapter: 2, tc: "18:52:48:24", fps: 100,
+                             creation: creation, durS: 768.0)
+        let groups = DJIFolderReader.group([clip])
+        XCTAssertEqual(groups.count, 1, "an incomplete group must still be returned, never dropped")
+        XCTAssertEqual(groups.first?.completeness, .missingFirstChapter)
+        XCTAssertEqual(groups.first?.clipCount, 1)
+        XCTAssertFalse(groups.first?.videoURLs.isEmpty ?? true,
+                       "the group must still carry real clips ready to join")
     }
 }

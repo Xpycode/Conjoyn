@@ -216,6 +216,13 @@ enum DJIFolderReader {
         return Double(tc.totalFrames) / framesPerSecond
     }
 
+    /// `groupMetas`' bucket key: family | variant suffix | GoPro recording number. Factored out so
+    /// `group(_:)` can reconstruct the same key from a finished run (G3.4's incomplete-set check)
+    /// without duplicating — and risking drift from — the string it actually bucketed on.
+    private static func bucketKey(_ meta: SegmentMeta) -> String {
+        "\(meta.family.rawValue)|\(meta.variantSuffix ?? "")|\(meta.recordingNumber.map(String.init) ?? "")"
+    }
+
     /// Pure continuity-grouping core. Buckets by camera family + camera/lens variant + GoPro
     /// recording number (the hard no-merge boundaries), then within each bucket walks segments in
     /// real-time order and chains a capped/continuing segment to the next when the family's own
@@ -237,9 +244,7 @@ enum DJIFolderReader {
         // no `recordingNumber` (always nil), so this is a 1:1 relabel of the old
         // `variantSuffix ?? ""` key for DJI — bucketing verdicts are unchanged. GoPro clips have no
         // `variantSuffix` (always nil), so their bucket boundary is the recording number instead.
-        let buckets = Dictionary(grouping: metas) { meta in
-            "\(meta.family.rawValue)|\(meta.variantSuffix ?? "")|\(meta.recordingNumber.map(String.init) ?? "")"
-        }
+        let buckets = Dictionary(grouping: metas, by: bucketKey)
         var runs: [[SegmentMeta]] = []
         for key in buckets.keys.sorted() {
             let ordered = buckets[key]!.sorted(by: orderedBefore)
@@ -381,15 +386,58 @@ enum DJIFolderReader {
             )
         }
 
-        return groupMetas(metas).enumerated().map { offset, run in
+        let runs = groupMetas(metas)
+
+        // Per-bucket signals for the incomplete-set check (G3.4), reconstructed from each run's
+        // first segment via the same key `groupMetas` bucketed on. A GoPro recording-number bucket
+        // producing more than one run means its chapters could not all be bridged into a single
+        // run; which warning a run in that bucket gets depends on whether chapter 01 shows up in
+        // *any* of the bucket's runs — a run starting at chapter 3 means "missing chapter 01" only
+        // when chapter 01 is nowhere in the folder, not when it simply ended up in a separate run of
+        // the same recording. DJI buckets routinely produce many runs — one per recording sharing a
+        // variant suffix — so both maps are only consulted for GoPro runs below.
+        var runCountByBucket: [String: Int] = [:]
+        var hasChapterOneByBucket: [String: Bool] = [:]
+        for run in runs {
+            guard let first = run.first else { continue }
+            let key = bucketKey(first)
+            runCountByBucket[key, default: 0] += 1
+            if first.index == 1 { hasChapterOneByBucket[key] = true }
+        }
+
+        return runs.enumerated().map { offset, run in
             let runClips = run.compactMap { byId[$0.id] }
             return RecordGroup(
                 clips: runClips,
                 groupIndex: offset + 1,
                 groupType: runClips.count > 1 ? .split : .single,
-                variantSuffix: runClips.first?.variantSuffix
+                variantSuffix: runClips.first?.variantSuffix,
+                completeness: completeness(
+                    of: run,
+                    runCountByBucket: runCountByBucket,
+                    hasChapterOneByBucket: hasChapterOneByBucket
+                )
             )
         }
+    }
+
+    /// Incomplete-set signal for one grouped run (G3.4). GoPro-only — DJI has no chapter numbering
+    /// to check, so a DJI run always reports `.complete` and behaviour is unchanged.
+    private static func completeness(
+        of run: [SegmentMeta],
+        runCountByBucket: [String: Int],
+        hasChapterOneByBucket: [String: Bool]
+    ) -> RecordGroup.Completeness {
+        guard let first = run.first, first.family == .goPro else { return .complete }
+        let key = bucketKey(first)
+        guard (runCountByBucket[key] ?? 1) > 1 else {
+            // Sole run for this recording — a first chapter above 01 means chapter 01 was never
+            // captured here (a recording never starts above chapter 01 on camera; measured).
+            return first.index > 1 ? .missingFirstChapter : .complete
+        }
+        // The recording's chapters split into more than one run. If chapter 01 never showed up in
+        // any of them, that's the more specific fact; otherwise what broke off is a mid-run gap.
+        return (hasChapterOneByBucket[key] ?? false) ? .chapterGap : .missingFirstChapter
     }
 
     // MARK: - Folder resolution (card-aware descent)
