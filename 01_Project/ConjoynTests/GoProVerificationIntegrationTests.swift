@@ -1,13 +1,14 @@
 import XCTest
 @testable import Conjoyn
 
-/// Wave G5.1 — proves the Tier 0/1 pass genuinely checks the gpmd telemetry stream through the
-/// **real** join + verify path, not a synthetic stand-in. Reuses the same real Hero 11 seam
-/// fixtures `GoProJoinIntegrationTests` joins (`Fixtures/gopro-seam/`), builds a
-/// `SourceTargetVerifier.SourceTargetInput` the way `QueueManager+Verification.makeVerifierInput`
-/// does, and asserts the emitted telemetry check both passes when pointed at the correct gpmd
-/// indices and — falsified — fails when pointed at the wrong stream instead (the exact hazard
-/// decision 4 exists to rule out: a `d:0` selector can resolve to `tmcd`, not `gpmd`).
+/// Waves G5.1 + G5.2 — proves the Tier 0/1 pass and the Tier 2 byte-exact hash both genuinely check
+/// the gpmd telemetry stream through the **real** join + verify path, not a synthetic stand-in.
+/// Reuses the same real Hero 11 seam fixtures `GoProJoinIntegrationTests` joins
+/// (`Fixtures/gopro-seam/`), builds a `SourceTargetVerifier.SourceTargetInput` the way
+/// `QueueManager+Verification.makeVerifierInput` does, and asserts the emitted checks both pass
+/// when pointed at the correct gpmd indices and — falsified — fail when pointed at the wrong
+/// stream instead (the exact hazard decision 4 exists to rule out: a `d:0` selector can resolve to
+/// `tmcd`, not `gpmd`).
 ///
 /// Skips cleanly when the bundled ffmpeg/ffprobe or the fixtures are unavailable.
 final class GoProVerificationIntegrationTests: XCTestCase {
@@ -193,5 +194,62 @@ final class GoProVerificationIntegrationTests: XCTestCase {
         let countCheck = try XCTUnwrap(result.checks.first { $0.label == "Packet count (telemetry)" })
         XCTAssertEqual(countCheck.severity, .fail,
                        "selecting the wrong stream must fail loudly, never pass silently — detail: \(countCheck.detail)")
+    }
+
+    // MARK: - Tier 2 (G5.2): the byte-exact hash also covers gpmd
+
+    /// Companion to `testTelemetryCheckPassesOnCorrectlyResolvedIndices`, one tier deeper:
+    /// `verifyThorough` hashes v:0/a:0/gpmd end-to-end, so this proves the mechanism through the
+    /// real join + real ffmpeg `-f streamhash`, not a synthetic vector.
+    func testTier2HashPassesOnCorrectlyResolvedIndices() async throws {
+        _ = try tools()
+        let (segments, output, infos, dir) = try await joinFixtures()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let sourceGpmdIndex = infos.first?.dataStreamIndex
+        XCTAssertEqual(sourceGpmdIndex, 2, "fixture's measured gpmd index (Fixtures/gopro-seam/README.md)")
+
+        let input = SourceTargetVerifier.SourceTargetInput(
+            sourceSegments: segments,
+            outputURL: output,
+            hasAudio: true,
+            sourceParams: infos,
+            appliedTimecode: "00:00:00:00",
+            sourceGpmdIndex: sourceGpmdIndex,
+            outputGpmdIndex: 2
+        )
+
+        let result = await SourceTargetVerifier().verifyThorough(input)
+        let hashCheck = try XCTUnwrap(result.checks.first { $0.kind == .hashMatch })
+        XCTAssertEqual(hashCheck.severity, .pass, "detail: \(hashCheck.detail)")
+    }
+
+    /// Falsification counterpart to `testTelemetryCheckFailsWhenPointedAtTheRegeneratedTmcdInstead`,
+    /// one tier deeper: pointing the output-side gpmd index at the regenerated `tmcd` stream instead
+    /// must fail the byte-exact hash comparison too, never pass silently.
+    func testTier2HashFailsWhenPointedAtTheRegeneratedTmcdInstead() async throws {
+        let (_, ffprobe) = try tools()
+        let (segments, output, infos, dir) = try await joinFixtures()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let tmcdIndex = try XCTUnwrap(
+            try probeStreamIndex(ffprobe: ffprobe, url: output, codecTag: "tmcd"),
+            "expected a regenerated tmcd stream in the joined output"
+        )
+
+        let input = SourceTargetVerifier.SourceTargetInput(
+            sourceSegments: segments,
+            outputURL: output,
+            hasAudio: true,
+            sourceParams: infos,
+            appliedTimecode: "00:00:00:00",
+            sourceGpmdIndex: infos.first?.dataStreamIndex,   // still correct on the source side
+            outputGpmdIndex: tmcdIndex                        // wrong: tmcd, not gpmd
+        )
+
+        let result = await SourceTargetVerifier().verifyThorough(input)
+        let hashCheck = try XCTUnwrap(result.checks.first { $0.kind == .hashMatch })
+        XCTAssertEqual(hashCheck.severity, .fail,
+                       "hashing the wrong output stream must fail loudly, never pass silently — detail: \(hashCheck.detail)")
     }
 }

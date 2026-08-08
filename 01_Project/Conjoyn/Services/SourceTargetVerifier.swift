@@ -261,6 +261,33 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
     // MARK: - Tier 2 hash
 
+    /// Builds the `-map` argument vectors for Tier 2's stream hash — once for the source side, once
+    /// for the output side. `v:0`/`a:0` mean the same positional stream in either file, so those
+    /// entries are shared, but gpmd doesn't: the join's fixed `-map` order puts it at a different
+    /// absolute index in the output than wherever it sat in the source layout (see
+    /// `SourceTargetInput.outputGpmdIndex`'s doc comment). Building one shared array would hash two
+    /// different streams and compare them. Selected by absolute index on both sides, never `d:0`,
+    /// which ffprobe would resolve to `tmcd` instead (decision 4). Either index `nil` (DJI, or a
+    /// GoPro job with no gpmd track) reproduces the prior two-entry vector exactly — pure and
+    /// process-free so that guarantee is exact-vector unit-testable without spawning ffmpeg.
+    static func tier2MapArgs(
+        hasAudio: Bool,
+        sourceGpmdIndex: Int?,
+        outputGpmdIndex: Int?
+    ) -> (source: [String], output: [String]) {
+        var sourceMapArgs = ["-map", "0:v:0"]
+        var outputMapArgs = ["-map", "0:v:0"]
+        if hasAudio {
+            sourceMapArgs.append(contentsOf: ["-map", "0:a:0"])
+            outputMapArgs.append(contentsOf: ["-map", "0:a:0"])
+        }
+        if let srcIdx = sourceGpmdIndex, let outIdx = outputGpmdIndex {
+            sourceMapArgs.append(contentsOf: ["-map", "0:\(srcIdx)"])
+            outputMapArgs.append(contentsOf: ["-map", "0:\(outIdx)"])
+        }
+        return (sourceMapArgs, outputMapArgs)
+    }
+
     /// Per-stream packet MD5: sources (via concat list) vs output. Mismatch is a definitive `.fail`.
     private func runTier2Hash(
         _ input: SourceTargetInput,
@@ -282,12 +309,15 @@ final class SourceTargetVerifier: @unchecked Sendable {
         }
         defer { try? FileManager.default.removeItem(at: listFileURL) }
 
-        var mapArgs = ["-map", "0:v:0"]
-        if input.hasAudio { mapArgs.append(contentsOf: ["-map", "0:a:0"]) }
+        let (sourceMapArgs, outputMapArgs) = Self.tier2MapArgs(
+            hasAudio: input.hasAudio,
+            sourceGpmdIndex: input.sourceGpmdIndex,
+            outputGpmdIndex: input.outputGpmdIndex
+        )
 
         // Sources: concat-demux the list, hash kept streams.
         var sourceArgs = ["-f", "concat", "-safe", "0", "-i", listFileURL.path]
-        sourceArgs.append(contentsOf: mapArgs)
+        sourceArgs.append(contentsOf: sourceMapArgs)
         sourceArgs.append(contentsOf: ["-c", "copy", "-hash", "md5", "-f", "streamhash", "-"])
         let sourceRun = await runCapturingStdout(at: ffmpegURL, arguments: sourceArgs)
         if isCancelling {
@@ -300,7 +330,7 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
         // Output: hash kept streams of the joined file.
         var outputArgs = ["-i", input.outputURL.path]
-        outputArgs.append(contentsOf: mapArgs)
+        outputArgs.append(contentsOf: outputMapArgs)
         outputArgs.append(contentsOf: ["-c", "copy", "-hash", "md5", "-f", "streamhash", "-"])
         let outputRun = await runCapturingStdout(at: ffmpegURL, arguments: outputArgs)
         if isCancelling {

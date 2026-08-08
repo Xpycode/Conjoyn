@@ -193,6 +193,66 @@ final class SourceTargetVerifierTests: XCTestCase {
         XCTAssertEqual(verifier.classifyHashLines(sourceLines: ["x"], outputLines: []).severity, .fail)
     }
 
+    /// A third stream (telemetry) appended on both sides pairs by position, same as v/a today —
+    /// `classifyHashLines` has no stream-index or codec-type awareness of its own. The line's
+    /// leading index is `-f streamhash`'s own **local** output-stream position (0, 1, 2, ... within
+    /// that invocation's `-map` selection), confirmed against real bundled ffmpeg — NOT the
+    /// absolute source-file index, so it reads "2,d,…" on both the source and output sides even
+    /// though `sourceGpmdIndex`/`outputGpmdIndex` differ. Positional pairing is therefore correct.
+    func testHashLinesThreeStreamsPairByPosition() {
+        let src = ["0,v,MD5=aaaa", "1,a,MD5=bbbb", "2,d,MD5=cccc"]
+        let out = ["0,v,MD5=aaaa", "1,a,MD5=bbbb", "2,d,MD5=cccc"]
+        XCTAssertEqual(verifier.classifyHashLines(sourceLines: src, outputLines: out).severity, .pass)
+    }
+
+    func testHashLinesThreeStreamsTelemetryMismatchFails() {
+        let src = ["0,v,MD5=aaaa", "1,a,MD5=bbbb", "2,d,MD5=cccc"]
+        let out = ["0,v,MD5=aaaa", "1,a,MD5=bbbb", "2,d,MD5=dddd"]   // telemetry hash differs
+        XCTAssertEqual(verifier.classifyHashLines(sourceLines: src, outputLines: out).severity, .fail)
+    }
+
+    // MARK: - tier2MapArgs (exact-vector — this is what protects DJI: absent gpmd must be byte-identical)
+
+    func testTier2MapArgsNoAudioNoGpmdMatchesPriorVector() {
+        let (source, output) = SourceTargetVerifier.tier2MapArgs(
+            hasAudio: false, sourceGpmdIndex: nil, outputGpmdIndex: nil)
+        XCTAssertEqual(source, ["-map", "0:v:0"])
+        XCTAssertEqual(output, ["-map", "0:v:0"])
+    }
+
+    func testTier2MapArgsWithAudioNoGpmdMatchesPriorVector() {
+        let (source, output) = SourceTargetVerifier.tier2MapArgs(
+            hasAudio: true, sourceGpmdIndex: nil, outputGpmdIndex: nil)
+        XCTAssertEqual(source, ["-map", "0:v:0", "-map", "0:a:0"])
+        XCTAssertEqual(output, ["-map", "0:v:0", "-map", "0:a:0"])
+    }
+
+    /// One `nil` and one non-`nil` index is treated the same as both `nil` — the check requires
+    /// both to be meaningful (mirrors Tier 1's `if let outIdx = ..., let srcIdx = ...` gate).
+    func testTier2MapArgsOneNilIndexSkipsGpmd() {
+        let (source, output) = SourceTargetVerifier.tier2MapArgs(
+            hasAudio: true, sourceGpmdIndex: 2, outputGpmdIndex: nil)
+        XCTAssertEqual(source, ["-map", "0:v:0", "-map", "0:a:0"])
+        XCTAssertEqual(output, ["-map", "0:v:0", "-map", "0:a:0"])
+    }
+
+    /// The GoPro shape: source and output gpmd sit at different absolute indices (the join's fixed
+    /// `-map` order re-positions gpmd relative to the source layout), so the two vectors must diverge
+    /// on the third entry while staying identical on `v:0`/`a:0`.
+    func testTier2MapArgsGpmdUsesDifferentIndexPerSide() {
+        let (source, output) = SourceTargetVerifier.tier2MapArgs(
+            hasAudio: true, sourceGpmdIndex: 3, outputGpmdIndex: 2)
+        XCTAssertEqual(source, ["-map", "0:v:0", "-map", "0:a:0", "-map", "0:3"])
+        XCTAssertEqual(output, ["-map", "0:v:0", "-map", "0:a:0", "-map", "0:2"])
+    }
+
+    func testTier2MapArgsGpmdNoAudio() {
+        let (source, output) = SourceTargetVerifier.tier2MapArgs(
+            hasAudio: false, sourceGpmdIndex: 2, outputGpmdIndex: 1)
+        XCTAssertEqual(source, ["-map", "0:v:0", "-map", "0:2"])
+        XCTAssertEqual(output, ["-map", "0:v:0", "-map", "0:1"])
+    }
+
     // MARK: - compareTimecode (write-back: separator-insensitive, proven-wrong vs couldn't-check)
 
     func testTimecodeExactMatchPasses() {
