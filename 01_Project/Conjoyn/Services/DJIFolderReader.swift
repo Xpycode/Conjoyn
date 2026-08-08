@@ -143,6 +143,20 @@ enum DJIFolderReader {
         let streamInfo: StreamParameterGuard.SegmentStreamInfo?
         let index: Int
         let stem: String
+        /// Camera family that produced this segment (G3.1). `var` with a default, not `let` — a
+        /// `let` property with an inline default is dropped from the synthesized memberwise init
+        /// entirely (it could never be overridden), which would make every GoPro fixture
+        /// unbuildable. Defaulting to `.dji` is what keeps every pre-GoPro memberwise-init call
+        /// site (the existing DJI test fixtures) compiling unchanged.
+        var family: DJIFilenameParser.CameraFamily = .dji
+        /// GoPro's four-digit file number — the recording identity that drives bucketing
+        /// (`groupMetas`'s composite key); `nil` for DJI segments, which bucket on variant suffix
+        /// alone as before.
+        var recordingNumber: Int? = nil
+        /// GoPro chapter start timecode converted to real elapsed seconds — the continuity signal
+        /// `continuesGoPro` chains on. `nil` for DJI segments and whenever the timecode/frame rate
+        /// can't be resolved (see `resolveStartTimecodeSeconds`).
+        var startTimecodeSeconds: Double? = nil
     }
 
     /// Tunables for continuity grouping. Defaults validated against real DJI footage (2026-06).
@@ -160,24 +174,77 @@ enum DJIFolderReader {
         /// the few seconds absorb 1-second `creation_time` rounding.
         var continuationSlackSeconds: Double = 12
         var minClips: Int = 1
+        /// GoPro timecode-continuity slack (seconds): `tc(N+1) − tc(N)` must equal chapter N's
+        /// container duration within this margin for `continuesGoPro` to chain them (rule d).
+        /// Measured across all 6 real multi-chapter corpus groups (25/50/100 fps), the residual is
+        /// effectively zero — 0.000 frames at every 50/100 fps transition, and
+        /// 1.1368683772161603e-11 frames (≈4.5e-13 s) at the one 25 fps transition (6349) — pure
+        /// double-precision round-off from the frames→seconds conversion, not a real
+        /// discontinuity. `0.001` s (1 ms) clears that residual by ~9 orders of magnitude while
+        /// staying under one frame at every corpus rate, including the tightest (200 fps ⇒ 0.005
+        /// s/frame).
+        ///
+        /// The residual was re-measured against the source production actually feeds this check —
+        /// `DJIClip.durationInSeconds`, i.e. AVFoundation's `CMTime` (`asset.load(.duration)`),
+        /// **not** ffprobe's `format.duration` that the corpus CSV records. They are not the same
+        /// number in general (ffprobe's own `format` and `video` stream durations already disagree
+        /// by up to 0.667 ms on this corpus, which would eat most of a 1 ms budget), but on all 13
+        /// non-final chapters AVFoundation reports the format duration exactly — 768.000000000 s
+        /// and 2063.360000000 s at timescale 90000 — so the margin above is real and not an
+        /// artefact of measuring the wrong duration.
+        var timecodeContinuitySlackSeconds: Double = 0.001
     }
 
-    /// Pure continuity-grouping core. Buckets by camera/lens variant (the hard no-merge boundary),
-    /// then within each bucket walks segments in real-time order and chains a capped segment to the
-    /// next when their start times are contiguous and stream parameters match. File-free and
-    /// deterministic — see `group(_:)` for the `DJIClip` adapter.
+    /// Converts a GoPro chapter's start timecode string to real elapsed seconds, for
+    /// `continuesGoPro`'s timecode-continuity check.
     ///
-    /// The keystone insight (from real footage): we chain on the **file-size split cap + real
+    /// `Timecode.totalFrames` deliberately decomposes `HH:MM:SS:FF` using the **rounded** frame
+    /// rate (correct — non-drop timecode counts a whole number of frames per timecode-second, e.g.
+    /// 30 at 29.97). But converting that frame count to *real elapsed seconds* needs the **true**
+    /// rate: 1800 frames of 29.97 non-drop is 60.06 real seconds, not 60.00. Getting this backwards
+    /// is invisible on this integer-fps corpus (25/50/100/200) and would silently break NTSC rates
+    /// the Hero 11 can also shoot. `Timecode.init(string:)` splits on `:` only, so a drop-frame
+    /// `"HH:MM:SS;FF"` string fails to parse — that's the safe outcome, it just means "no chain".
+    ///
+    /// Not `private`: `DJIFolderGroupingTests`' GoPro fixtures call this directly to derive
+    /// `startTimecodeSeconds` from real corpus timecode strings, the same way `group(_:)` below
+    /// derives it from a probed `DJIClip` — so fixtures exercise the real conversion instead of a
+    /// hand-computed duplicate that could drift from it.
+    static func resolveStartTimecodeSeconds(timecode: String?, framesPerSecond: Double?) -> Double? {
+        guard let timecode, let framesPerSecond, framesPerSecond > 0,
+              let tc = Timecode(string: timecode, frameRate: framesPerSecond) else { return nil }
+        return Double(tc.totalFrames) / framesPerSecond
+    }
+
+    /// `groupMetas`' bucket key: family | variant suffix | GoPro recording number. Factored out so
+    /// `group(_:)` can reconstruct the same key from a finished run (G3.4's incomplete-set check)
+    /// without duplicating — and risking drift from — the string it actually bucketed on.
+    private static func bucketKey(_ meta: SegmentMeta) -> String {
+        "\(meta.family.rawValue)|\(meta.variantSuffix ?? "")|\(meta.recordingNumber.map(String.init) ?? "")"
+    }
+
+    /// Pure continuity-grouping core. Buckets by camera family + camera/lens variant + GoPro
+    /// recording number (the hard no-merge boundaries), then within each bucket walks segments in
+    /// real-time order and chains a capped/continuing segment to the next when the family's own
+    /// continuity rule (`continuesDJI`/`continuesGoPro`) says so. File-free and deterministic — see
+    /// `group(_:)` for the `DJIClip` adapter.
+    ///
+    /// The keystone insight (from real footage): DJI chains on the **file-size split cap + real
     /// wall-clock start**, never on playback duration (which lies for slow-mo) or filename index
-    /// (which resets and collides across a card). A segment at the cap continues; the first segment
-    /// under the cap ends the recording.
+    /// (which resets and collides across a card) — a segment at the cap continues, the first
+    /// segment under the cap ends the recording. GoPro has no fixed split cap (G3.2), so it chains
+    /// on chapter numbering + timecode continuity instead.
     static func groupMetas(_ metas: [SegmentMeta], tolerances: GroupingTolerances = .init()) -> [[SegmentMeta]] {
         guard !metas.isEmpty else { return [] }
 
         let maxSize = metas.map(\.sizeBytes).max() ?? 0
         let capThreshold = max(tolerances.capSizeFloorBytes, Int64(tolerances.capSizeFraction * Double(maxSize)))
 
-        let buckets = Dictionary(grouping: metas) { $0.variantSuffix ?? "" }
+        // Composite bucket key: family | variant suffix | GoPro recording number. DJI clips have
+        // no `recordingNumber` (always nil), so this is a 1:1 relabel of the old
+        // `variantSuffix ?? ""` key for DJI — bucketing verdicts are unchanged. GoPro clips have no
+        // `variantSuffix` (always nil), so their bucket boundary is the recording number instead.
+        let buckets = Dictionary(grouping: metas, by: bucketKey)
         var runs: [[SegmentMeta]] = []
         for key in buckets.keys.sorted() {
             let ordered = buckets[key]!.sorted(by: orderedBefore)
@@ -204,8 +271,29 @@ enum DJIFolderReader {
         return lhs.index != rhs.index ? lhs.index < rhs.index : lhs.stem < rhs.stem
     }
 
-    /// Whether `next` is a continuation split of `prev` (same recording).
+    /// Whether `next` is a continuation split of `prev` (same recording). Dispatches on camera
+    /// family (G3.2) — every GoPro rule is a separate branch, never a parallel pipeline, and a
+    /// family mismatch never chains regardless of what either family's own rule would say (defensive:
+    /// the bucket key in `groupMetas` already separates families, so this should never actually see
+    /// a mismatch, but the guard costs nothing and documents the invariant at the point of use).
     private static func continues(
+        _ prev: SegmentMeta,
+        _ next: SegmentMeta,
+        capThreshold: Int64,
+        tolerances: GroupingTolerances
+    ) -> Bool {
+        guard prev.family == next.family else { return false }
+        switch next.family {
+        case .dji:
+            return continuesDJI(prev, next, capThreshold: capThreshold, tolerances: tolerances)
+        case .goPro:
+            return continuesGoPro(prev, next, tolerances: tolerances)
+        }
+    }
+
+    /// DJI continuation rule — current body, unchanged (G3.2 split this out of `continues` verbatim;
+    /// no step below was touched).
+    private static func continuesDJI(
         _ prev: SegmentMeta,
         _ next: SegmentMeta,
         capThreshold: Int64,
@@ -237,6 +325,41 @@ enum DJIFolderReader {
         return gap > 0 && gap <= prev.containerSeconds + tolerances.continuationSlackSeconds
     }
 
+    /// GoPro continuation rule (G3.2). Deliberately **no** size-cap gate and **no** wall-clock
+    /// `gap > 0` gate (unlike `continuesDJI`'s steps 1 and 5): GoPro's split cap isn't a fixed byte
+    /// count (recording 6349 capped at 10.8471 GiB @25 fps vs ~10.718 GiB for the 100 fps
+    /// recordings — no constant fits both), and recording 6338's two chapters share an **identical**
+    /// `creation_time`, so the DJI wall-clock rule would refuse a real, valid chain. Timecode
+    /// continuity (step 4 below) is what carries continuity here instead.
+    private static func continuesGoPro(
+        _ prev: SegmentMeta,
+        _ next: SegmentMeta,
+        tolerances: GroupingTolerances
+    ) -> Bool {
+        // 1. Same recording — GoPro's file number is the recording identity (defensive: the bucket
+        //    key already separates recording numbers, but this documents the invariant at the point
+        //    of use, matching `continuesDJI`'s step 2 for variant suffix).
+        guard let prevRecording = prev.recordingNumber, let nextRecording = next.recordingNumber,
+              prevRecording == nextRecording else { return false }
+        // 2. Adjacent chapters — the camera writes chapter 01..N with no skips (measured on all 6
+        //    corpus groups), so a jump means a chapter is missing and the gap must not be bridged.
+        guard next.index == prev.index + 1 else { return false }
+        // 3. Copy-relevant stream params must match when both are known (mirrors DJI step 4).
+        if let p = prev.streamInfo, let n = next.streamInfo,
+           StreamParameterGuard.check([p, n]) != .compatible {
+            return false
+        }
+        // 4. Timecode continuity: `next`'s start must land exactly where `prev`'s playback ends,
+        //    within `timecodeContinuitySlackSeconds`. Missing timecode on either side means we can't
+        //    confirm continuity, so we refuse to chain rather than guess (locked decision 5 — never
+        //    bridge on a signal we don't have; a false split is safe, a false join is not).
+        guard let prevTC = prev.startTimecodeSeconds, let nextTC = next.startTimecodeSeconds else {
+            return false
+        }
+        let residual = (nextTC - prevTC) - prev.containerSeconds
+        return abs(residual) <= tolerances.timecodeContinuitySlackSeconds
+    }
+
     /// Groups `clips` into continuous recordings (one `RecordGroup` per recording). Adapter over
     /// `groupMetas`: reads each clip's on-disk size for the split-cap signal, then maps runs back to
     /// `RecordGroup`s in chronological order.
@@ -253,19 +376,68 @@ enum DJIFolderReader {
                 sizeBytes: c.totalFileSize,
                 streamInfo: c.streamInfo,
                 index: c.index,
-                stem: c.stem
+                stem: c.stem,
+                family: c.family,
+                recordingNumber: c.recordingNumber,
+                startTimecodeSeconds: resolveStartTimecodeSeconds(
+                    timecode: c.streamInfo?.startTimecode,
+                    framesPerSecond: c.streamInfo?.video.framesPerSecond
+                )
             )
         }
 
-        return groupMetas(metas).enumerated().map { offset, run in
+        let runs = groupMetas(metas)
+
+        // Per-bucket signals for the incomplete-set check (G3.4), reconstructed from each run's
+        // first segment via the same key `groupMetas` bucketed on. A GoPro recording-number bucket
+        // producing more than one run means its chapters could not all be bridged into a single
+        // run; which warning a run in that bucket gets depends on whether chapter 01 shows up in
+        // *any* of the bucket's runs — a run starting at chapter 3 means "missing chapter 01" only
+        // when chapter 01 is nowhere in the folder, not when it simply ended up in a separate run of
+        // the same recording. DJI buckets routinely produce many runs — one per recording sharing a
+        // variant suffix — so both maps are only consulted for GoPro runs below.
+        var runCountByBucket: [String: Int] = [:]
+        var hasChapterOneByBucket: [String: Bool] = [:]
+        for run in runs {
+            guard let first = run.first else { continue }
+            let key = bucketKey(first)
+            runCountByBucket[key, default: 0] += 1
+            if first.index == 1 { hasChapterOneByBucket[key] = true }
+        }
+
+        return runs.enumerated().map { offset, run in
             let runClips = run.compactMap { byId[$0.id] }
             return RecordGroup(
                 clips: runClips,
                 groupIndex: offset + 1,
                 groupType: runClips.count > 1 ? .split : .single,
-                variantSuffix: runClips.first?.variantSuffix
+                variantSuffix: runClips.first?.variantSuffix,
+                completeness: completeness(
+                    of: run,
+                    runCountByBucket: runCountByBucket,
+                    hasChapterOneByBucket: hasChapterOneByBucket
+                )
             )
         }
+    }
+
+    /// Incomplete-set signal for one grouped run (G3.4). GoPro-only — DJI has no chapter numbering
+    /// to check, so a DJI run always reports `.complete` and behaviour is unchanged.
+    private static func completeness(
+        of run: [SegmentMeta],
+        runCountByBucket: [String: Int],
+        hasChapterOneByBucket: [String: Bool]
+    ) -> RecordGroup.Completeness {
+        guard let first = run.first, first.family == .goPro else { return .complete }
+        let key = bucketKey(first)
+        guard (runCountByBucket[key] ?? 1) > 1 else {
+            // Sole run for this recording — a first chapter above 01 means chapter 01 was never
+            // captured here (a recording never starts above chapter 01 on camera; measured).
+            return first.index > 1 ? .missingFirstChapter : .complete
+        }
+        // The recording's chapters split into more than one run. If chapter 01 never showed up in
+        // any of them, that's the more specific fact; otherwise what broke off is a mid-run gap.
+        return (hasChapterOneByBucket[key] ?? false) ? .chapterGap : .missingFirstChapter
     }
 
     // MARK: - Folder resolution (card-aware descent)

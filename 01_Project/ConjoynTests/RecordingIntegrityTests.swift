@@ -65,8 +65,12 @@ final class RecordingIntegrityTests: XCTestCase {
         )
     }
 
-    private func group(_ clip: DJIClip, type: RecordGroup.GroupType = .single) -> RecordGroup {
-        RecordGroup(clips: [clip], groupIndex: 1, groupType: type)
+    private func group(
+        _ clip: DJIClip,
+        type: RecordGroup.GroupType = .single,
+        completeness: RecordGroup.Completeness = .complete
+    ) -> RecordGroup {
+        RecordGroup(clips: [clip], groupIndex: 1, groupType: type, completeness: completeness)
     }
 
     /// A sane capture instant (passes `RecordingStartResolver.isSane`).
@@ -244,6 +248,28 @@ final class RecordingIntegrityTests: XCTestCase {
         } else {
             XCTFail("expected both a warning and an info flag")
         }
+    }
+
+    // MARK: - GoPro incomplete-set (G3.4)
+
+    /// `RecordGroup.completeness` flows straight through to a warning chip via `Flag.Kind`, the
+    /// same integration point every other warning in this file goes through.
+    func testMissingFirstChapterCompletenessSurfacesAsWarningChip() async {
+        let r = await RecordingIntegrity.build(
+            group: group(clip(filenameTS: false, creationDate: saneDate()), completeness: .missingFirstChapter),
+            settings: ConversionSettings(), calendar: utc
+        )
+        XCTAssertEqual(kinds(r), [.missingFirstChapter])
+        XCTAssertTrue(r.hasWarning)
+    }
+
+    func testChapterGapCompletenessSurfacesAsWarningChip() async {
+        let r = await RecordingIntegrity.build(
+            group: group(clip(filenameTS: false, creationDate: saneDate()), completeness: .chapterGap),
+            settings: ConversionSettings(), calendar: utc
+        )
+        XCTAssertEqual(kinds(r), [.chapterGap])
+        XCTAssertTrue(r.hasWarning)
     }
 
     func testEmptyGroupHasNoFlags() async {
