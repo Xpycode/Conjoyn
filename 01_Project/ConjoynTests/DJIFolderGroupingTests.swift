@@ -342,7 +342,7 @@ final class DJIFolderGroupingTests: XCTestCase {
     /// `format_duration`, `format_creation_time`, `video_timecode`, `r_frame_rate`, `width`,
     /// `height` and `n_streams` transcribed verbatim (re-diffed against the source CSV after
     /// transcription; no value here was estimated).
-    private struct CorpusRow {
+    struct CorpusRow {
         let stem: String
         let recording: Int
         let chapter: Int
@@ -359,7 +359,7 @@ final class DJIFolderGroupingTests: XCTestCase {
 
     /// All 71 corpus rows: 6 multi-chapter recordings (20 chapters: 6338×2, 6345×4, 6346×4,
     /// 6347×5, 6348×3, 6349×2) plus 51 single-chapter files.
-    private static let corpusRows: [CorpusRow] = [
+    static let corpusRows: [CorpusRow] = [
         CorpusRow(stem: "GX014604", recording: 4604, chapter: 1, sizeBytes: 191_238_231, durationS: 25.520000, creationTime: "2026-08-01T14:30:29Z", timecode: "16:30:29:80", fps: 100, width: 3840, height: 2160, hasAudio: true),
         CorpusRow(stem: "GX014605", recording: 4605, chapter: 1, sizeBytes: 162_596_563, durationS: 21.610667, creationTime: "2026-08-01T14:31:08Z", timecode: "16:31:08:58", fps: 100, width: 3840, height: 2160, hasAudio: true),
         CorpusRow(stem: "GX014606", recording: 4606, chapter: 1, sizeBytes: 144_329_858, durationS: 19.200000, creationTime: "2026-08-01T14:31:42Z", timecode: "16:31:42:67", fps: 100, width: 3840, height: 2160, hasAudio: true),
