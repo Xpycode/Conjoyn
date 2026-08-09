@@ -235,4 +235,128 @@ final class RecordingDateFormattingTests: XCTestCase {
         let s = ISO8601Z.format(utcDate(2026, 3, 18, 16, 39, 5, ns: 0))
         XCTAssertEqual(s, "2026-03-18T16:39:05.000Z")
     }
+
+    // MARK: - outputTimecode: camera tmcd vs derived (G8.4)
+
+    // Every case below uses the **real measured values** from Hero 11 recording 6349, the corpus
+    // clip the G8.2 real-footage gate joined: chapter 01's source `tmcd` is `20:14:42:06` at 25 fps,
+    // and its `creation_time` is `2026-08-04T18:14:42Z` — whole-second, so the derived timecode can
+    // only ever be `…:00` and the camera's 6-frame offset is exactly what used to be discarded.
+    // The dates are expressed in the `utc` calendar at 20:14:42 rather than 18:14:42Z purely to keep
+    // the test zone-independent; that models the real case (operator zone == shoot zone) faithfully.
+
+    private let goProSourceTC = "20:14:42:06"
+    private var goProStart: Date { utcDate(2026, 8, 4, 20, 14, 42) }
+
+    func testGoProSourceTimecodeAdoptedWhenCorroborated() throws {
+        // The G8.2 regression: the camera's frame offset must survive the join.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: goProSourceTC, family: .goPro,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:06")
+        XCTAssertTrue(tc.fromCamera)
+    }
+
+    func testDJIIgnoresSourceTimecodeEvenWhenPresent() throws {
+        // Identical inputs, DJI family — the source branch must be unreachable, so the stamped
+        // value stays the second-truncated derivation. This is the "unchanged by construction"
+        // guarantee: DJI's own `tmcd` is untrustworthy (`00:00:00:00` or absent) by design.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: goProSourceTC, family: .dji,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:00")
+        XCTAssertFalse(tc.fromCamera)
+    }
+
+    func testGoProSourceTimecodeRejectedWhenItDisagreesWithResolvedStart() throws {
+        // Chapter 02's real tmcd against chapter 01's start — stands in for a manual date override
+        // or an operator whose zone differs from the shoot's. The derived value must win.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: "20:49:05:15", family: .goPro,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:00")
+        XCTAssertFalse(tc.fromCamera)
+    }
+
+    func testGoProWithoutSourceTimecodeFallsBackToDerived() throws {
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: nil, family: .goPro,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:00")
+    }
+
+    func testGoProOutOfRangeFrameFallsBackToDerived() throws {
+        // Corroborates to the second, so only the range check can reject it: frame 30 does not
+        // exist at 25 fps, and FFmpeg's `-timecode` would fail the entire join rather than the
+        // stamp. `Timecode.init(string:)` alone would happily parse this.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: "20:14:42:30", family: .goPro,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:00")
+    }
+
+    func testGoProDropFrameStyleSourceFallsBackToDerived() throws {
+        // `Timecode.init(string:)` splits on `:` only, so a `;`-separated source fails to parse.
+        // That is the safe outcome and is asserted rather than left to chance.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: "20:14:42;06", family: .goPro,
+            resolvedStart: goProStart, frameRate: 25, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "20:14:42:00")
+    }
+
+    func testGoProGarbageSourceFallsBackToDerived() throws {
+        for garbage in ["", "not a timecode", "20:14:42", "20:14:42:06:11"] {
+            let tc = try TimecodeFormatter.outputTimecode(
+                sourceTimecode: garbage, family: .goPro,
+                resolvedStart: goProStart, frameRate: 25, calendar: utc
+            )
+            XCTAssertEqual(tc.value, "20:14:42:00", "garbage source \"\(garbage)\" must not be stamped")
+        }
+    }
+
+    func testGoProHighFrameRateSourceIsAdoptedAndCanonicalised() throws {
+        // Real corpus values: at 200 fps the Hero 11 zero-pads the frame field. GX014616 reads
+        // `16:41:10:041` — frame 41, not 41 thousandths — and ffmpeg rewrites it to `16:41:10:41`
+        // when stamping, so the canonical form is what we hand it. Measured, not invented.
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: "16:41:10:041", family: .goPro,
+            resolvedStart: utcDate(2026, 8, 1, 16, 41, 10), frameRate: 200, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "16:41:10:41")
+        XCTAssertTrue(tc.fromCamera)
+    }
+
+    func testGoProThreeDigitFrameSurvivesUnpadded() throws {
+        // GX014618, also 200 fps: frame 148 genuinely needs three digits, so canonicalising must
+        // not truncate it to two. ffmpeg accepts and round-trips this exactly (verified against
+        // the real binary during G8.4).
+        let tc = try TimecodeFormatter.outputTimecode(
+            sourceTimecode: "13:16:02:148", family: .goPro,
+            resolvedStart: utcDate(2026, 8, 2, 13, 16, 2), frameRate: 200, calendar: utc
+        )
+        XCTAssertEqual(tc.value, "13:16:02:148")
+        XCTAssertTrue(tc.fromCamera)
+    }
+
+    func testAgreesToTheSecondIgnoresFramesAndSeparator() {
+        XCTAssertTrue(TimecodeFormatter.agreesToTheSecond("20:14:42:06", "20:14:42:00"))
+        XCTAssertTrue(TimecodeFormatter.agreesToTheSecond("20:14:42;06", "20:14:42:00"))
+        XCTAssertFalse(TimecodeFormatter.agreesToTheSecond("20:14:43:06", "20:14:42:00"))
+        XCTAssertFalse(TimecodeFormatter.agreesToTheSecond("20:15:42:06", "20:14:42:00"))
+        XCTAssertFalse(TimecodeFormatter.agreesToTheSecond("21:14:42:06", "20:14:42:00"))
+    }
+
+    func testIsWellFormedBoundsFramesByRate() {
+        XCTAssertTrue(TimecodeFormatter.isWellFormed("20:14:42:24", frameRate: 25))
+        XCTAssertFalse(TimecodeFormatter.isWellFormed("20:14:42:25", frameRate: 25))
+        XCTAssertTrue(TimecodeFormatter.isWellFormed("20:14:42:29", frameRate: 29.97))  // rounds to 30
+        XCTAssertFalse(TimecodeFormatter.isWellFormed("24:00:00:00", frameRate: 25))
+        XCTAssertFalse(TimecodeFormatter.isWellFormed("20:60:00:00", frameRate: 25))
+    }
 }

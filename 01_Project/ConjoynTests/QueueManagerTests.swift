@@ -1005,6 +1005,84 @@ final class QueueManagerTests: XCTestCase {
                        "invalid override must not be silently corrected")
     }
 
+    // MARK: - GoPro camera start timecode (G8.4)
+
+    /// A one-clip job whose segment carries a camera `tmcd`, as a GoPro chapter does. `localStart`
+    /// is interpreted in `Calendar.current` — the same calendar `RecordingStartResolver` defaults to
+    /// — so the resolved wall clock lines up with `startTimecode` whatever zone the test runs in.
+    private func cameraTimecodeJob(
+        family: DJIFilenameParser.CameraFamily,
+        startTimecode: String,
+        fps: Double,
+        localStart: DateComponents,
+        outputName: String
+    ) -> ConversionJob {
+        let info = StreamParameterGuard.SegmentStreamInfo(
+            video: .init(
+                codecName: "hevc",
+                width: 3840, height: 2160,
+                pixelFormat: "yuv420p10le",
+                avgFrameRate: "\(Int(fps))/1",
+                timeBase: "1/\(Int(fps))"
+            ),
+            audio: nil,
+            startTimecode: startTimecode
+        )
+        let clip = DJIClip(
+            videoURL: URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString).mp4"),
+            index: 0,
+            stem: "GX016349",
+            family: family,
+            recordingNumber: 6349,
+            creationDate: Calendar.current.date(from: localStart)!,
+            duration: CMTime(seconds: 2063.36, preferredTimescale: 600),
+            streamInfo: info
+        )
+        return ConversionJob(
+            folderName: "100GOPRO",
+            sourceFolderURL: tmpDir,
+            clips: [clip],
+            settings: ConversionSettings(),
+            destinationURL: tmpDir.appendingPathComponent(outputName)
+        )
+    }
+
+    /// Hero 11 recording 6349's real values end-to-end through the wiring: the camera's
+    /// `20:14:42:06` must reach `JoinMetadata`, not the `:00` the second-truncated `creation_time`
+    /// would derive. This is the G8.2 finding as a regression test at the integration seam —
+    /// `TimecodeFormatter` is unit-tested separately, and `DateStampIntegrationTests` proves a
+    /// `JoinMetadata.timecode` reaches the muxed file, so together the chain is closed.
+    func testResolveJoinMetadataAdoptsGoProCameraTimecode() {
+        let manager = makeManager()
+        manager.addJob(cameraTimecodeJob(
+            family: .goPro, startTimecode: "20:14:42:06", fps: 25,
+            localStart: DateComponents(year: 2026, month: 8, day: 4, hour: 20, minute: 14, second: 42),
+            outputName: "GoProTC.mp4"
+        ))
+
+        let metadata = manager.resolveJoinMetadata(for: manager.jobs.last!)
+        XCTAssertEqual(metadata.timecode, "20:14:42:06",
+                       "GoPro's frame-accurate camera timecode must survive the join")
+        XCTAssertNotNil(metadata.creationTime, "the date stamp must still be applied")
+    }
+
+    /// The same clip shape declared DJI: the camera timecode must be ignored and the derived,
+    /// second-truncated value stamped instead. DJI's own `tmcd` is untrustworthy, so this is the
+    /// "unchanged by construction" guarantee asserted at the wiring level rather than only in the
+    /// formatter's unit tests.
+    func testResolveJoinMetadataIgnoresCameraTimecodeForDJI() {
+        let manager = makeManager()
+        manager.addJob(cameraTimecodeJob(
+            family: .dji, startTimecode: "20:14:42:06", fps: 25,
+            localStart: DateComponents(year: 2026, month: 8, day: 4, hour: 20, minute: 14, second: 42),
+            outputName: "DJITC.mp4"
+        ))
+
+        let metadata = manager.resolveJoinMetadata(for: manager.jobs.last!)
+        XCTAssertEqual(metadata.timecode, "20:14:42:00",
+                       "DJI must keep deriving its timecode from the resolved start")
+    }
+
     /// `updateTimecodeOverride` sets the property on the correct job.
     func testUpdateTimecodeOverrideSetsProperty() {
         let manager = makeManager()
