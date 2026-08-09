@@ -10,7 +10,7 @@ Each selected recording becomes one job in the queue.
 
 Expand a row's **▶** caret to see:
 
-- **Source TC** — timecode already in the source files. Usually `—` for DJI (no `tmcd` track).
+- **Source TC** — timecode already in the source files. Usually `—` for DJI, which writes no `tmcd` track; GoPro files normally show one.
 - **Applied TC** — the timecode Conjoyn will stamp, with its origin tag.
 - **Output** — the full destination path for this job.
 
@@ -22,9 +22,9 @@ The settings bar controls what happens during a join:
 
 | Toggle | What it does |
 |--------|-------------|
-| **Fix recording date** | Stamps the correct `creation_time` from the filename or SRT |
+| **Fix recording date** | Stamps the correct `creation_time` from the best signal the camera left |
 | **Timecode from recording time** | Adds a `tmcd` track to the output |
-| **Stitch telemetry** | Merges `.SRT` sidecars with corrected time offsets |
+| **Stitch telemetry** | Merges `.SRT` sidecars with corrected time offsets (DJI; GoPro's in-file telemetry is carried through the join regardless) |
 | **Rename files** | Applies a custom output filename pattern |
 
 Settings are frozen onto each job when it's added to the queue. Changing a toggle after adding has no effect on already-queued jobs.

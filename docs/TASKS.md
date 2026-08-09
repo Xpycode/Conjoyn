@@ -3,13 +3,34 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro wave G7 (camera-neutral UI copy)
+## Current Sprint — GoPro wave G8 (real-footage validation & close-out)
 
-*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3, G5.1–G5.2 and G6.1 completed →
+*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3, G5.1–G5.2, G6.1 and G7.1 completed →
 `tasks-archive.md`.)*
 
-**Every engine wave is now closed.** G7 is next — copy-only, no new control, gated on nothing. After
-it, only the **G8 final gate** on real footage remains (still owed: one ~30 s Hero 11 clip in H.264).
+**Every engine wave and the UI copy are now closed.** Only the **G8 final gate** on real footage
+remains — still owed from capture: one ~30 s Hero 11 clip in H.264 (G8.1).
+
+> **Wave G7 is CLOSED (2026-08-09)** — copy-only, suite unchanged at **605 / 0 fail**. The empty
+> state no longer names a file size at all ("Long recordings get split into several files on the
+> card…"), because no camera splits at a printable constant — DJI's ~3.9 GB and GoPro's ~10.7 GiB
+> (which itself moves with fps) have no shared number. The scan-found-nothing message names both
+> families rather than calling GoPro files unrecognised, keeping the 2026-08-06 why-is-it-empty fix.
+>
+> **The wave closed wider than it was written**, on user instruction after a sweep: the task named
+> two sites, but camera-specific copy also lived in `WatchFoldersPanel.swift:62` and — far larger —
+> the **in-app Help book**, 18 DJI mentions across 8 markdown topics. That rewrite is where the value
+> was: Help now states GoPro's `GX`/`GH` chaptered naming and that `GOPR…`/`GP01…` aren't recognised,
+> that GoPro chapters chain on **timecode continuity** while DJI chains on cap+clock, that GoPro's
+> telemetry rides **inside** the file (carried through the join and verified at both tiers) rather
+> than in an `.SRT`, and that GoPro *does* carry a source `tmcd` where DJI carries none.
+>
+> **Two pre-existing factual errors surfaced and were corrected rather than copied forward:** the
+> Help documented the date chain as filename-then-SRT when `RecordingStartResolver.swift:103-107`
+> tries **SRT first** (checked in code, not assumed), and the Roadmap still advertised
+> **watch-folder ingest as "Planned"** though the 1.0.3 release notes announce it as shipped.
+> `RecordingsList.swift:266` (`+ N telemetry .SRT`) needed **no** change — already guarded by
+> `srtCount > 0`, so GoPro never renders it. Backpressure is by eye; no test asserts these strings.
 
 > **Wave G6 is CLOSED (2026-08-09)** — suite **605 / 0 fail** (590 → 605). GoPro groups no longer
 > consult the absolute 3.9 GB `splitThreshold`, which is wrong in both directions for a camera whose
@@ -129,8 +150,5 @@ it, only the **G8 final gate** on real footage remains (still owed: one ~30 s He
 
 ## Backlog (later waves — see the plan)
 
-- **G5** Verification: gpmd in Tier 0/1 parity checks and the Tier 2 hash (**unblocked** — G4 closed)
-- **G6** Watch-folder: relative complete-set rule (no absolute split constant for GoPro)
-- **G7** UI copy: camera-neutral empty state, no file-size figure
 - **G8** Real-footage validation (GH H.264 probe — *user capture owed*; full real join) + docs close-out
 </content>

@@ -3,9 +3,21 @@
 Completed sprint tasks, newest first. Execution detail lives in the plan the task came from;
 rationale lives in `decisions.md`. Sprint checkboxes are in `TASKS.md`.
 
-**Total archived:** 17 · **Last updated:** 2026-08-09
+**Total archived:** 18 · **Last updated:** 2026-08-09
 
 ## Completed
+
+### Wave G7 — camera-neutral UI copy (`IMPLEMENTATION_PLAN-gopro.md`)
+
+- [x] **G7.1** Camera-neutral empty-state + scan copy (2026-08-09) — the empty-state pitch drops the
+  4 GB figure entirely (no camera splits at a printable constant); the scan-found-nothing message
+  becomes "No recordings found in X — N files aren't named like DJI or GoPro recordings", keeping the
+  2026-08-06 why-is-it-empty improvement. **Closed wider than the task text**, on user instruction:
+  also `WatchFoldersPanel.swift:62` and the whole **in-app Help book** (18 DJI mentions across 8
+  topics). Two pre-existing errors corrected in passing — the Help had the date chain as
+  filename-before-SRT when the resolver tries **SRT first**, and the Roadmap still listed
+  **watch-folder ingest as "Planned"** though it shipped in 1.0.3. `RecordingsList.swift:266` needed
+  no change (already guarded by `srtCount > 0`). Copy-only, no new control; 605 tests, 0 fail.
 
 ### Wave G6 — watch-folder complete-set rule (`IMPLEMENTATION_PLAN-gopro.md`)
 
