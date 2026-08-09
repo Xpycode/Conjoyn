@@ -8,9 +8,6 @@ backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tra
 *(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3, G5.1–G5.2, G6.1 and G7.1 completed →
 `tasks-archive.md`.)*
 
-- [x] **G8.2** — real full join of a GoPro group, end-to-end through the app
-- [x] **G8.4** — *(added mid-wave, from what G8.2 found)* preserve GoPro's frame-accurate start timecode
-- [x] **G8.3** — suite green, decisions logged, spec → Implemented, state + session log
 - [ ] **G8.1** — GH (H.264) probe · **blocked on capture**: one ~30 s Hero 11 clip shot with video
       compression set to H.264. No `GH…` file exists anywhere on V26 or the boot disk (checked
       2026-08-09); mediaingest preserves the GoPro stem, so renaming is not hiding one.

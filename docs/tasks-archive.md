@@ -3,9 +3,13 @@
 Completed sprint tasks, newest first. Execution detail lives in the plan the task came from;
 rationale lives in `decisions.md`. Sprint checkboxes are in `TASKS.md`.
 
-**Total archived:** 18 · **Last updated:** 2026-08-09
+**Total archived:** 21 · **Last updated:** 2026-08-09
 
 ## Completed
+
+- **G8.2** — real full join of a GoPro group, end-to-end through the app *(2026-08-09)*
+- **G8.4** — *(added mid-wave, from what G8.2 found)* preserve GoPro's frame-accurate start timecode *(2026-08-09)*
+- **G8.3** — suite green, decisions logged, spec → Implemented, state + session log *(2026-08-09)*
 
 ### Wave G7 — camera-neutral UI copy (`IMPLEMENTATION_PLAN-gopro.md`)
 
