@@ -21,105 +21,55 @@
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
-- **Focus:** **GoPro camera-family support** — spec `specs/gopro-camera-family.md` (all 6 open
-  questions resolved 2026-08-07), plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). **G0
-  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension), G3 (grouping), G4
-  (join with telemetry) and G5 (verification) are closed**; G6 is next. The vertical slice is
-  complete end to end and now *checked* end to end: a real GoPro recording's chapters **group** into
-  one recording, **join with telemetry byte-exact**, and the join's own verification seal now covers
-  the telemetry stream at both depths. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand,
-  nothing shot.
+- **Focus:** **GoPro camera-family support** — waves **G0–G5 are closed**; the vertical slice now
+  groups a real recording's chapters, joins them with telemetry byte-exact, and verifies that
+  telemetry at both tiers. Spec `specs/gopro-camera-family.md`, plan
+  `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 + GoPro 7 stay footage-gated.
 - **Blockers:** none.
 - **Next:** **`/execute` Wave G6** (watch-folder complete-set rule) — the last engine wave, and the
   only remaining one gated on nothing. Then G7 (camera-neutral UI copy, independent) and the **G8
   final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
-- **Owed at the next release (2026-08-09):** the 1.0.5 notes must say that **downgrading to 1.0.4
-  clears the queue**. G5 adds the first new `VerificationCheck.Kind` since shipping; G0.3's tolerant
-  decoder protects builds from it onward, but 1.0.4 predates it and its catch discards the *entire*
-  queue on an unrecognised kind. Alternatives weighed → `decisions.md` (2026-08-09).
-- **A user decision overturned the spec in G3.4** — an incomplete chapter set (chapters 02..N with no
-  01, or a mid-recording gap) is **flagged but still joinable**, against the spec's "flagged
-  incomplete and not joined". A joined partial file is valid and playable, and the corpus holds a
-  real specimen (6338's chapter 01 left the archive) a hard block would lock out permanently. The
-  rationale sits on `RecordGroup.completeness` and is pinned by a test; spec + plan carry amendment
-  notes rather than rewrites. Full reasoning → `decisions.md` (2026-08-08).
-- **G8.2 is now load-bearing coverage, not a final eyeball** — the G4.3 seam fixtures can't match a
-  camera original's stream order, so the real-footage join is the only thing that covers it. Full
-  reasoning → `decisions.md` (2026-08-07, "The seam fixture cannot be camera-shaped").
+- **Owed at the next release:** the 1.0.5 notes must say that **downgrading to 1.0.4 clears the
+  queue** — G5 adds the first new `VerificationCheck.Kind` since shipping, and 1.0.4 predates
+  G0.3's tolerant decoder, so its catch discards the *entire* queue on an unrecognised kind.
+  Alternatives weighed → `decisions.md` (2026-08-09).
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
   field is silently never saved. A red `QueuePersistenceCompatTests` is stop-the-line, never a test
-  to update. Rationale → `decisions.md`, 2026-08-07.
-- **Source-footage note (2026-08-07):** ch01 of recording 6338 (11.5 GB) is no longer in the V26
-  archive folder — user-side clear-out, no Conjoyn run touched it. Spec fixture numbers keep the
-  71-file measurements (grouping tests are in-memory), so nothing is blocked.
+  to update. → `decisions.md` (2026-08-07).
+- **G8.2 is load-bearing coverage, not a final eyeball** — the G4.3 seam fixtures can't match a
+  camera original's stream order, so the real-footage join is the only thing that covers it.
+  → `decisions.md` (2026-08-07). Related: ch01 of recording 6338 is no longer in the V26 archive
+  (user-side clear-out, 2026-08-07); grouping tests are in-memory, so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-09 (latest)** — **The app now checks that GoPro's sensor data survived the join.** It
-  already carried that data across; it never confirmed it arrived. Both depths of the after-the-join
-  check — the quick count and the exhaustive byte-for-byte one — were counting only picture and
-  sound, so a recording could have lost its sensor data and still come out marked green. The trap
-  here was that the obvious way to point the checker at the right piece of data quietly points it at
-  the *clock* track instead on real camera files, which would have produced a confident tick next to
-  something that was never checked. The check names the exact piece, and does so twice — once for
-  the originals, once for the joined file — because joining shuffles the order. Proven on the real
-  Hero 11 footage, and each check was deliberately broken first to confirm it actually notices.
-  **A cold review then found the first version still let a recording pass green by three other
-  routes**, all now closed: the position of the data in the joined file was worked out by arithmetic
-  rather than looked up (wrong the moment a recording has two sound tracks); a recording whose layout
-  couldn't be read was waved through silently instead of flagged; and the final green stamp ignored
-  the new check entirely whenever the byte-for-byte pass succeeded — which it does precisely when
-  the sensor data is the thing that went missing. DJI files behave exactly as before, pinned to the
-  letter. 561 → 590 tests.
-- **2026-08-08** — **GoPro recordings split across several files now get put back together
-  as one.** The app already knew how to join them; it didn't know which files belonged together.
-  DJI's rule — a file is "full" at a size limit, and the next one starts where it left off by the
-  clock — doesn't work for GoPro: there is no fixed size limit, and one real recording writes the
-  *same* start time onto both its parts, so the clock test would have refused a perfectly good pair.
-  The camera's internal timecode is the signal that does work, and it's exact to the millionth of a
-  second on real footage. All 71 test files from the archive are now pinned as a permanent check.
-  One trap avoided: the tolerance was originally measured with a different stopwatch than the app
-  actually uses, which happened to agree here but wouldn't in general — re-measured against the real
-  one. A recording missing its first part is now flagged in the list, but **still joinable** — a
-  decision the user made against what the written spec said, because the archive contains exactly
-  such a recording and blocking it would have locked those files out of the app for good.
-  542 → 561 tests.
-- **2026-08-07** — **A real GoPro recording now joins with its telemetry intact.** This was
-  the piece nobody could be sure of: GoPro hides its flight/sensor data in a track *inside* the video
-  file, and the joining tool had to be told exactly which track to carry across — with the added trap
-  that the timecode track looks like the same kind of track, so a natural-looking shortcut would have
-  silently carried the wrong one and still looked like it worked. Proven on actual Hero 11 footage
-  cut across a genuine chapter boundary: every byte of telemetry, video and audio arrives on the
-  other side. The test was checked by deliberately breaking the feature to confirm the test notices —
-  a green test that can't fail proves nothing. Two useful things fell out: the "just carry
-  everything" approach doesn't merely fail, it writes a **zero-byte file**; and the test footage
-  can't quite match a camera original's internal layout, so the real-footage run (G8.2) matters more
-  than the plan assumed. 531 → 542 tests.
-- **2026-08-07** — **The app now keeps track of where GoPro's telemetry lives inside a
-  file.** Nothing uses it yet; this only stops the information being thrown away when a file is
-  inspected. Worth doing carefully because the position moves — it sits in a different slot when a
-  clip has no sound, and different again in a re-wrapped file — so anything assuming a fixed slot
-  would quietly point at the wrong track. Checked against real Hero 11 footage rather than invented
-  examples. Two things the plan had wrong turned up: a fallback it specified could never have run,
-  and the change isn't quite invisible to existing DJI footage the way it assumed — both written
-  down rather than papered over. 525 → 531 tests.
-- **2026-08-07** — **The app can now read GoPro filenames.** It recognises GoPro's numbered
-  chapters alongside DJI's naming, including footage an archiving tool has renamed; checked against
-  all 71 real Hero 11 files. The folder scan needed no change — worth checking rather than assuming.
-  One real catch: storing which camera a clip came from forced the save-to-disk code to be written by
-  hand, quietly creating the mirror of last session's bug, now guarded. 512 → 525 tests.
-- **2026-08-07** — **Built the safety net that had to exist before GoPro support touches saved data.**
-  Adding one new piece of information to a recording would have made the whole saved queue unreadable,
-  at which point the app throws the queue away silently. Reproduced first, then made lenient, with a
-  real shipped-version queue checked in as a permanent test. 495 → 512 tests.
-- **2026-08-07** — **Wrote the plan for GoPro support: 20 tasks, 9 waves.** Reading the real code
-  first turned up five decisions the spec had left open, two of them traps — where the chapter number
-  gets stored, and how the telemetry track is identified. Both written down so they can't be
-  re-discovered the hard way. Nothing built yet.
-- **2026-08-07** — **Settled every open question about GoPro support.** The one that mattered:
-  telemetry in a joined file is still *readable*, not merely byte-identical — the camera's clock runs
-  from the start of the whole recording, not each chapter, so a joined file is coherent end to end.
+- **2026-08-09 (latest)** — **The app now checks that GoPro's sensor data survived the join.** Both
+  depths of the after-the-join check — the quick count and the exhaustive byte-for-byte one — were
+  counting only picture and sound, so a recording could have lost its sensor data and still come out
+  marked green. The obvious way to point the checker at the right piece of data quietly points it at
+  the *clock* track instead on real camera files. A cold review then found three more routes to a
+  false green, all closed. Proven on real Hero 11 footage, each check broken first to confirm it
+  notices. 561 → 590 tests.
+- **2026-08-08** — **GoPro recordings split across several files now get put back together as one.**
+  DJI's rule — full at a size limit, next one continues by the clock — doesn't work for GoPro: there
+  is no fixed limit, and one real recording writes the *same* start time onto both its parts. The
+  camera's internal timecode is the signal that does work. All 71 archive files pinned as a permanent
+  check. A recording missing its first part is flagged but **still joinable** — a user decision
+  against the written spec, because the archive holds exactly such a recording. 542 → 561 tests.
+- **2026-08-07** — **A real GoPro recording now joins with its telemetry intact.** GoPro hides its
+  sensor data in a track *inside* the video file, and the timecode track looks like the same kind of
+  track — so a natural-looking shortcut would have carried the wrong one and still looked like it
+  worked. Proven on Hero 11 footage cut across a genuine chapter boundary, and checked by deliberately
+  breaking the feature. 531 → 542 tests.
+- **2026-08-07** — **The app now keeps track of where GoPro's telemetry lives inside a file.** Nothing
+  uses it yet. Worth doing carefully because the position moves between clips, so anything assuming a
+  fixed slot would quietly point at the wrong track. 525 → 531 tests.
+- **2026-08-07** — **The app can now read GoPro filenames**, including footage an archiving tool has
+  renamed; checked against all 71 real Hero 11 files. Storing which camera a clip came from forced the
+  save-to-disk code to be written by hand, creating the mirror of the previous session's bug — now
+  guarded. 512 → 525 tests.
+
 ## Backlog (all optional / post-ship)
 - **More camera families** — GoPro is specced and in progress (above); **Osmo Action 1 + GoPro 7**
   remain footage-gated. The empty state's "4 GB card limit" figure (`RecordingsList.swift:501`) will
@@ -174,5 +124,3 @@
   `docs/TASKS.md` — sprint checkboxes · `IMPLEMENTATION_PLAN-gopro.md` (repo root) — **the active
   plan**, waves G0–G8 · `specs/gopro-camera-family.md` — GoPro spec · `IMPLEMENTATION_PLAN.md` +
   `specs/dji-auto-stitcher.md` — the shipped v1 plan and spec.
-</content>
-</invoke>
