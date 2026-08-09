@@ -168,6 +168,57 @@ final class SourceTargetVerifierTests: XCTestCase {
         XCTAssertEqual(verifier.compareCodecParams(sources: [nil, a], output: a).severity, .pass)
     }
 
+    // MARK: - resolveGpmd (output index comes from the probe, never from position)
+
+    func testResolveGpmdNotApplicableForDJI() {
+        // DJI: no probe dependency, no check — regardless of what the (unused) source index says.
+        let resolution = SourceTargetVerifier.resolveGpmd(
+            isGoProFamily: false, sourceGpmdIndex: 2, outputInfo: makeSegment())
+        XCTAssertEqual(resolution, .notApplicable)
+    }
+
+    func testResolveGpmdSourceUnknownWhenIndexUnresolved() {
+        // GoPro family, but `sourceGpmdIndex` never resolved (a discovery-time probe hiccup) — the
+        // check can't run, but it must not vanish silently either (finding 2).
+        let resolution = SourceTargetVerifier.resolveGpmd(
+            isGoProFamily: true, sourceGpmdIndex: nil, outputInfo: makeSegment())
+        XCTAssertEqual(resolution, .sourceUnknown)
+    }
+
+    func testResolveGpmdProbeFailedWhenOutputInfoMissing() {
+        let resolution = SourceTargetVerifier.resolveGpmd(
+            isGoProFamily: true, sourceGpmdIndex: 2, outputInfo: nil)
+        XCTAssertEqual(resolution, .probeFailed)
+    }
+
+    func testResolveGpmdOutputMissingWhenProbeFoundNoGpmdTag() {
+        // The output probe succeeded but found no gpmd-tagged stream — the join dropped it.
+        let outputInfo = makeSegment()   // dataStreamIndex defaults to nil
+        let resolution = SourceTargetVerifier.resolveGpmd(
+            isGoProFamily: true, sourceGpmdIndex: 3, outputInfo: outputInfo)
+        XCTAssertEqual(resolution, .outputMissing(source: 3))
+    }
+
+    /// The falsification case: proves the resolution genuinely reads `outputInfo.dataStreamIndex`
+    /// (the probe) rather than re-deriving a position from `hasAudio`. The deleted formula this
+    /// replaces was `hasAudio ? 2 : 1` — for a source that kept **two** audio tracks (legal: `-map
+    /// 0:a?` maps every audio stream, not just one), that formula would have named index 2, which
+    /// is actually the *second audio stream*, not gpmd. Here the output's real (probed) gpmd index
+    /// is 3; asserting the resolution reports 3 — not 2 — proves the probe is authoritative.
+    func testResolveGpmdUsesProbedIndexNotTheDeletedPositionFormula() {
+        var outputInfo = makeSegment(
+            audio: .init(codecName: "aac", sampleRate: "48000", channels: 2, channelLayout: "stereo")
+        )
+        outputInfo.dataStreamIndex = 3   // v:0, a:0, a:1, gpmd — a second audio track pushes gpmd to 3.
+        outputInfo.dataCodecTag = "gpmd"
+
+        let resolution = SourceTargetVerifier.resolveGpmd(
+            isGoProFamily: true, sourceGpmdIndex: 4, outputInfo: outputInfo)
+
+        XCTAssertEqual(resolution, .resolved(source: 4, output: 3),
+                       "must trust the probed index (3), not the old hasAudio-driven formula (which would say 2)")
+    }
+
     // MARK: - classifyHashLines
 
     func testHashLinesEqualPasses() {

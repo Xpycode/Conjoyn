@@ -326,7 +326,7 @@ final class QueuePersistenceCompatTests: XCTestCase {
     /// Known kinds must keep decoding to themselves — the fallback must not swallow everything.
     func testKnownCheckKindsStillDecodeExactly() throws {
         for kind in ["readability", "packetCount", "packetBytes", "duration",
-                     "avDrift", "codecParams", "timecodeWriteback", "hashMatch"] {
+                     "avDrift", "codecParams", "timecodeWriteback", "gpmdParity", "hashMatch"] {
             let json = Data(#"{"kind":"\#(kind)","severity":0,"label":"L","detail":"D"}"#.utf8)
             let check = try JSONDecoder().decode(VerificationCheck.self, from: json)
             XCTAssertEqual(check.kind.rawValue, kind)

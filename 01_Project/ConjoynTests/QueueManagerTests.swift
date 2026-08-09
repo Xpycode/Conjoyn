@@ -204,6 +204,101 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(status, VerificationStatus.verified)
     }
 
+    /// DJI regression pin: a DJI job's check list never contains `.gpmdParity` at all — the
+    /// gpmd carve-out added alongside `tcWriteBackFailed` must be a complete no-op when that kind
+    /// is absent, so this must behave byte-identically to `testMapStatusThoroughHashPassOverridesWarning`.
+    func testMapStatusThoroughHashPassVerifiesWhenNoGpmdCheckIsPresent() {
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .duration, severity: .warning, label: "Duration", detail: "Δ 80ms (> 1 frame)"),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        XCTAssertNil(r.checks.first { $0.kind == .gpmdParity }, "this fixture must not carry a gpmd check to be a DJI stand-in")
+        XCTAssertEqual(makeManager().mapStatus(r), VerificationStatus.verified)
+    }
+
+    /// A resolved-and-passing `.gpmdParity` check must not block the hash-pass carve-out — the
+    /// positive control for the two negative cases below.
+    func testMapStatusThoroughHashPassVerifiesWhenGpmdParityAlsoPassed() {
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .gpmdParity, severity: .pass, label: "Packet count (telemetry)", detail: ""),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        XCTAssertEqual(makeManager().mapStatus(r), VerificationStatus.verified)
+    }
+
+    /// The bug this fixes: the join dropped gpmd entirely (`.gpmdParity` `.fail`), Tier 2 falls back
+    /// to hashing only v:0/a:0 (so `hashMatch` still passes), and no timecode was even applied. Before
+    /// the carve-out this sealed `.verified` — silently discarding proven-lost telemetry, exactly the
+    /// failure mode Wave G5 exists to close. Must now sink to `.failed`, same as `timecodeWriteback`.
+    func testMapStatusThoroughHashPassButGpmdDroppedSinksToFailed() {
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .gpmdParity, severity: .fail, label: "Telemetry (gpmd)",
+                                  detail: "output has no gpmd stream — telemetry was dropped by the join"),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        guard case .failed = makeManager().mapStatus(r) else {
+            return XCTFail("expected .failed, got \(makeManager().mapStatus(r))")
+        }
+    }
+
+    /// The telemetry stream emits **two** `.gpmdParity` checks — packet count and packet bytes, just
+    /// as video and audio do. Inspecting only the first would launder a bytes-only failure, and that
+    /// is exactly how corruption presents when the packet count survives intact but the payload does
+    /// not. Ordered count-passes-first here deliberately: that is the arrangement a `first`-based
+    /// check reads as clean.
+    func testMapStatusThoroughHashPassButOnlyGpmdBytesFailedStillSinks() {
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .gpmdParity, severity: .pass, label: "Packet count (telemetry)",
+                                  detail: ""),
+                VerificationCheck(kind: .gpmdParity, severity: .fail, label: "Packet bytes (telemetry)",
+                                  detail: "output 13,998 bytes vs sources 14,000"),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        guard case .failed = makeManager().mapStatus(r) else {
+            return XCTFail("a telemetry byte mismatch must sink the seal even when the count check "
+                           + "passed first — got \(makeManager().mapStatus(r))")
+        }
+    }
+
+    /// The "layout unknown" case (finding 2's warning) must not be laundered into `.verified` by the
+    /// hash-pass carve-out either — it falls through to `result.hasWarning`, the honest "could not
+    /// check" answer, not a clean pass.
+    func testMapStatusThoroughHashPassButGpmdUnresolvedStaysWarning() {
+        let r = SourceTargetResult(
+            tier: .thorough,
+            checks: [
+                VerificationCheck(kind: .gpmdParity, severity: .warning, label: "Telemetry (gpmd)",
+                                  detail: "telemetry not verified — stream layout unknown"),
+                VerificationCheck(kind: .hashMatch, severity: .pass, label: "Hash", detail: "")
+            ],
+            verifiedAt: Date(),
+            duration: 1.0
+        )
+        guard case .warning = makeManager().mapStatus(r) else {
+            return XCTFail("expected .warning, got \(makeManager().mapStatus(r))")
+        }
+    }
+
     // MARK: - makeVerifierInput (gpmd, G5.1)
 
     /// A GoPro clip carrying a probed gpmd `dataStreamIndex` (or `nil`, for the no-telemetry case),
@@ -247,30 +342,27 @@ final class QueueManagerTests: XCTestCase {
     func testMakeVerifierInputDJILeavesGpmdFieldsNil() {
         let input = makeManager().makeVerifierInput(for: makeJob(outputName: "DJIJob.mp4"))
         XCTAssertNil(input.sourceGpmdIndex)
-        XCTAssertNil(input.outputGpmdIndex)
+        XCTAssertFalse(input.isGoProFamily)
     }
 
-    func testMakeVerifierInputGoProWithAudioResolvesOutputIndexTwo() {
+    func testMakeVerifierInputGoProResolvesSourceIndexAndFamily() {
         // Camera-original layout (hvc1 | mp4a | tmcd | gpmd) — gpmd measured at source index 3.
+        // The output index is no longer computed here — `makeVerifierInput` has no output file to
+        // probe yet; the verifier resolves it once one exists (see `SourceTargetVerifierTests`).
         let clip = makeGoProClip(hasAudio: true, dataStreamIndex: 3)
         let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProJob.mp4", clip: clip))
         XCTAssertEqual(input.sourceGpmdIndex, 3)
-        XCTAssertEqual(input.outputGpmdIndex, 2, "video(0) + audio(1) → the mapped gpmd lands at 2")
+        XCTAssertTrue(input.isGoProFamily)
     }
 
-    func testMakeVerifierInputGoProNoAudioResolvesOutputIndexOne() {
-        let clip = makeGoProClip(hasAudio: false, dataStreamIndex: 2)
-        let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProNoAudio.mp4", clip: clip))
-        XCTAssertEqual(input.sourceGpmdIndex, 2)
-        XCTAssertEqual(input.outputGpmdIndex, 1, "no audio kept → the mapped gpmd lands at 1")
-    }
-
-    func testMakeVerifierInputGoProWithoutGpmdLeavesFieldsNil() {
-        // A GoPro clip whose probe found no gpmd track — the telemetry check must not run.
+    func testMakeVerifierInputGoProWithoutGpmdStillFlagsFamily() {
+        // A GoPro clip whose probe found no gpmd track: `sourceGpmdIndex` stays nil (nothing to
+        // compare), but `isGoProFamily` stays true — that's what lets the verifier tell this apart
+        // from a genuine DJI job when deciding whether an unresolved check must still be flagged.
         let clip = makeGoProClip(hasAudio: true, dataStreamIndex: nil)
         let input = makeManager().makeVerifierInput(for: makeGoProJob(outputName: "GoProNoGpmd.mp4", clip: clip))
         XCTAssertNil(input.sourceGpmdIndex)
-        XCTAssertNil(input.outputGpmdIndex)
+        XCTAssertTrue(input.isGoProFamily)
     }
 
     func testDirectoriesDifferNilSafety() {
