@@ -206,6 +206,92 @@ enum TimecodeFormatter {
         let sep = isDropFrame ? ";" : ":"
         return String(format: "%02d:%02d:%02d%@%02d", h, m, s, sep, frame)
     }
+
+    /// Selects the start timecode to stamp on a joined output: the camera's own `tmcd` when it is
+    /// well-formed *and* corroborated, otherwise the wall-clock derived from the resolved start.
+    ///
+    /// In practice `wallClockTimecode` can only ever emit frame `00` here, because the date it is
+    /// handed comes from `RecordingStartResolver`, whose signals (`creation_time`, SRT first cue,
+    /// filename datetime) are all whole-second. That is the right answer for DJI — its embedded
+    /// `tmcd` is absent or `00:00:00:00`, which is precisely why the resolver inverted the "source
+    /// timecode is authoritative" model in the first place (see the type note at the top of file).
+    ///
+    /// GoPro is the opposite case. It writes a real, frame-accurate `tmcd`, and the app already
+    /// trusts that value as the **sole** chapter-chaining signal, matched to 1 ms
+    /// (`DJIFolderReader.continuesGoPro`). Re-deriving the output timecode from a second-truncated
+    /// date therefore discards real precision — measured at 6 frames (0.24 s) on Hero 11 recording
+    /// 6349 during the G8.2 real-footage gate, enough to break frame-accurate sync against the
+    /// source clips on an NLE timeline. Note the verification seal cannot catch this:
+    /// `SourceTargetVerifier`'s write-back check compares the output against *what the join
+    /// stamped*, so it proves self-consistency, not fidelity to the camera.
+    ///
+    /// The source value is adopted **only** when it agrees with the resolved start to the second.
+    /// That guard is what keeps a manual date override — or an operator whose zone differs from the
+    /// shoot's — from being silently overruled by the camera's clock; in those cases the derived
+    /// value still wins. DJI never reaches the source branch at all, so its stamped timecode is
+    /// unchanged **by construction**, not by assertion.
+    /// The chosen timecode together with where it came from. Returned as a pair so callers report
+    /// provenance from fact rather than inferring it by string-comparing the result against the
+    /// source — an inference that would misreport the high-frame-rate case noted below.
+    struct OutputTimecode: Equatable {
+        let value: String
+        /// `true` when `value` came from the camera's own `tmcd` rather than the resolved start.
+        let fromCamera: Bool
+    }
+
+    static func outputTimecode(
+        sourceTimecode: String?,
+        family: DJIFilenameParser.CameraFamily,
+        resolvedStart: Date,
+        frameRate: Double,
+        isDropFrame: Bool = false,
+        calendar: Calendar = .current
+    ) throws -> OutputTimecode {
+        let derived = try wallClockTimecode(
+            for: resolvedStart, frameRate: frameRate, isDropFrame: isDropFrame, calendar: calendar
+        )
+        guard family == .goPro,
+              let source = sourceTimecode,
+              isWellFormed(source, frameRate: frameRate),
+              agreesToTheSecond(source, derived),
+              let parsed = Timecode(string: source, frameRate: frameRate)
+        else { return OutputTimecode(value: derived, fromCamera: false) }
+
+        // Re-rendered rather than passed through verbatim: at 100/200 fps the Hero 11 writes a
+        // zero-padded three-digit frame field (`16:41:10:041`), and ffmpeg rewrites that to
+        // `16:41:10:41` on the way out. Both mean frame 41 and `SourceTargetVerifier` compares
+        // parsed integers, so the seal is unaffected either way — but stamping the canonical form
+        // keeps the logged/displayed value identical to what actually lands in the file.
+        return OutputTimecode(value: parsed.description, fromCamera: true)
+    }
+
+    /// True when a SMPTE string parses and every field is in range for `frameRate`. The range check
+    /// earns its place because the value goes straight to FFmpeg's `-timecode`, which rejects an
+    /// out-of-range frame and fails the **whole join** — while `Timecode.init(string:)` itself only
+    /// checks that four integers are present, not that they mean anything.
+    static func isWellFormed(_ timecode: String, frameRate: Double) -> Bool {
+        guard frameRate > 0, let tc = Timecode(string: timecode, frameRate: frameRate) else { return false }
+        let fps = max(Int(frameRate.rounded()), 1)
+        return (0...23).contains(tc.hours)
+            && (0...59).contains(tc.minutes)
+            && (0...59).contains(tc.seconds)
+            && (0..<fps).contains(tc.frames)
+    }
+
+    /// True when two SMPTE strings agree on H:M:S, ignoring the frame field and the drop-frame
+    /// separator. Compares parsed integers rather than text, so `20:14:42:06` corroborates
+    /// `20:14:42:00` while `20:14:43:00` does not.
+    static func agreesToTheSecond(_ lhs: String, _ rhs: String) -> Bool {
+        guard let a = hoursMinutesSeconds(lhs), let b = hoursMinutesSeconds(rhs) else { return false }
+        return a == b
+    }
+
+    private static func hoursMinutesSeconds(_ timecode: String) -> [Int]? {
+        let fields = timecode.split(whereSeparator: { $0 == ":" || $0 == ";" })
+        guard fields.count == 4 else { return nil }
+        let hms = fields.prefix(3).compactMap { Int($0) }
+        return hms.count == 3 ? hms : nil
+    }
 }
 
 /// ISO 8601 formatter pinned to UTC with fractional-second precision. Produces the `creation_time`

@@ -1314,3 +1314,60 @@ at every prefix length `k = 1...N`, asserting complete iff `k == N`, plus all 51
 once quiet. Ratio → 0.5 fails the three tightest finals (6345 ch04, 6346 ch04, 6348 ch03); floor →
 20 GB fails all six recordings at **chapter 1/N** — precisely the premature-join regression the floor
 exists to prevent. 590 → 605 tests, 0 fail.
+
+## 2026-08-09 — GoPro's own start timecode survives the join; DJI keeps deriving its own
+
+**The G8.2 real-footage gate passed on everything it was written to check, and failed on something
+it wasn't.** Hero 11 recording 6349 joined losslessly through the app — video, audio and `gpmd`
+all byte-identical to the concatenated sources (13,416,612,803 / 57,354,105 / 16,106,180 bytes,
+SHA-256 matched against hashes taken *before* the app ran), originals untouched, seal green at both
+tiers. But the output `tmcd` read `20:14:42:00` where the camera wrote **`20:14:42:06`** — six
+frames, 0.24 s.
+
+**Why it happened, and why it wasn't a bug until GoPro existed.** `RecordingStartResolver` derives
+*both* `creation_time` and the output `tmcd` from a single resolved `Date`, deliberately inverting
+the "source timecode is authoritative" model (2026-06-09) because DJI's embedded `tmcd` is absent or
+`00:00:00:00`. The resolution chain takes **no timecode input at all**, and every signal it does
+take (`creation_time`, SRT first cue, filename datetime) is whole-second — so the derived frame
+field could only ever be `:00`. Correct for DJI. Wrong for GoPro, which writes a real
+frame-accurate `tmcd` that the app **already trusts as the sole chapter-chaining signal**, matched
+to 1 ms in `continuesGoPro`. Trusting a value enough to group on it while discarding it on output
+is the inconsistency.
+
+**The seal could not have caught this.** `SourceTargetVerifier.checkTimecodeWriteback` compares the
+output against *what the join stamped* — self-consistency, not fidelity to the camera. A green seal
+on a wrong timecode is the designed behaviour of that check, which is worth remembering the next
+time a green seal is read as "the output is right".
+
+**Decision.** `TimecodeFormatter.outputTimecode` adopts the camera's `tmcd` when three conditions
+hold: the clip is GoPro, the value is well-formed *for its frame rate*, and it agrees with the
+resolved start **to the second**. Otherwise the derived value stands. The corroboration guard is
+what keeps a manual date override — or an operator whose zone differs from the shoot's — from being
+silently overruled by the camera's clock. DJI never reaches the source branch, so its stamped
+timecode is unchanged **by construction**, not by assertion.
+
+**Measured before claiming, and two of the measurements changed the code.**
+- **All 57 chapter-01 files** in the corpus agree to the second between local `creation_time` and
+  `tmcd`. The guard therefore fires in the field rather than quietly no-op'ing — and this fix
+  changes the stamped timecode on essentially every GoPro recording in the archive, by up to 0.71 s.
+- At 100/200 fps the Hero 11 **zero-pads the frame field** (`16:41:10:041`) and can genuinely need
+  **three digits** (`13:16:02:148`). Two consequences were checked against the real ffmpeg binary
+  rather than assumed: it accepts both and round-trips 148 exactly, and it rewrites `041` as `41`.
+  So the adopted value is **re-rendered canonically** instead of passed through verbatim, keeping
+  the logged value identical to what lands in the file. The seal was never at risk either way —
+  `compareTimecode` parses to integers before comparing, so `041 == 41` — but that was verified,
+  not assumed.
+- The high-fps case also killed a smell in the first draft: provenance was being inferred by
+  string-comparing the result against the source, which is exactly wrong when the result is
+  re-rendered. `outputTimecode` now returns the value **and** its origin.
+
+**Verified by falsification, all three links.** Inverting the family gate breaks GoPro adoption and
+pollutes DJI; removing the corroboration guard stamps chapter 02's timecode onto a chapter-01 start;
+cutting the wiring returns `:00`. Then confirmed on **real camera originals** end-to-end through the
+rebuilt app: `GX014623` (200 fps) stamped `13:44:07:127` and `GX014637` (100 fps) stamped
+`15:46:57:71` — both exactly the camera's own value, recovering 0.635 s and 0.710 s respectively.
+605 → 618 tests, 0 fail.
+
+**Owed at the next release:** joined GoPro files produced by 1.0.4 and earlier carry a start
+timecode up to ~0.7 s early. Worth a release-note line alongside the already-owed
+downgrade-clears-the-queue warning.

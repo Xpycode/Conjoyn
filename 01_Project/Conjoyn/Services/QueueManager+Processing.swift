@@ -442,6 +442,10 @@ extension QueueManager {
         // present it is passed through as-is (no validation — the caller owns correctness). When
         // no override and no date resolved, the timecode argument is omitted entirely.
         let timecode: String?
+        // Set when the stamped value came from the camera's own `tmcd` rather than the resolved
+        // date, so the log line below reports the timecode's real provenance instead of implying
+        // the date signal produced it (they are now two different sources).
+        var timecodeFromCamera = false
         if wantsTimecode {
             if let override = job.timecodeStringOverride {
                 timecode = override
@@ -449,9 +453,15 @@ extension QueueManager {
                 // DJI records non-drop-frame; the param guard already proved every segment shares one
                 // rate, so segment 1's probed fps is the group's. Fall back to 30 when unprobed.
                 let fps = firstClip.streamInfo?.video.framesPerSecond ?? 30.0
-                timecode = try? TimecodeFormatter.wallClockTimecode(
-                    for: date, frameRate: fps, isDropFrame: false
+                let selected = try? TimecodeFormatter.outputTimecode(
+                    sourceTimecode: firstClip.streamInfo?.startTimecode,
+                    family: firstClip.family,
+                    resolvedStart: date,
+                    frameRate: fps,
+                    isDropFrame: false
                 )
+                timecodeFromCamera = selected?.fromCamera ?? false
+                timecode = selected?.value
             } else {
                 timecode = nil
             }
@@ -464,7 +474,14 @@ extension QueueManager {
             return FFmpegWrapper.JoinMetadata()
         }
 
-        let tcSource = job.timecodeStringOverride != nil ? "manual override" : resolution.provenance.label
+        let tcSource: String
+        if job.timecodeStringOverride != nil {
+            tcSource = "manual override"
+        } else if timecodeFromCamera {
+            tcSource = "camera timecode (date from \(resolution.provenance.label))"
+        } else {
+            tcSource = resolution.provenance.label
+        }
         log("Date/timecode resolved from \(tcSource): "
             + "creation_time=\(creationTime ?? "—"), timecode=\(timecode ?? "—")")
         return FFmpegWrapper.JoinMetadata(creationTime: creationTime, timecode: timecode)

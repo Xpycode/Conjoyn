@@ -1,8 +1,11 @@
 # GoPro Camera Family Specification
 
-**Status:** Draft — **all 6 open questions resolved 2026-08-07**; ready for `/make-plan`
+**Status:** **Implemented** 2026-08-09 (waves G0–G8) — parsing, grouping, join with telemetry,
+two-tier verification, watch-folder gate and camera-neutral UI all shipped to `main` and validated
+on real Hero 11 footage. **One item stays footage-gated: G8.1**, the `GH…` (H.264) probe, which
+needs a clip that has not been shot yet — GX behaviour is taken as symmetric per decision Q2.
 **Created:** 2026-08-07
-**Last Updated:** 2026-08-07
+**Last Updated:** 2026-08-09
 
 > Second camera family for Conjoyn (shipped 1.0.4/104, 495 tests). Everything in this spec is
 > grounded in a **measured 71-file Hero 11 corpus** (2026-08 archive folder, 0 probe failures)
