@@ -31,6 +31,10 @@ enum WatchFolderReconciler {
         /// Seconds since any member of the group last changed size or mtime.
         /// Computed by the shell from a per-group "last changed" wall-clock timestamp.
         let quietElapsed: TimeInterval
+
+        /// Sizes of every chapter BELOW the highest-index one, used as the GoPro relative
+        /// reference. Ignored by `CompleteSetGate` on the DJI path.
+        let precedingSegmentBytes: [Int64]
     }
 
     // MARK: - groupsToEnqueue
@@ -40,8 +44,8 @@ enum WatchFolderReconciler {
     /// A group qualifies when ALL three gates pass:
     ///  1. **Settled** — every clip's sample history ends with `requiredStablePolls` consecutive
     ///     identical `(size, mtime)` snapshots (via `FileStabilityGate.isSettled`).
-    ///  2. **Complete** — the last segment is below the split threshold AND the group has been
-    ///     quiet long enough (via `CompleteSetGate.isComplete`).
+    ///  2. **Complete** — the last segment is final for the group's camera family AND the group
+    ///     has been quiet long enough (via the family-aware `CompleteSetGate.isComplete`).
     ///  3. **Fresh** — the group's stable fingerprint is not yet in `processedFingerprints`,
     ///     ensuring a finished group is never re-enqueued even if the source files stay on disk.
     ///
@@ -70,9 +74,15 @@ enum WatchFolderReconciler {
             guard settled else { return nil }
 
             // Gate 2: the set must be complete (last segment final + quiet window elapsed).
+            // All clips in a group share a family by construction (the grouping key includes it).
+            let family = obs.group.clips.first?.family ?? .dji
             let complete = CompleteSetGate.isComplete(
+                family: family,
                 lastSegmentBytes: obs.lastSegmentBytes,
+                precedingSegmentBytes: obs.precedingSegmentBytes,
                 splitThreshold: settings.splitThreshold,
+                goProSplitFloor: settings.goProSplitFloor,
+                finalChapterRatio: settings.goProFinalChapterRatio,
                 quietElapsed: obs.quietElapsed,
                 quietWindow: settings.quietWindow
             )

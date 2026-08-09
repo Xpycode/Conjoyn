@@ -411,11 +411,18 @@ final class WatchFolderCoordinator: ObservableObject {
             let lastChanged = groupLastChanged[fp] ?? currentNow
             let quietElapsed = currentNow.timeIntervalSince(lastChanged)
 
+            // Preceding segments = every clip except the highest-index one, for the GoPro
+            // relative reference.
+            let precedingSegmentBytes: [Int64] = group.clips
+                .filter { $0.id != lastClip?.id }
+                .map { sampleHistory[$0.videoURL.path]?.last?.size ?? 0 }
+
             return WatchFolderReconciler.GroupObservation(
                 group: group,
                 clipSamples: clipSamples,
                 lastSegmentBytes: lastSegmentBytes,
-                quietElapsed: quietElapsed
+                quietElapsed: quietElapsed,
+                precedingSegmentBytes: precedingSegmentBytes
             )
         }
 

@@ -26,12 +26,14 @@ final class WatchFolderReconcilerTests: XCTestCase {
     private let baseDate = Date(timeIntervalSinceReferenceDate: 1_000_000)
 
     /// Builds a minimal `DJIClip` with distinct stable identity fields.
-    private func makeClip(stem: String, index: Int, variant: String? = nil) -> DJIClip {
+    private func makeClip(stem: String, index: Int, variant: String? = nil,
+                          family: DJIFilenameParser.CameraFamily = .dji) -> DJIClip {
         DJIClip(
             videoURL: URL(fileURLWithPath: "/tmp/\(stem).MP4"),
             index: index,
             variantSuffix: variant,
             stem: stem,
+            family: family,
             duration: .zero
         )
     }
@@ -65,7 +67,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [growingSamples(startSize: 1_000_000), growingSamples(startSize: 1_500_000)],
             lastSegmentBytes: 1_500_000,
-            quietElapsed: 5.0   // well under quietWindow: 30
+            quietElapsed: 5.0,   // well under quietWindow: 30
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -92,7 +95,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
                 settledSamples(size: 200_000_000, date: baseDate)
             ],
             lastSegmentBytes: 200_000_000,   // below splitThreshold
-            quietElapsed: 10.0               // < quietWindow 30
+            quietElapsed: 10.0,               // < quietWindow 30
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -114,7 +118,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [settledSamples(size: 3_900_000_000, date: baseDate)],
             lastSegmentBytes: 3_900_000_000,  // exactly AT splitThreshold — not final
-            quietElapsed: 60.0                // well past quietWindow
+            quietElapsed: 60.0,                // well past quietWindow
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -140,7 +145,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
                 settledSamples(size: 500_000_000, date: baseDate)     // 500 MB final segment
             ],
             lastSegmentBytes: 500_000_000,   // < splitThreshold
-            quietElapsed: 45.0               // > quietWindow
+            quietElapsed: 45.0,               // > quietWindow
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -168,7 +174,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
                 settledSamples(size: 500_000_000, date: baseDate)
             ],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 45.0
+            quietElapsed: 45.0,
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -188,7 +195,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [],
             lastSegmentBytes: 0,
-            quietElapsed: 120.0
+            quietElapsed: 120.0,
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -212,13 +220,15 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: groupA,
             clipSamples: [settledSamples(size: 500_000_000, date: baseDate)],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 45.0
+            quietElapsed: 45.0,
+            precedingSegmentBytes: []
         )
         let obsB = WatchFolderReconciler.GroupObservation(
             group: groupB,
             clipSamples: [settledSamples(size: 300_000_000, date: baseDate.addingTimeInterval(1))],
             lastSegmentBytes: 300_000_000,
-            quietElapsed: 35.0
+            quietElapsed: 35.0,
+            precedingSegmentBytes: []
         )
 
         let result = WatchFolderReconciler.groupsToEnqueue(
@@ -247,7 +257,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [growingSamples(startSize: 100_000_000)],
             lastSegmentBytes: 100_100_000,
-            quietElapsed: 1.0
+            quietElapsed: 1.0,
+            precedingSegmentBytes: []
         )
         XCTAssertTrue(
             WatchFolderReconciler.groupsToEnqueue(observations: [poll1], settings: settings, processedFingerprints: []).isEmpty,
@@ -263,7 +274,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [twoSamples],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 5.0   // still < quietWindow
+            quietElapsed: 5.0,   // still < quietWindow
+            precedingSegmentBytes: []
         )
         XCTAssertTrue(
             WatchFolderReconciler.groupsToEnqueue(observations: [poll2], settings: settings, processedFingerprints: []).isEmpty,
@@ -275,7 +287,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [settledSamples(size: 500_000_000, date: baseDate)],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 20.0  // still < quietWindow 30
+            quietElapsed: 20.0,  // still < quietWindow 30
+            precedingSegmentBytes: []
         )
         XCTAssertTrue(
             WatchFolderReconciler.groupsToEnqueue(observations: [poll3], settings: settings, processedFingerprints: []).isEmpty,
@@ -287,7 +300,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [settledSamples(size: 500_000_000, date: baseDate)],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 35.0  // > quietWindow
+            quietElapsed: 35.0,  // > quietWindow
+            precedingSegmentBytes: []
         )
         let result = WatchFolderReconciler.groupsToEnqueue(
             observations: [poll4],
@@ -302,7 +316,8 @@ final class WatchFolderReconcilerTests: XCTestCase {
             group: group,
             clipSamples: [settledSamples(size: 500_000_000, date: baseDate)],
             lastSegmentBytes: 500_000_000,
-            quietElapsed: 60.0
+            quietElapsed: 60.0,
+            precedingSegmentBytes: []
         )
         XCTAssertTrue(
             WatchFolderReconciler.groupsToEnqueue(observations: [poll5], settings: settings, processedFingerprints: [fp]).isEmpty,
@@ -469,5 +484,85 @@ final class WatchFolderReconcilerTests: XCTestCase {
             ProcessedGroupLedger.fingerprint(for: groupB),
             "Same clip identity must produce identical fingerprint every call"
         )
+    }
+
+    // MARK: - GoPro family-aware completeness (Wave G6.1)
+
+    /// A GoPro group whose last chapter is well under the ratio of its preceding chapter, once
+    /// settled and quiet, must enqueue exactly like a DJI group would.
+    func testGoProGroup_finalChapterBelowRatio_enqueuesOnceQuiet() {
+        let clip1 = makeClip(stem: "GX016338", index: 1, family: .goPro)
+        let clip2 = makeClip(stem: "GX026338", index: 2, family: .goPro)
+        let group = makeGroup([clip1, clip2])
+
+        let obs = WatchFolderReconciler.GroupObservation(
+            group: group,
+            clipSamples: [
+                settledSamples(size: 10_000_000_000, date: baseDate),
+                settledSamples(size: 1_000_000_000, date: baseDate)
+            ],
+            lastSegmentBytes: 1_000_000_000,
+            quietElapsed: 45.0,
+            precedingSegmentBytes: [10_000_000_000]
+        )
+
+        let result = WatchFolderReconciler.groupsToEnqueue(
+            observations: [obs],
+            settings: settings,
+            processedFingerprints: []
+        )
+
+        XCTAssertEqual(result.count, 1, "GoPro group past the final-chapter ratio and quiet window must enqueue")
+    }
+
+    /// A GoPro chapter still close in size to the preceding chapter (ratio near 1.0, as real
+    /// non-final chapters measure) must NOT enqueue, even once settled and quiet — another
+    /// chapter is still expected.
+    func testGoProGroup_lastChapterStillNearPrecedingSize_notEnqueued() {
+        let clip1 = makeClip(stem: "GX016345", index: 1, family: .goPro)
+        let clip2 = makeClip(stem: "GX026345", index: 2, family: .goPro)
+        let group = makeGroup([clip1, clip2])
+
+        let obs = WatchFolderReconciler.GroupObservation(
+            group: group,
+            clipSamples: [
+                settledSamples(size: 11_500_000_000, date: baseDate),
+                settledSamples(size: 11_490_000_000, date: baseDate)
+            ],
+            lastSegmentBytes: 11_490_000_000,   // ratio ~0.9991 — well above 0.94, continuation expected
+            quietElapsed: 60.0,                 // quiet window elapsed, but that alone isn't enough
+            precedingSegmentBytes: [11_500_000_000]
+        )
+
+        let result = WatchFolderReconciler.groupsToEnqueue(
+            observations: [obs],
+            settings: settings,
+            processedFingerprints: []
+        )
+
+        XCTAssertTrue(result.isEmpty, "GoPro chapter still near the preceding chapter's size must not enqueue")
+    }
+
+    /// A lone GoPro chapter with no preceding reference above the no-reference floor (a
+    /// still-copying card that only has chapter 01 so far) must NOT enqueue alone.
+    func testGoProGroup_singleChapterNoReference_gatedByFloor() {
+        let clip1 = makeClip(stem: "GX016338", index: 1, family: .goPro)
+        let group = makeGroup([clip1])
+
+        let obs = WatchFolderReconciler.GroupObservation(
+            group: group,
+            clipSamples: [settledSamples(size: 11_000_000_000, date: baseDate)],
+            lastSegmentBytes: 11_000_000_000,  // above the 9.5 GB floor
+            quietElapsed: 60.0,
+            precedingSegmentBytes: []
+        )
+
+        let result = WatchFolderReconciler.groupsToEnqueue(
+            observations: [obs],
+            settings: settings,
+            processedFingerprints: []
+        )
+
+        XCTAssertTrue(result.isEmpty, "Lone GoPro chapter above the no-reference floor must not enqueue alone")
     }
 }

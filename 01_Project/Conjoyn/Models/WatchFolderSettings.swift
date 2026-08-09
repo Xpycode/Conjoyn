@@ -46,6 +46,21 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
     /// timed-out discovery never blocks in-flight groups from settling.
     var discoverTimeout: TimeInterval
 
+    /// No-reference absolute floor `CompleteSetGate`'s GoPro rule falls back to when there is no
+    /// usable preceding-chapter reference (first chapter of a group still growing, or a missing
+    /// size sample). Set to 9 500 000 000 bytes (~8.85 GiB) — measured against the real 71-file
+    /// Hero 11 corpus: the largest genuine single-chapter recording is 7.66 GB (GX016350) and the
+    /// smallest cap-filled chapter is 11.4976 GB (recording 6338 chapter 01), so 9.5 GB sits in the
+    /// empty band between them.
+    var goProSplitFloor: Int64
+
+    /// Relative final-chapter ratio `CompleteSetGate`'s GoPro rule applies when a preceding
+    /// chapter is visible: the last chapter is final when its size is below `finalChapterRatio *
+    /// min(precedingSegmentBytes)`. Default 0.94 — measured against the real 71-file Hero 11
+    /// corpus: final-chapter ratios range 0.0762–0.8850 (tightest: recording 6348 chapter 03)
+    /// while non-final ratios range 0.99989–1.00015, so 0.94 sits in the empty band between them.
+    var goProFinalChapterRatio: Double
+
     // MARK: - Defaults
 
     /// A settings instance with every field at its sane default.
@@ -56,7 +71,9 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         quietWindow: 45,
         splitThreshold: 3_900_000_000,
         pollInterval: 0.75,
-        discoverTimeout: 90
+        discoverTimeout: 90,
+        goProSplitFloor: 9_500_000_000,
+        goProFinalChapterRatio: 0.94
     )
 
     // MARK: - Init
@@ -67,7 +84,9 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         quietWindow: TimeInterval = 45,
         splitThreshold: Int64 = 3_900_000_000,
         pollInterval: TimeInterval = 0.75,
-        discoverTimeout: TimeInterval = 90
+        discoverTimeout: TimeInterval = 90,
+        goProSplitFloor: Int64 = 9_500_000_000,
+        goProFinalChapterRatio: Double = 0.94
     ) {
         self.enabled = enabled
         self.requiredStablePolls = requiredStablePolls
@@ -75,6 +94,8 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         self.splitThreshold = splitThreshold
         self.pollInterval = pollInterval
         self.discoverTimeout = discoverTimeout
+        self.goProSplitFloor = goProSplitFloor
+        self.goProFinalChapterRatio = goProFinalChapterRatio
     }
 
     // MARK: - Codable: forward-compatible decode
@@ -86,6 +107,8 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         case splitThreshold
         case pollInterval
         case discoverTimeout
+        case goProSplitFloor
+        case goProFinalChapterRatio
     }
 
     /// Decodes a partial blob by falling back to the field default for any missing key.
@@ -100,6 +123,8 @@ struct WatchFolderSettings: Codable, Equatable, Sendable {
         splitThreshold      = try c.decodeIfPresent(Int64.self,         forKey: .splitThreshold)      ?? d.splitThreshold
         pollInterval        = try c.decodeIfPresent(TimeInterval.self,  forKey: .pollInterval)        ?? d.pollInterval
         discoverTimeout     = try c.decodeIfPresent(TimeInterval.self,  forKey: .discoverTimeout)     ?? d.discoverTimeout
+        goProSplitFloor        = try c.decodeIfPresent(Int64.self,      forKey: .goProSplitFloor)        ?? d.goProSplitFloor
+        goProFinalChapterRatio = try c.decodeIfPresent(Double.self,     forKey: .goProFinalChapterRatio) ?? d.goProFinalChapterRatio
     }
 
     // MARK: - Persistence
