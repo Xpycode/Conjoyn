@@ -284,7 +284,16 @@ the floor exists to prevent.
 
 ---
 
-## Wave G7 — UI copy (parallel; depends G1 for naming only)
+## Wave G7 — UI copy (**CLOSED 2026-08-09**)
+
+**Closed wider than written.** The task named two sites; a sweep found three more classes of
+camera-specific user-facing copy, all fixed on user instruction: `WatchFoldersPanel.swift:62`
+("auto-stitch **DJI** footage"), and the **in-app Help book** — 18 DJI mentions across 8 markdown
+topics, including the 4 GB figure the empty state was just relieved of. Two pre-existing factual
+errors surfaced while rewriting and were corrected: the Help listed the date-resolution chain as
+filename-before-SRT when `RecordingStartResolver.swift:103-107` tries **SRT first**, and the Roadmap
+still advertised **watch-folder ingest as "Planned"** though it shipped in 1.0.3. `RecordingsList.swift:266`
+(`+ N telemetry .SRT`) needed no change — it is already guarded by `srtCount > 0`, so GoPro never sees it.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|

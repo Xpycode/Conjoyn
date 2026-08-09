@@ -21,15 +21,14 @@
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
-- **Focus:** **GoPro camera-family support** — waves **G0–G6 are closed, so every engine wave is
-  done**: a real recording's chapters group, join with telemetry byte-exact, verify at both tiers,
-  and the watch-folder now knows when a GoPro set has finished arriving. Spec
-  `specs/gopro-camera-family.md`, plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 +
-  GoPro 7 stay footage-gated.
+- **Focus:** **GoPro camera-family support** — waves **G0–G7 are closed**: a real recording's
+  chapters group, join with telemetry byte-exact, verify at both tiers, the watch-folder knows when a
+  GoPro set has finished arriving, and the interface (including the whole in-app Help book) no longer
+  says DJI where it means "your camera". Spec `specs/gopro-camera-family.md`, plan
+  `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 + GoPro 7 stay footage-gated.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G7** (camera-neutral UI copy) — copy-only, no new control, gated on
-  nothing. Then the **G8 final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still
-  owed from capture (G8.1).
+- **Next:** the **G8 final gate** on real footage — a full GoPro join end-to-end through the app,
+  then docs close-out. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
 - **Owed at the next release:** the 1.0.5 notes must say that **downgrading to 1.0.4 clears the
   queue** — G5 adds the first new `VerificationCheck.Kind` since shipping, and 1.0.4 predates
   G0.3's tolerant decoder, so its catch discards the *entire* queue on an unrecognised kind.
@@ -45,7 +44,16 @@
   (user-side clear-out, 2026-08-07); grouping tests are in-memory, so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-09 (latest)** — **The watch folder now knows when a GoPro recording has finished
+- **2026-08-09 (latest)** — **The app stopped saying "DJI" where it means "your camera".** The
+  empty state no longer quotes a 4 GB card limit — no camera splits at a printable number, so the
+  figure is simply gone — and a folder of unrecognised files now names both DJI and GoPro instead of
+  calling GoPro footage a non-recording. The change was written as two strings and turned out to be
+  far more: the **in-app Help book** still described a DJI-only app in 8 topics, so it was rewritten
+  to cover GoPro's naming, how its chapters are recognised, and that its sensor data lives inside the
+  video file rather than in a sidecar. Two things in the Help were simply wrong and were fixed: it
+  listed the wrong order for how the recording date is worked out, and it still promised the
+  watch-folder feature as "planned" three versions after it shipped. Copy-only; tests unchanged at 605.
+- **2026-08-09** — **The watch folder now knows when a GoPro recording has finished
   landing on the card.** It was using DJI's rule — a recording is still growing while its last piece
   is bigger than about 4 GB — and GoPro's pieces are nearly three times that, with no fixed size at
   all. GoPro pieces are now judged against *each other*: the last one is smaller than the ones
@@ -72,15 +80,10 @@
   track — so a natural-looking shortcut would have carried the wrong one and still looked like it
   worked. Proven on Hero 11 footage cut across a genuine chapter boundary, and checked by deliberately
   breaking the feature. 531 → 542 tests.
-- **2026-08-07** — **The app now keeps track of where GoPro's telemetry lives inside a file.** Nothing
-  uses it yet. Worth doing carefully because the position moves between clips, so anything assuming a
-  fixed slot would quietly point at the wrong track. 525 → 531 tests.
 
 ## Backlog (all optional / post-ship)
 - **More camera families** — GoPro is specced and in progress (above); **Osmo Action 1 + GoPro 7**
-  remain footage-gated. The empty state's "4 GB card limit" figure (`RecordingsList.swift:501`) will
-  **drop the number** rather than name a per-camera one (no camera splits at a printable figure).
-  On the in-app Roadmap.
+  remain footage-gated. On the in-app Roadmap.
 - **SD-card photo preservation (post-v1)** — cards carry stills alongside video; today they're
   silently dropped. Scope locked in `decisions.md` (2026-07-14): **preserve, don't process** —
   Tier 0 detect & surface, Tier 1 opt-in verified copy, no stitching/HDR/RAW. Tier 2 footage-gated.
