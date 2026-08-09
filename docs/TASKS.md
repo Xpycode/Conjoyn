@@ -3,12 +3,40 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro wave G6 (watch-folder complete-set rule)
+## Current Sprint — GoPro wave G7 (camera-neutral UI copy)
 
-*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3 and G5.1–G5.2 completed → `tasks-archive.md`.)*
+*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3, G5.1–G5.2 and G6.1 completed →
+`tasks-archive.md`.)*
 
-G6 is next — the last engine wave, and the only one still gated on nothing. After it, G7 (UI copy,
-independent) and the **G8 final gate** on real footage are all that remain.
+**Every engine wave is now closed.** G7 is next — copy-only, no new control, gated on nothing. After
+it, only the **G8 final gate** on real footage remains (still owed: one ~30 s Hero 11 clip in H.264).
+
+> **Wave G6 is CLOSED (2026-08-09)** — suite **605 / 0 fail** (590 → 605). GoPro groups no longer
+> consult the absolute 3.9 GB `splitThreshold`, which is wrong in both directions for a camera whose
+> cap moves with fps: a chapter is final when it is below **0.94×** the smallest preceding chapter of
+> the same recording. DJI delegates **verbatim** to the untouched 4-argument rule, so its verdicts are
+> unchanged by construction — the existing `CompleteSetGateTests` needed **zero edits**, which is the
+> evidence.
+>
+> Both constants were measured on the real 71-file corpus and both sit in genuinely empty bands.
+> The ratio band is the tight one: finals run **0.0762–0.8850** (tightest 6348 ch03) against
+> non-finals at **0.99989–1.00015** — which is also why the comparison must be a strict `<`, since a
+> non-final ratio can exceed 1.0 when a later chapter is marginally larger than the smallest earlier
+> one. The floor band is wide: largest genuine single-chapter recording **7.66 GB**, smallest
+> cap-filled chapter **11.4976 GB**.
+>
+> **The plan's text was wrong about the no-reference case and following it would have regressed the
+> shipped app.** It said "with only one member and no reference, the quiet window alone decides" —
+> but mid-copy a 4-chapter recording *is* a one-member group, so an 11.5 GB chapter 01 would have
+> been joined alone after 45 s of quiet, leaving the rest orphaned. Today's absolute rule blocks that
+> correctly. A **9.5 GB no-reference floor** (user decision) keeps it correct with a GoPro-appropriate
+> number. Also hardened past the task text: non-positive preceding sizes are filtered before `min()`,
+> so a stray `0` errs toward "wait" rather than "join" — defensive only, since `isSettled` rejects an
+> unsampled clip at Gate 1 first. Detail in `decisions.md` (2026-08-09).
+>
+> Verified by falsification in **both** directions: ratio → 0.5 fails the three tightest finals;
+> floor → 20 GB fails all six recordings at **chapter 1/N**, the exact premature-join regression the
+> floor exists to prevent.
 
 > **Wave G5 is CLOSED (2026-08-09)** — suite **590 / 0 fail** (561 → 590). Verification now checks
 > GoPro's in-container `gpmd` telemetry at both depths: packet-count/byte parity in the Tier 0/1 fast
