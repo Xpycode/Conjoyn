@@ -9,7 +9,7 @@
   folder `Conjoyn` (renamed from the `DJIjoiner` placeholder 2026-06-11).
 - **One-liner:** native macOS app that auto-stitches split DJI drone MP4 segments into one lossless
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
-- **Started:** 2026-06-07 · **Last updated:** 2026-08-08 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
+- **Started:** 2026-06-07 · **Last updated:** 2026-08-09 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
 - **Git:** canonical history at `github.com/Xpycode/Conjoyn` (public, **HTTPS via `gh`**, no SSH).
   Code syncs across Macs via **Syncthing, which excludes `.git`** → history travels **only via
   `origin`**. A fresh Mac (no `.git`) → run the **`git-bootstrap` skill**; **never `reset --hard`
@@ -33,6 +33,10 @@
 - **Next:** **`/execute` Wave G6** (watch-folder complete-set rule) — the last engine wave, and the
   only remaining one gated on nothing. Then G7 (camera-neutral UI copy, independent) and the **G8
   final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
+- **Owed at the next release (2026-08-09):** the 1.0.5 notes must say that **downgrading to 1.0.4
+  clears the queue**. G5 adds the first new `VerificationCheck.Kind` since shipping; G0.3's tolerant
+  decoder protects builds from it onward, but 1.0.4 predates it and its catch discards the *entire*
+  queue on an unrecognised kind. Alternatives weighed → `decisions.md` (2026-08-09).
 - **A user decision overturned the spec in G3.4** — an incomplete chapter set (chapters 02..N with no
   01, or a mid-recording gap) is **flagged but still joinable**, against the spec's "flagged
   incomplete and not joined". A joined partial file is valid and playable, and the corpus holds a
