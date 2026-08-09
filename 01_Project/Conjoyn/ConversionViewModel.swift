@@ -343,8 +343,10 @@ final class ConversionViewModel: ObservableObject {
                 statusMessage = "No video segments found in \(source.lastPathComponent)."
             } else {
                 let n = skippedFiles.count
-                statusMessage = "No DJI recordings found in \(source.lastPathComponent) — "
-                    + "\(n) file\(n == 1 ? "" : "s") didn't match a DJI filename."
+                let reason = n == 1
+                    ? "1 file isn't named like a DJI or GoPro recording."
+                    : "\(n) files aren't named like DJI or GoPro recordings."
+                statusMessage = "No recordings found in \(source.lastPathComponent) — " + reason
             }
         } else {
             let segs = discovery.clipCount

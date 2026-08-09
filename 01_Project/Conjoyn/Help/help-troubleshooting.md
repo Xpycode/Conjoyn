@@ -3,12 +3,12 @@
 ## The scan finds no recordings
 
 - Make sure you've selected the folder that contains the `.MP4` files directly, not a parent folder several levels up. Conjoyn descends only one level from a card root.
-- Non-DJI files (GoPro, Sony, etc.) are skipped — the "skipped" counter in the header tells you how many were bypassed.
-- If files from a third-party DJI lens adapter or accessory use non-standard naming, they may not be recognised.
+- Conjoyn reads DJI names (`DJI_…`) and GoPro's chaptered names (`GX…`, `GH…`). Files from other cameras — and GoPro's older `GOPR…` / `GP01…` naming — are skipped; the "skipped" counter in the header tells you how many were bypassed.
+- If files use non-standard naming, from a third-party lens adapter or accessory, they may not be recognised.
 
 ## The date shown looks wrong
 
-Check the origin tag (`from filename` / `from SRT cue`) under the recording name. If the date is still incorrect, the filename or SRT may encode a wrong timestamp (rare). Use the manual TC override — expand the queue row's caret, click the pencil icon on the **Applied TC** line — to set a custom timecode for that job.
+Check the origin tag (`from SRT cue`, `from filename`, `from creation time`, `from file date`) under the recording name. If the date is still incorrect, that source may itself carry a wrong timestamp — rare for a filename or SRT cue, more likely for footage where Conjoyn had to fall back to the embedded or file date. Use the manual TC override — expand the queue row's caret, click the pencil icon on the **Applied TC** line — to set a custom timecode for that job.
 
 ## My NLE doesn't see the correct date or timecode
 

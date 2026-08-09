@@ -59,7 +59,7 @@ struct WatchFoldersPanel: View {
             Text("No watch folders yet")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Theme.txt)
-            Text("Add a folder and Conjoyn will auto-stitch DJI footage the moment a complete set lands in it.")
+            Text("Add a folder and Conjoyn will auto-stitch your footage the moment a complete set lands in it.")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.txt3)
                 .multilineTextAlignment(.center)

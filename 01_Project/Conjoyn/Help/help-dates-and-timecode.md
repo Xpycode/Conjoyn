@@ -2,17 +2,18 @@
 
 ## Why the embedded date is wrong
 
-DJI cameras write `creation_time` in the video container, but the value is often local time labeled as UTC (no timezone conversion). On some models it's missing entirely. Copying files to another drive resets the filesystem modification date. The result: the date you see in Finder or an NLE is usually wrong.
+Cameras write `creation_time` in the video container, but the value is often local time labeled as UTC (no timezone conversion). On some models it's missing entirely. Copying files to another drive resets the filesystem modification date. The result: the date you see in Finder or an NLE is usually wrong.
 
 ## How Conjoyn derives the correct date
 
-Conjoyn checks three sources in priority order:
+Conjoyn checks these sources in priority order, taking the first one that yields a usable value:
 
-1. **Filename** — the modern DJI filename encodes the local recording start as `DJI_YYYYMMDDHHMMSS_NNNN_D.MP4`. This is the most reliable source because it's set by the camera at the moment of recording and survives copying.
-2. **SRT cue** — the `.SRT` telemetry sidecar's first subtitle timestamp. Used when the filename doesn't carry a timestamp (legacy `DJI_NNNN.MP4` naming).
-3. **Embedded date** — the container's `creation_time` atom. Least reliable; used only as a last resort.
+1. **SRT cue** — the `.SRT` telemetry sidecar's first subtitle timestamp, a real wall-clock the camera wrote as it recorded. DJI only.
+2. **Filename** — the modern DJI filename encodes the local recording start as `DJI_YYYYMMDDHHMMSS_NNNN_D.MP4`. Set by the camera at the moment of recording and survives copying. GoPro names carry no timestamp, so this step never applies to them.
+3. **Embedded date** — the container's `creation_time` atom, used when it passes a sanity check that rejects the 1904/1951 QuickTime-epoch artifacts and far-future clock garbage. This is the normal source for GoPro footage, which writes neither of the signals above.
+4. **File date** — the filesystem creation date. A last resort: trustworthy on a fresh card read, but a Finder copy resets it.
 
-The origin tag shown under each recording name — `from filename`, `from SRT cue` — tells you which source was used.
+The origin tag shown under each recording name — `from SRT cue`, `from filename`, `from creation time`, `from file date` — tells you which source was used.
 
 ## Timecode
 

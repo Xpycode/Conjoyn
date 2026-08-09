@@ -2,7 +2,7 @@
 
 ## 1. Point Conjoyn at your footage
 
-Drag an SD card or media folder onto the window, or click **Choose…** in the toolbar and navigate to the folder that contains your DJI files — usually `DCIM/100MEDIA` or a `DJI_NNN` subfolder. If you drop the card root, Conjoyn finds the media folder automatically.
+Drag an SD card or media folder onto the window, or click **Choose…** in the toolbar and navigate to the folder that contains your camera's files — usually `DCIM/100MEDIA` on a DJI card or `DCIM/100GOPRO` on a GoPro one. If you drop the card root, Conjoyn finds the media folder automatically.
 
 Click **Scan** (or press **Cmd+R**) to discover recordings.
 

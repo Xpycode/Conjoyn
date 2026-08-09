@@ -498,8 +498,10 @@ struct EmptyStateView: View {
         if let status = vm.statusMessage, vm.sourceFolderURL != nil, vm.groups.isEmpty {
             return status
         }
-        return "Conjoyn will scan it, find recordings that were split at the 4 GB card limit, "
-            + "and join them back into whole files — losslessly."
+        // No file-size figure: the split point isn't a printable constant across camera families
+        // (DJI caps near 3.9 GB, GoPro near 10.7 GiB and it moves with fps).
+        return "Long recordings get split into several files on the card. "
+            + "Conjoyn finds those pieces and joins them back into one."
     }
 }
 

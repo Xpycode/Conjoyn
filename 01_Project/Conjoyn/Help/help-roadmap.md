@@ -6,9 +6,7 @@ Because Conjoyn updates itself automatically, new features arrive without a manu
 
 ## Planned
 
-**Watch-folder ingest.** Point Conjoyn at a folder — or an SD-card slot — and let it detect new recordings on its own. Complete sets would be grouped and joined automatically as cards are inserted, with no manual scan step.
-
-**More camera families.** Conjoyn's join engine is already camera-agnostic; the DJI-specific part is only how filenames are read. We're looking at other cameras that split long recordings, starting with action cameras such as GoPro and the DJI Osmo line. (Telemetry differs from camera to camera, so sidecar handling may arrive after the video join for a new brand.)
+**More camera families.** Conjoyn's join engine is camera-agnostic; what differs between brands is how filenames are read and where the telemetry lives. DJI and GoPro's chaptered `GX`/`GH` recordings are supported today. Next on the list are GoPro's older `GOPR…` naming and the DJI Osmo Action line.
 
 ## Exploring
 
