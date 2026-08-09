@@ -8,8 +8,30 @@ backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tra
 *(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3, G5.1–G5.2, G6.1 and G7.1 completed →
 `tasks-archive.md`.)*
 
-**Every engine wave and the UI copy are now closed.** Only the **G8 final gate** on real footage
-remains — still owed from capture: one ~30 s Hero 11 clip in H.264 (G8.1).
+- [x] **G8.2** — real full join of a GoPro group, end-to-end through the app
+- [x] **G8.4** — *(added mid-wave, from what G8.2 found)* preserve GoPro's frame-accurate start timecode
+- [x] **G8.3** — suite green, decisions logged, spec → Implemented, state + session log
+- [ ] **G8.1** — GH (H.264) probe · **blocked on capture**: one ~30 s Hero 11 clip shot with video
+      compression set to H.264. No `GH…` file exists anywhere on V26 or the boot disk (checked
+      2026-08-09); mediaingest preserves the GoPro stem, so renaming is not hiding one.
+
+> **Wave G8 is CLOSED except G8.1 (2026-08-09)** — suite **618 / 0 fail** (605 → 618).
+>
+> **G8.2 passed on recording 6349** (2 chapters, 12.57 GB in / 13.49 GB out). Proven independently
+> of the app's own verdict, against hashes taken **before** the app ran: video `d69ab68d…`
+> (13,416,612,803 B), audio `3726bf24…` (57,354,105 B) and telemetry `d28b73bd…` (16,106,180 B) all
+> **byte-identical** to the concatenated sources. Originals untouched (size, mtime and inode
+> unchanged). Seal green at both tiers. The output stream order is `v,a,gpmd,tmcd` against the
+> source's `v,a,tmcd,gpmd` — the reorder G5 builds its Tier-2 map vector twice for, confirmed here
+> on a camera original for the first time rather than on a remux-shaped fixture.
+>
+> **G8.2 also found a real defect, which became G8.4:** the joined output's `tmcd` was re-derived
+> from the second-truncated `creation_time`, discarding the camera's frame offset (`20:14:42:00` vs
+> the camera's `20:14:42:06`). Correct for DJI, whose `tmcd` is garbage; wrong for GoPro, whose
+> `tmcd` the app already trusts as its **sole** chapter-chaining signal. The green seal could not
+> catch it — the write-back check compares the output to what the join stamped, i.e. self-consistency
+> rather than fidelity to the camera. Fixed, falsified on all three links, and confirmed on real
+> originals: `GX014623` @200 fps → `13:44:07:127`, `GX014637` @100 fps → `15:46:57:71`. → `decisions.md`.
 
 > **Wave G7 is CLOSED (2026-08-09)** — copy-only, suite unchanged at **605 / 0 fail**. The empty
 > state no longer names a file size at all ("Long recordings get split into several files on the

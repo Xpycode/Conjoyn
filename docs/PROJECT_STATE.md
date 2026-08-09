@@ -17,22 +17,27 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 605 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 618 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
-  GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
-  app until the next version bump.
-- **Focus:** **GoPro camera-family support** — waves **G0–G7 are closed**: a real recording's
-  chapters group, join with telemetry byte-exact, verify at both tiers, the watch-folder knows when a
-  GoPro set has finished arriving, and the interface (including the whole in-app Help book) no longer
-  says DJI where it means "your camera". Spec `specs/gopro-camera-family.md`, plan
-  `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 + GoPro 7 stay footage-gated.
-- **Blockers:** none.
-- **Next:** the **G8 final gate** on real footage — a full GoPro join end-to-end through the app,
-  then docs close-out. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
-- **Owed at the next release:** the 1.0.5 notes must say that **downgrading to 1.0.4 clears the
-  queue** — G5 adds the first new `VerificationCheck.Kind` since shipping, and 1.0.4 predates
-  G0.3's tolerant decoder, so its catch discards the *entire* queue on an unrecognised kind.
-  Alternatives weighed → `decisions.md` (2026-08-09).
+  whole GoPro family are on `main` but not in 1.0.4, so renamed folders still scan empty in the
+  installed app until the next version bump.
+- **Focus:** **GoPro camera-family support is complete** — waves **G0–G8 are closed** bar one
+  footage-gated probe. A real recording's chapters group, join with telemetry byte-exact, verify at
+  both tiers, keep the camera's own start timecode, the watch-folder knows when a GoPro set has
+  finished arriving, and the interface (including the whole in-app Help book) no longer says DJI
+  where it means "your camera". Spec `specs/gopro-camera-family.md` is **Implemented**; plan
+  `IMPLEMENTATION_PLAN-gopro.md`. Osmo Action 1 + GoPro 7 stay footage-gated.
+- **Blockers:** none for shipping. **G8.1 alone is open** and needs hardware: one ~30 s Hero 11 clip
+  shot in **H.264** (→ `GH…`). No such file exists on V26 or the boot disk as of 2026-08-09, and
+  mediaingest preserves the GoPro stem, so no rename is hiding one.
+- **Next:** **cut 1.0.5.** Everything else is done; the shipped build is three fixes and a whole
+  camera family behind `main`. Ship recipe under Infrastructure below.
+- **Owed at the next release** (two release-note lines):
+  1. **Downgrading to 1.0.4 clears the queue** — G5 adds the first new `VerificationCheck.Kind`
+     since shipping, and 1.0.4 predates G0.3's tolerant decoder, so its catch discards the *entire*
+     queue on an unrecognised kind. Alternatives weighed → `decisions.md` (2026-08-09).
+  2. **Joined GoPro files from 1.0.4 and earlier carry a start timecode up to ~0.7 s early** —
+     G8.4 fixed the cause; re-join to correct an existing output. → `decisions.md` (2026-08-09).
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
@@ -44,7 +49,21 @@
   (user-side clear-out, 2026-08-07); grouping tests are in-memory, so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-09 (latest)** — **The app stopped saying "DJI" where it means "your camera".** The
+- **2026-08-09 (latest)** — **A real GoPro recording went through the finished app, and the check
+  that mattered was the one nobody had written.** Recording 6349 (two chapters, 12.6 GB) joined
+  perfectly: picture, sound and sensor data all came out byte-for-byte identical to the originals,
+  the originals themselves were untouched, and the app's own seal passed at both depths. But the
+  joined file's **start time was stamped a quarter-second early** — the app rebuilds that stamp from
+  the recording's date, which is only accurate to the whole second, and throws away the camera's own
+  frame-exact clock. That was the right call for DJI, whose clock is unreliable and usually blank;
+  it's the wrong one for GoPro, whose clock the app *already* relies on to work out which pieces
+  belong together. The app's seal couldn't have caught it, because that check asks "did we write
+  what we meant to write", not "is what we meant right". Now the camera's own start time is kept
+  whenever it agrees with the recording date, while DJI is left exactly as it was. Measuring the
+  archive first changed the fix twice — every one of the 57 recordings agrees, so this corrects
+  nearly every GoPro file, by up to 0.7 s; and the fastest recordings write the frame number in a
+  padded three-digit form that had to be handled. Confirmed on two real clips. 605 → 618 tests.
+- **2026-08-09** — **The app stopped saying "DJI" where it means "your camera".** The
   empty state no longer quotes a 4 GB card limit — no camera splits at a printable number, so the
   figure is simply gone — and a folder of unrecognised files now names both DJI and GoPro instead of
   calling GoPro footage a non-recording. The change was written as two strings and turned out to be
@@ -82,8 +101,18 @@
   breaking the feature. 531 → 542 tests.
 
 ## Backlog (all optional / post-ship)
-- **More camera families** — GoPro is specced and in progress (above); **Osmo Action 1 + GoPro 7**
-  remain footage-gated. On the in-app Roadmap.
+- **Search / filter in the recordings list** — user-raised 2026-08-09 while driving the G8.2 gate.
+  A card folder can surface dozens of recordings (the H11 archive holds 70 videos among ~6,400
+  files) and there is no way to jump to one. Deliberately not done mid-gate. Needs the UI-changes
+  protocol: find the comparable control, trace its wiring, propose a location before editing.
+- **Output name re-ingest guard** — with no rename template applied, the output takes the first
+  segment's stem verbatim (`ConversionViewModel.swift:407-425`), so `…GX016349.mp4` still parses as
+  a valid GoPro chapter 01 and could be re-ingested as source. The watch-folder path always appends
+  `_joined` (`WatchFolderCoordinator.swift:503`); only the GUI-with-rename-off path doesn't. The
+  same-folder overwrite case looks covered by the queue's collision counter (`QueueManager.swift:493`
+  via `fileExists`, which catches `.MP4`/`.mp4` on a case-insensitive volume) — read, not tested.
+- **More camera families** — GoPro is **done** (above); **Osmo Action 1 + GoPro 7** remain
+  footage-gated. On the in-app Roadmap.
 - **SD-card photo preservation (post-v1)** — cards carry stills alongside video; today they're
   silently dropped. Scope locked in `decisions.md` (2026-07-14): **preserve, don't process** —
   Tier 0 detect & surface, Tier 1 opt-in verified copy, no stitching/HDR/RAW. Tier 2 footage-gated.
