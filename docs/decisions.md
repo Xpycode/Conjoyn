@@ -1203,3 +1203,60 @@ counts 30 frames per timecode-second at 29.97), but converting that count to rea
 needs the true rate: 1800 frames of 29.97 non-drop is **60.06** real seconds, not 60.00. The error is
 invisible on this integer-fps corpus (25/50/100/200) and silently wrong on the NTSC rates a Hero 11
 can also shoot.
+
+## 2026-08-09 — The telemetry check is verified by absolute index, and its new kind is a one-way door
+
+**Context.** Wave G5 taught verification to check GoPro's in-container `gpmd` telemetry stream, at
+Tier 0/1 (packet-count and byte parity) and Tier 2 (byte-exact MD5). Before it, a join could lose or
+corrupt telemetry and still seal green at every tier.
+
+**Decision — absolute index, never `d:0`, resolved separately per side.** `d:0` selects whichever
+data stream comes first, which on a GoPro camera original is the `tmcd` timecode track. The failure
+mode is silent and the worst kind: a *passing* check that verified the wrong stream. Both sides
+therefore select by absolute index matched on `codec_tag_string == "gpmd"`, and the Tier 2 map-arg
+vector is built **twice** — the join re-orders streams, so one shared vector would hash two different
+streams and compare them. A `nil` index (every DJI job) reproduces the shipped argument vector
+exactly, pinned by exact-vector assertions rather than a fuzzy check.
+
+**Reversed mid-wave: the output index is probed, not derived.** It was first computed as
+`hasAudio ? 2 : 1` from the join's `-map 0:v:0 -map 0:a? -map 0:<i>` order. A cold review disproved
+the premise by experiment: **`-map 0:a?` maps *all* audio streams**, so a two-audio-track source puts
+gpmd at output index 3 while the formula says 2 — the check would then compare gpmd against audio and
+hard-fail a byte-perfect join. The formula was also only "tested" tautologically (the test restated
+it) and the fixtures happen to put gpmd at index 2 on both sides, so nothing could have caught it.
+The output is now probed directly, which also turns "the join dropped gpmd" into a *named* failure
+instead of a skipped check.
+
+**Also closed: a GoPro job whose layout is unknown must not seal green.** `streamInfo` is populated
+with `try?` at discovery, while the join resolves the index freshly at join time. So a probe hiccup
+let a job join **with** telemetry and then verify with **no telemetry check at all**, reporting "All
+checks passed" — the exact hole the wave exists to close. A GoPro job that cannot resolve its layout
+now emits a `.warning` ("telemetry not verified — stream layout unknown"), which also auto-escalates
+to Tier 2. DJI jobs stay silent.
+
+**Also closed: the Tier-2 seal no longer forgives a telemetry failure.** `mapStatus` lets a passing
+byte-exact hash forgive Tier-1 deltas, on the sound reasoning that the hash proves the media
+identical — but that only holds for streams the hash actually covered, which is why `tmcd` already
+had a carve-out. When telemetry is missing, Tier 2 falls back to hashing video+audio only, so without
+a matching carve-out a GoPro join that dropped telemetry would fail Tier 1 loudly, escalate, and then
+seal `.verified`. `gpmd` now shares `tmcd`'s carve-out for the same stated reason.
+
+**Accepted, with eyes open: the new `Kind` case is a one-way door.** `gpmdParity` is the first new
+`VerificationCheck.Kind` since shipping. G0.3 gave `Kind` a tolerant decoder, but **1.0.4 predates
+it** — so a queue written by a build carrying this wave and then read by a *reinstalled* 1.0.4 throws
+at `QueueManager.swift:256` and the catch at `:301` discards the user's entire queue. G0.3 recorded
+this limit at the time ("nothing here can change that retroactively"); this entry is where the cost
+is actually incurred. The downgrade-safe alternative was to reuse `packetCount`/`packetBytes` and
+carry gpmd-ness only in the label, which 1.0.4 already tolerates as a plain string. Rejected: it
+would make the telemetry verdict indistinguishable from a video verdict in code, for a rollback path
+that only occurs on a manual reinstall of an older DMG. **Owed at release:** a line in the 1.0.5
+release notes that downgrading to 1.0.4 clears the queue.
+
+**Named, not fixed.** The case name is `gpmdParity`, not `telemetryParity`, because
+`QueuePersistenceCompatTests` already uses the literal `"telemetryParity"` as its unknown-kind
+fixture — the obvious name would have turned a protected test's placeholder into a real decodable
+case. And a **camera-original layout (gpmd at index 3) still has no end-to-end coverage** at either
+tier: the seam fixtures are remux-shaped with gpmd at 2 on both sides, GoPro's source `tmcd` cannot
+be `-c copy`'d, and so the positive fixture test cannot by itself catch a shared-vector regression.
+The unit tests and the wrong-stream negative tests carry that coverage until G8.2 runs on real
+footage.
