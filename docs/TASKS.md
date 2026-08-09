@@ -3,13 +3,50 @@
 Checkbox tracking for the active sprint. Execution detail (target files, success criteria,
 backpressure) lives in **`IMPLEMENTATION_PLAN-gopro.md`** — this file only tracks progress.
 
-## Current Sprint — GoPro wave G5 (verification)
+## Current Sprint — GoPro wave G6 (watch-folder complete-set rule)
 
-*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4 and G4.1–G4.3 completed → `tasks-archive.md`.)*
+*(G0.1–G0.3, G1.1–G1.3, G2.1, G3.1–G3.4, G4.1–G4.3 and G5.1–G5.2 completed → `tasks-archive.md`.)*
 
-Wave G5 is next: it was equally unblocked all along (the plan's serial spine is G0 → G2 → G4 → G5),
-and with G3 closed the critical path to the **G8.2 final gate** is clear — GoPro chapters now group,
-so a real recording can reach the join path from the UI.
+G6 is next — the last engine wave, and the only one still gated on nothing. After it, G7 (UI copy,
+independent) and the **G8 final gate** on real footage are all that remain.
+
+> **Wave G5 is CLOSED (2026-08-09)** — suite **590 / 0 fail** (561 → 590). Verification now checks
+> GoPro's in-container `gpmd` telemetry at both depths: packet-count/byte parity in the Tier 0/1 fast
+> pass (G5.1) and byte-exact MD5 in the Tier 2 escalation (G5.2). Before this, a join could lose or
+> corrupt telemetry and still seal green at every tier.
+>
+> The telemetry stream is selected by **absolute index on both sides, never `d:0`** (decision 4) —
+> `d:0` resolves to whichever data stream is first, which on a camera original is `tmcd`, so the
+> shortcut would have produced a *passing* check that verified the timecode track. Source and output
+> indices are resolved separately, and the Tier 2 map-arg vector is built **twice**, because the join
+> re-orders streams; one shared vector would hash two different streams and compare them. A `nil`
+> index — every DJI job — reproduces the shipped argument vector exactly, pinned by exact-vector
+> assertions rather than a fuzzy check.
+>
+> **A cold review of the wave found four more silent-pass routes, all closed before merge** — worth
+> reading as a set, because each one let a GoPro join lose telemetry and still seal green:
+> the output index was **derived** (`hasAudio ? 2 : 1`) from the join's arg order rather than probed,
+> which `-map 0:a?` breaks on a two-audio-track source (it maps *all* audio) — and the test for it
+> merely restated the formula; a GoPro job whose `streamInfo` probe hiccupped (`try?` at discovery)
+> verified with **no telemetry check at all** while still joining with telemetry; `mapStatus` let a
+> passing Tier-2 hash **forgive** the telemetry verdict, which is unsound precisely when gpmd is
+> missing and Tier 2 falls back to hashing v/a only; and that carve-out then read only the **first**
+> `.gpmdParity` check when the telemetry stream emits **two** (count and bytes), laundering a
+> bytes-only failure — the exact shape corruption takes when packet count survives but payload
+> doesn't. Detail in `decisions.md` (2026-08-09).
+>
+> Three things worth carrying forward:
+> (a) `-f streamhash` numbers its lines by **local position within that invocation's own `-map`
+> selection**, not by absolute source index, so positional pairing in `classifyHashLines` stays
+> correct with a third stream. The opposite assumption was tested against real ffmpeg and disproved
+> rather than reasoned about.
+> (b) The new `Kind` case is **`gpmdParity`, not `telemetryParity`** — G0.3's
+> `QueuePersistenceCompatTests` already uses the literal `"telemetryParity"` as its unknown-kind
+> fixture, so that name would have turned a protected test's placeholder into a real decodable case.
+> (c) The positive fixture test **cannot catch a shared-vector regression on its own**: in the G4.3
+> fixtures source and output gpmd both land at index 2, so a wrong index coincidentally selects the
+> right stream. The unit tests and the negative wrong-stream test carry that coverage. A fixture
+> whose source and output indices differ would close the gap.
 
 > **Wave G3 is CLOSED (2026-08-08)** — suite **561 / 0 fail** (542 → 561). GoPro chapters group on
 > **timecode continuity**, not DJI's size-cap + wall-clock rule: the cap isn't a constant and

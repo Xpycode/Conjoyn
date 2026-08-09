@@ -258,13 +258,31 @@ extension QueueManager {
     /// the ordered source segment URLs; `outputURL` prefers the recorded actual URL (handles
     /// conflict-resolution renames); `hasAudio` is keyed off the first clip's probed audio stream;
     /// `sourceParams` is the per-segment probed stream info in source order.
+    ///
+    /// `sourceGpmdIndex` is gated on the job's family — a DJI clip's `streamInfo` never carries a
+    /// `dataStreamIndex` anyway (no gpmd tag to match), but checking `family` too keeps the "DJI
+    /// leaves it nil" guarantee explicit rather than incidental. `isGoProFamily` rides alongside it
+    /// unconditionally, so a GoPro job whose `streamInfo` probe failed at discovery time (`try?` in
+    /// `DJIFolderReader`) is still distinguishable from a DJI job once `sourceGpmdIndex` is `nil` on
+    /// both.
+    ///
+    /// The output's gpmd index is **not** computed here: this function has no output file yet (the
+    /// join hasn't necessarily produced or even started one), so it can't be probed — the verifier
+    /// resolves it itself once the output is in hand (see `SourceTargetVerifier.resolveGpmd`).
     func makeVerifierInput(for job: ConversionJob) -> SourceTargetVerifier.SourceTargetInput {
-        SourceTargetVerifier.SourceTargetInput(
+        let firstClip = job.clips.first
+        let hasAudio = firstClip?.streamInfo?.audio != nil
+        let isGoProFamily = firstClip?.family == .goPro
+        let sourceGpmdIndex = isGoProFamily ? firstClip?.streamInfo?.dataStreamIndex : nil
+
+        return SourceTargetVerifier.SourceTargetInput(
             sourceSegments: job.clips.map(\.videoURL),
             outputURL: job.actualOutputURLs.first ?? job.destinationURL,
-            hasAudio: job.clips.first?.streamInfo?.audio != nil,
+            hasAudio: hasAudio,
             sourceParams: job.clips.map(\.streamInfo),
-            appliedTimecode: job.appliedTimecode
+            appliedTimecode: job.appliedTimecode,
+            sourceGpmdIndex: sourceGpmdIndex,
+            isGoProFamily: isGoProFamily
         )
     }
 
@@ -276,10 +294,31 @@ extension QueueManager {
         if result.tier == .thorough {
             let hashPassed = result.checks.first { $0.kind == .hashMatch }?.severity == .pass
             // The byte-exact hash forgives Tier-1 *container-metadata* deltas (packet/duration/codec
-            // counts that are byte-irrelevant once the media proves identical) — but it can say
-            // nothing about the `tmcd`, so a timecode write-back failure must still sink the seal.
+            // counts that are byte-irrelevant once the media proves identical) — but only for streams
+            // the hash actually covered. It never covers the `tmcd` (regenerated, never hashed), so a
+            // timecode write-back failure must still sink the seal — and the identical reasoning
+            // applies to gpmd: whenever Tier 2 couldn't cleanly resolve the output's gpmd index, it
+            // falls back to hashing only v:0/a:0 (see `SourceTargetVerifier.runTier2Hash`), so a
+            // `.gpmdParity` anomaly in that case is something the hash never vouched for either. A
+            // `.fail` sinks the seal like `timecodeWriteback`; a `.warning` (source layout never
+            // resolved) must not be laundered into `.verified` either — it falls through to the
+            // `result.hasWarning` case below, which is the honest answer: this could not be checked.
+            //
+            // Deliberately stricter than necessary in one case: when gpmd WAS cleanly resolved and
+            // hashed at Tier 2, a Tier-1 `.gpmdParity` delta would in principle be exactly as
+            // forgivable as a v/a one. `mapStatus` only sees `[VerificationCheck]`, not whether gpmd
+            // was actually in the hashed set, so it can't tell that case apart from the fallback one
+            // — treating any non-pass `.gpmdParity` as unforgivable errs toward a false fail, never a
+            // silent pass, and a split verdict over one byte-exact stream is close to unreachable in
+            // practice. Don't "simplify" this by forgiving `.gpmdParity` the way container-metadata
+            // deltas are forgiven — that reopens the exact hole this carve-out exists to close.
             let tcWriteBackFailed = result.checks.first { $0.kind == .timecodeWriteback }?.severity == .fail
-            if hashPassed && !tcWriteBackFailed { return .verified }
+            // Every `.gpmdParity` check, not the first: the telemetry stream emits **two** of them
+            // (packet count and packet bytes, exactly as video and audio do), so `first` would inspect
+            // only the count verdict and launder a bytes-only failure — which is precisely the shape
+            // corruption takes when the packet count survives but the payload doesn't.
+            let gpmdForgiven = !result.checks.contains { $0.kind == .gpmdParity && $0.severity != .pass }
+            if hashPassed && !tcWriteBackFailed && gpmdForgiven { return .verified }
         }
         if result.passed { return .verified }
         if result.hasWarning { return .warning(result.summary) }

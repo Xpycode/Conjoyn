@@ -17,22 +17,22 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 561 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 590 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
 - **Focus:** **GoPro camera-family support** — spec `specs/gopro-camera-family.md` (all 6 open
   questions resolved 2026-08-07), plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). **G0
-  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension), G3 (grouping) and G4
-  (join with telemetry) are closed**; G5 is next. The vertical slice is complete end to end: a real
-  GoPro recording's chapters now **group** into one recording and **join with telemetry byte-exact**,
-  so both headline technical risks are retired on actual footage rather than unit tests. Osmo Action 1
-  + GoPro 7 stay footage-gated — hardware in hand, nothing shot.
+  (queue-persistence safety net), G1 (filename parsing), G2 (probe extension), G3 (grouping), G4
+  (join with telemetry) and G5 (verification) are closed**; G6 is next. The vertical slice is
+  complete end to end and now *checked* end to end: a real GoPro recording's chapters **group** into
+  one recording, **join with telemetry byte-exact**, and the join's own verification seal now covers
+  the telemetry stream at both depths. Osmo Action 1 + GoPro 7 stay footage-gated — hardware in hand,
+  nothing shot.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G5** (verification) — the last unblocked engine wave; it hardens a path
-  that already works. Then G6 (watch-folder complete-set rule, depends G3) and the **G8.2 final
-  gate**, which G3 has now cleared the path to: GoPro chapters group, so a real recording can reach
-  the join path from the UI. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
+- **Next:** **`/execute` Wave G6** (watch-folder complete-set rule) — the last engine wave, and the
+  only remaining one gated on nothing. Then G7 (camera-neutral UI copy, independent) and the **G8
+  final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
 - **A user decision overturned the spec in G3.4** — an incomplete chapter set (chapters 02..N with no
   01, or a mid-recording gap) is **flagged but still joinable**, against the spec's "flagged
   incomplete and not joined". A joined partial file is valid and playable, and the corpus holds a
@@ -52,7 +52,23 @@
   71-file measurements (grouping tests are in-memory), so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-08 (latest)** — **GoPro recordings split across several files now get put back together
+- **2026-08-09 (latest)** — **The app now checks that GoPro's sensor data survived the join.** It
+  already carried that data across; it never confirmed it arrived. Both depths of the after-the-join
+  check — the quick count and the exhaustive byte-for-byte one — were counting only picture and
+  sound, so a recording could have lost its sensor data and still come out marked green. The trap
+  here was that the obvious way to point the checker at the right piece of data quietly points it at
+  the *clock* track instead on real camera files, which would have produced a confident tick next to
+  something that was never checked. The check names the exact piece, and does so twice — once for
+  the originals, once for the joined file — because joining shuffles the order. Proven on the real
+  Hero 11 footage, and each check was deliberately broken first to confirm it actually notices.
+  **A cold review then found the first version still let a recording pass green by three other
+  routes**, all now closed: the position of the data in the joined file was worked out by arithmetic
+  rather than looked up (wrong the moment a recording has two sound tracks); a recording whose layout
+  couldn't be read was waved through silently instead of flagged; and the final green stamp ignored
+  the new check entirely whenever the byte-for-byte pass succeeded — which it does precisely when
+  the sensor data is the thing that went missing. DJI files behave exactly as before, pinned to the
+  letter. 561 → 590 tests.
+- **2026-08-08** — **GoPro recordings split across several files now get put back together
   as one.** The app already knew how to join them; it didn't know which files belonged together.
   DJI's rule — a file is "full" at a size limit, and the next one starts where it left off by the
   clock — doesn't work for GoPro: there is no fixed size limit, and one real recording writes the

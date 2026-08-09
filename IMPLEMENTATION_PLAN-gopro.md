@@ -207,7 +207,44 @@ and tests depend on. Revisit only if GoPro join latency becomes noticeable.
 
 ---
 
-## Wave G5 — Verification (depends G4)
+## Wave G5 — Verification (**CLOSED 2026-08-09**)
+
+Both tasks done and merged — suite **590 / 0 fail** (561 → +29). Telemetry is now checked at both
+depths: packet-count/byte parity in the Tier 0/1 fast pass and byte-exact MD5 in the Tier 2
+escalation. Selected by **absolute index on both sides, never `d:0`** (decision 4), and the Tier 2
+map-arg vector is built **twice** — the join re-orders streams, so one shared vector would hash two
+different streams and compare them. A `nil` index (every DJI job) reproduces the shipped argument
+vector exactly, pinned by exact-vector assertions.
+
+Corrections to what this table assumed:
+- The new `Kind` case is **`gpmdParity`, not `telemetryParity`** — G0.3's `QueuePersistenceCompatTests`
+  already uses that literal as its unknown-kind fixture, and reusing it would turn a protected test's
+  placeholder into a real decodable case.
+- `classifyHashLines` needed **no change**: `-f streamhash` numbers its lines by local position within
+  each invocation's own `-map` selection, not by absolute source index, so positional pairing still
+  holds with a third stream. Tested against real ffmpeg rather than assumed.
+- The output index is **probed, not derived**. It first shipped as `hasAudio ? 2 : 1`, inferred from
+  the join's `-map` order — reversed after a cold review disproved the premise: `-map 0:a?` maps
+  **all** audio streams, so a two-audio-track source puts gpmd at 3 and the check would hard-fail a
+  byte-perfect join. The "test" for it restated the formula, and the fixtures put gpmd at 2 on both
+  sides, so nothing could have caught it.
+
+Three holes the review found beyond the table's success criteria — each one let a GoPro join lose
+telemetry and still seal green, all closed before merge (`decisions.md`, 2026-08-09):
+- A GoPro job whose `streamInfo` probe hiccupped (`try?` at discovery) **joined with telemetry and
+  verified with no telemetry check at all**, reporting "All checks passed". Now a `.warning`.
+- `mapStatus`'s Tier-2 forgiveness clause **ignored the telemetry verdict** — unsound exactly when
+  gpmd is missing, since Tier 2 then falls back to hashing v/a only. gpmd now shares `tmcd`'s
+  carve-out.
+- That carve-out then read only the **first** `.gpmdParity` check, though the telemetry stream emits
+  **two** (count and bytes) — laundering a bytes-only failure, which is how corruption presents when
+  the packet count survives but the payload doesn't.
+
+Known coverage gap, deliberately left: in the G4.3 fixtures source and output gpmd both land at index
+2, so the **positive** test cannot catch a shared-vector regression on its own — the unit tests and the
+negative wrong-stream test carry it. A fixture whose source and output indices differ would close it.
+
+### Original task table (for reference)
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|

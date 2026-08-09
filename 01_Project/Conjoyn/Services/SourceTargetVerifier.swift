@@ -31,6 +31,38 @@ final class SourceTargetVerifier: @unchecked Sendable {
         /// The start timecode the join stamped onto the output `tmcd` (what was passed to ffmpeg's
         /// `-timecode`). `nil` when no timecode was applied → the write-back check is skipped.
         let appliedTimecode: String?
+        /// Absolute index of the GoPro gpmd telemetry stream **in each source segment** (decision 3:
+        /// all segments in a group share one layout, so segment 1's probed index speaks for all of
+        /// them). `nil` for DJI, or a GoPro job whose probe found no gpmd track.
+        let sourceGpmdIndex: Int?
+        /// Whether the job's clips are the GoPro family, independent of whether `sourceGpmdIndex`
+        /// resolved. A discovery-time probe hiccup (`DJIFolderReader`'s `try?`) can leave
+        /// `sourceGpmdIndex` `nil` on a genuine GoPro job; this flag is what lets the verifier tell
+        /// that apart from a DJI job, where a `nil` index is the permanent, expected case. The
+        /// output's gpmd index is **not** carried here — the join's `-map` order re-positions it
+        /// relative to the source layout, and that position isn't fixed the way it looks: `-map
+        /// 0:a?` maps every kept audio stream, not just one, so the offset depends on how many
+        /// there are. The verifier resolves it itself by probing the joined output directly, once
+        /// the output file is in hand.
+        let isGoProFamily: Bool
+
+        init(
+            sourceSegments: [URL],
+            outputURL: URL,
+            hasAudio: Bool,
+            sourceParams: [StreamParameterGuard.SegmentStreamInfo?],
+            appliedTimecode: String?,
+            sourceGpmdIndex: Int? = nil,
+            isGoProFamily: Bool = false
+        ) {
+            self.sourceSegments = sourceSegments
+            self.outputURL = outputURL
+            self.hasAudio = hasAudio
+            self.sourceParams = sourceParams
+            self.appliedTimecode = appliedTimecode
+            self.sourceGpmdIndex = sourceGpmdIndex
+            self.isGoProFamily = isGoProFamily
+        }
     }
 
     typealias ProgressHandler = @Sendable (Double) -> Void
@@ -154,11 +186,35 @@ final class SourceTargetVerifier: @unchecked Sendable {
             return checks
         }
 
+        // Probed once, reused by the gpmd resolution below and by the codec-param check further
+        // down — the output already passed the readability gate, so this should only fail on a
+        // transient ffprobe hiccup.
+        let outputParams = try? ffmpeg.probeStreamInfo(input.outputURL)
+
         // --- Tier 1: per-stream fast comparison ---------------------------------------
-        // Video stream (v:0) is always kept; audio (a:0) only when hasAudio.
-        var streams: [(select: String, label: String)] = [("v:0", "video")]
+        // Video stream (v:0) is always kept; audio (a:0) only when hasAudio. `outputSelect` and
+        // `sourceSelect` are almost always identical (`v:0`/`a:0` mean the same positional stream in
+        // any file) — they diverge only for gpmd, whose absolute index differs between the source
+        // layout and the joined output (see `resolveGpmd`'s doc comment).
+        var streams: [(outputSelect: String, sourceSelect: String, label: String,
+                       countKind: VerificationCheck.Kind, bytesKind: VerificationCheck.Kind)] = [
+            ("v:0", "v:0", "video", .packetCount, .packetBytes)
+        ]
         if input.hasAudio {
-            streams.append(("a:0", "audio"))
+            streams.append(("a:0", "a:0", "audio", .packetCount, .packetBytes))
+        }
+        // Telemetry: the output side is resolved by probing the joined output itself (never
+        // re-derived from the join's `-map` position — see `resolveGpmd`). A clean resolution joins
+        // the per-stream loop below like video/audio; anything else becomes its own flagged check,
+        // appended after the loop so the check order stays video → audio → telemetry regardless of
+        // which outcome fired.
+        let gpmdResolution = Self.resolveGpmd(
+            isGoProFamily: input.isGoProFamily,
+            sourceGpmdIndex: input.sourceGpmdIndex,
+            outputInfo: outputParams
+        )
+        if case .resolved(let srcIdx, let outIdx) = gpmdResolution {
+            streams.append(("\(outIdx)", "\(srcIdx)", "telemetry", .gpmdParity, .gpmdParity))
         }
 
         // Frame interval for the duration tolerance (from the first source's fps, 30 fallback).
@@ -167,18 +223,37 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
         for (idx, stream) in streams.enumerated() {
             // Packet count: output == Σ(sources), exact.
-            let outCount = await packetCount(url: input.outputURL, select: stream.select)
-            let srcCounts = await packetCounts(urls: input.sourceSegments, select: stream.select)
-            checks.append(make(.packetCount, "Packet count (\(stream.label))",
+            let outCount = await packetCount(url: input.outputURL, select: stream.outputSelect)
+            let srcCounts = await packetCounts(urls: input.sourceSegments, select: stream.sourceSelect)
+            checks.append(make(stream.countKind, "Packet count (\(stream.label))",
                                compareCounts(output: outCount, sources: srcCounts)))
 
             // Packet bytes: output == Σ(sources), exact.
-            let outBytes = await packetByteSize(url: input.outputURL, select: stream.select)
-            let srcBytes = await packetByteSizes(urls: input.sourceSegments, select: stream.select)
-            checks.append(make(.packetBytes, "Packet bytes (\(stream.label))",
+            let outBytes = await packetByteSize(url: input.outputURL, select: stream.outputSelect)
+            let srcBytes = await packetByteSizes(urls: input.sourceSegments, select: stream.sourceSelect)
+            checks.append(make(stream.bytesKind, "Packet bytes (\(stream.label))",
                                compareByteSizes(output: outBytes, sources: srcBytes)))
 
             progress?(0.1 + 0.7 * Double(idx + 1) / Double(streams.count))
+        }
+
+        // Telemetry outcomes that don't pair into a video/audio-style packet-count/bytes check: a
+        // GoPro job whose join demonstrably dropped gpmd, or whose source layout was never resolved
+        // (a discovery-time probe hiccup) — either way, a GoPro job's telemetry situation must
+        // surface as its own check, never as a silent skip. DJI (`.notApplicable`) and a clean
+        // `.resolved` (already folded into `streams` above) add nothing here.
+        switch gpmdResolution {
+        case .notApplicable, .resolved:
+            break
+        case .outputMissing:
+            checks.append(make(.gpmdParity, "Telemetry (gpmd)",
+                               .fail("output has no gpmd stream — telemetry was dropped by the join")))
+        case .sourceUnknown:
+            checks.append(make(.gpmdParity, "Telemetry (gpmd)",
+                               .warning("telemetry not verified — stream layout unknown")))
+        case .probeFailed:
+            checks.append(make(.gpmdParity, "Telemetry (gpmd)",
+                               .warning("could not probe output for telemetry stream")))
         }
 
         // Duration (video v:0 vs Σ source durations).
@@ -190,8 +265,8 @@ final class SourceTargetVerifier: @unchecked Sendable {
                                            frameIntervalMs: frameIntervalMs,
                                            shortestSegmentMs: shortest)))
 
-        // Codec-param identity across all N segments + output.
-        let outputParams = try? ffmpeg.probeStreamInfo(input.outputURL)
+        // Codec-param identity across all N segments + output. Reuses the `outputParams` probed
+        // above for gpmd resolution — same file, same call, no reason to probe it twice.
         checks.append(make(.codecParams, "Codec parameters",
                            compareCodecParams(sources: input.sourceParams, output: outputParams)))
 
@@ -221,6 +296,33 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
     // MARK: - Tier 2 hash
 
+    /// Builds the `-map` argument vectors for Tier 2's stream hash — once for the source side, once
+    /// for the output side. `v:0`/`a:0` mean the same positional stream in either file, so those
+    /// entries are shared, but gpmd doesn't: the join's fixed `-map` order puts it at a different
+    /// absolute index in the output than wherever it sat in the source layout (see `resolveGpmd`'s
+    /// doc comment). Building one shared array would hash two different streams and compare them.
+    /// Selected by absolute index on both sides, never `d:0`,
+    /// which ffprobe would resolve to `tmcd` instead (decision 4). Either index `nil` (DJI, or a
+    /// GoPro job with no gpmd track) reproduces the prior two-entry vector exactly — pure and
+    /// process-free so that guarantee is exact-vector unit-testable without spawning ffmpeg.
+    static func tier2MapArgs(
+        hasAudio: Bool,
+        sourceGpmdIndex: Int?,
+        outputGpmdIndex: Int?
+    ) -> (source: [String], output: [String]) {
+        var sourceMapArgs = ["-map", "0:v:0"]
+        var outputMapArgs = ["-map", "0:v:0"]
+        if hasAudio {
+            sourceMapArgs.append(contentsOf: ["-map", "0:a:0"])
+            outputMapArgs.append(contentsOf: ["-map", "0:a:0"])
+        }
+        if let srcIdx = sourceGpmdIndex, let outIdx = outputGpmdIndex {
+            sourceMapArgs.append(contentsOf: ["-map", "0:\(srcIdx)"])
+            outputMapArgs.append(contentsOf: ["-map", "0:\(outIdx)"])
+        }
+        return (sourceMapArgs, outputMapArgs)
+    }
+
     /// Per-stream packet MD5: sources (via concat list) vs output. Mismatch is a definitive `.fail`.
     private func runTier2Hash(
         _ input: SourceTargetInput,
@@ -242,12 +344,35 @@ final class SourceTargetVerifier: @unchecked Sendable {
         }
         defer { try? FileManager.default.removeItem(at: listFileURL) }
 
-        var mapArgs = ["-map", "0:v:0"]
-        if input.hasAudio { mapArgs.append(contentsOf: ["-map", "0:a:0"]) }
+        // Resolved independently of Tier 1 (this runs as its own pass — `verifyThorough` calls
+        // `runTier0And1` and `runTier2Hash` as two separate probes of the output, not a shared
+        // one). Anything short of a clean `.resolved` — dropped, unresolved, or a probe hiccup —
+        // is already surfaced as its own Tier-1 check; Tier 2 simply hashes what it safely can
+        // (v:0/a:0 only), the same two-entry vector DJI has always produced.
+        let outputInfo = try? ffmpeg.probeStreamInfo(input.outputURL)
+        let gpmd = Self.resolveGpmd(
+            isGoProFamily: input.isGoProFamily,
+            sourceGpmdIndex: input.sourceGpmdIndex,
+            outputInfo: outputInfo
+        )
+        let (sourceMapArgs, outputMapArgs): ([String], [String])
+        if case .resolved(let srcIdx, let outIdx) = gpmd {
+            (sourceMapArgs, outputMapArgs) = Self.tier2MapArgs(
+                hasAudio: input.hasAudio,
+                sourceGpmdIndex: srcIdx,
+                outputGpmdIndex: outIdx
+            )
+        } else {
+            (sourceMapArgs, outputMapArgs) = Self.tier2MapArgs(
+                hasAudio: input.hasAudio,
+                sourceGpmdIndex: nil,
+                outputGpmdIndex: nil
+            )
+        }
 
         // Sources: concat-demux the list, hash kept streams.
         var sourceArgs = ["-f", "concat", "-safe", "0", "-i", listFileURL.path]
-        sourceArgs.append(contentsOf: mapArgs)
+        sourceArgs.append(contentsOf: sourceMapArgs)
         sourceArgs.append(contentsOf: ["-c", "copy", "-hash", "md5", "-f", "streamhash", "-"])
         let sourceRun = await runCapturingStdout(at: ffmpegURL, arguments: sourceArgs)
         if isCancelling {
@@ -260,7 +385,7 @@ final class SourceTargetVerifier: @unchecked Sendable {
 
         // Output: hash kept streams of the joined file.
         var outputArgs = ["-i", input.outputURL.path]
-        outputArgs.append(contentsOf: mapArgs)
+        outputArgs.append(contentsOf: outputMapArgs)
         outputArgs.append(contentsOf: ["-c", "copy", "-hash", "md5", "-f", "streamhash", "-"])
         let outputRun = await runCapturingStdout(at: ffmpegURL, arguments: outputArgs)
         if isCancelling {
@@ -434,6 +559,43 @@ final class SourceTargetVerifier: @unchecked Sendable {
     }
 
     // MARK: - Pure comparators (process-free, unit-tested)
+
+    /// One verification pass's gpmd telemetry situation, resolved from already-probed data (no
+    /// process, no I/O — the probing itself happens in the caller).
+    enum GpmdResolution: Equatable {
+        /// Not a GoPro job — no probe was needed, no check is emitted. Byte-identical to 1.0.4.
+        case notApplicable
+        /// Both sides resolved: the parity check runs.
+        case resolved(source: Int, output: Int)
+        /// The source had gpmd, but the joined output doesn't — the join silently dropped
+        /// telemetry. A definitive, provable anomaly, not a "couldn't check" situation.
+        case outputMissing(source: Int)
+        /// A GoPro job whose source layout was never resolved (a discovery-time probe hiccup left
+        /// `sourceGpmdIndex` `nil`) — the check can't run, but the job must not seal silently.
+        case sourceUnknown
+        /// The output probe itself failed (e.g. a transient ffprobe error) — couldn't check
+        /// cleanly, never a false pass or a false fail.
+        case probeFailed
+    }
+
+    /// Resolves the gpmd telemetry stream's situation for one verification pass. For a GoPro job,
+    /// the output index comes from `outputInfo.dataStreamIndex` — populated by
+    /// `StreamParameterGuard.parse` matching `codec_tag_string == "gpmd"` on the **output file
+    /// itself** (the same selector the source side uses, `StreamParameterGuard.swift:~204`) —
+    /// never re-derived from the join's fixed `-map` order. That position isn't as fixed as it
+    /// looks: `-map 0:a?` maps *every* kept audio stream, not just one, so gpmd's absolute output
+    /// index shifts with how many audio tracks the source carried, not just whether it had any.
+    static func resolveGpmd(
+        isGoProFamily: Bool,
+        sourceGpmdIndex: Int?,
+        outputInfo: StreamParameterGuard.SegmentStreamInfo?
+    ) -> GpmdResolution {
+        guard isGoProFamily else { return .notApplicable }
+        guard let sourceIdx = sourceGpmdIndex else { return .sourceUnknown }
+        guard let outputInfo else { return .probeFailed }
+        guard let outputIdx = outputInfo.dataStreamIndex else { return .outputMissing(source: sourceIdx) }
+        return .resolved(source: sourceIdx, output: outputIdx)
+    }
 
     /// Output packet count must equal the sum of the sources, exactly. A `-1` (probe failure) in
     /// any input fails the check rather than passing silently.
