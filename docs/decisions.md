@@ -1260,3 +1260,57 @@ tier: the seam fixtures are remux-shaped with gpmd at 2 on both sides, GoPro's s
 be `-c copy`'d, and so the positive fixture test cannot by itself catch a shared-vector regression.
 The unit tests and the wrong-stream negative tests carry that coverage until G8.2 runs on real
 footage.
+
+---
+
+## 2026-08-09 — GoPro's complete-set gate goes relative, but keeps an absolute floor for the first chapter
+
+**Context.** Wave G6 is the watch-folder's "has this recording finished arriving — safe to join?"
+gate. The shipped rule is DJI-shaped: the last segment is final when it is below an absolute
+`splitThreshold` (3.9 GB), ANDed with a quiet window. G3 established that GoPro has **no constant
+split size** — the cap moves with fps (10.8471 GiB @25 fps vs ~10.718 @100 fps) — so an absolute
+threshold is wrong in both directions for it.
+
+**Decision — a relative rule when a reference exists.** A GoPro chapter is final when its size is
+below `0.94 ×` the smallest **preceding** chapter of the same recording. Measured on the real
+71-file corpus, the two clusters are cleanly separated but the band is narrower than it looks:
+final chapters run **0.0762–0.8850** (tightest: recording 6348 chapter 03 at 0.88495) and non-final
+chapters run **0.99989–1.00015**. Two consequences are pinned by tests: 0.94 is roughly centred in
+that ~11-point gap, and the comparison must be a strict `<` because a non-final ratio can **exceed
+1.0** — a later chapter can be marginally larger than the smallest earlier one.
+
+**The plan was wrong about the no-reference case, and following it would have been a regression.**
+The task text said "with only one member and no reference, the quiet window alone decides". That is
+right for a genuine single-chapter recording, but mid-copy a 4-chapter recording *is* a one-member
+group — only chapter 01 has landed. Under the plan's rule an 11.5 GB chapter 01 would pass the gate
+after 45 s of quiet and be joined **alone**, producing a truncated output plus an orphan group for
+the remaining chapters. The shipped absolute rule blocks that correctly today (11.5 GB > 3.9 GB), so
+the plan as written would have made GoPro watch-folder behaviour *worse* than 1.0.4.
+
+**Resolution — a 9.5 GB no-reference floor** (user decision). With no usable reference, a lone
+chapter at or above 9.5 GB still expects a continuation; below it, the quiet window decides. The
+corpus leaves a wide empty band to place this in: the largest genuine single-chapter recording is
+**7.66 GB** (GX016350) and the smallest cap-filled chapter is **11.4976 GB** (6338 ch01), so 9.5 GB
+clears both by ~2 GB. This does reintroduce a constant, which decision Q3 wanted to avoid — accepted
+knowingly, because the alternative is a premature join. Rejected alternatives: *follow the plan
+literally* (regression above); *fall back to the existing `splitThreshold`* (3.9 GB is far below
+GoPro's cap, so a real 7.66 GB single-chapter recording would stall and never auto-enqueue).
+
+**Hardened past the task text: a stray zero must not poison the reference.** Non-positive preceding
+sizes are filtered out **before** `min()`. A bare `min()` would do two bad things at once — make the
+ratio comparison `x < 0`, never true, stalling the group forever; and discard a genuine reference
+sitting beside the zero, falling to the floor branch, which for a 9 GB last chapter flips the verdict
+from "wait" to "join now". Filtering keeps the real reference and so errs toward "expect
+continuation", the safe direction. Defensive only: `FileStabilityGate.isSettled` requires
+`samples.count >= requiredStablePolls`, so an unsampled clip fails Gate 1 before this gate runs.
+
+**Shape.** The existing 4-argument `isComplete` is left byte-for-byte untouched and the new
+family-aware overload **delegates to it verbatim** for `.dji`, so the DJI verdict is unchanged by
+construction rather than by assertion. The existing `CompleteSetGateTests` needed **zero edits**,
+which is the evidence.
+
+**Verified by falsification, both branches.** The corpus test walks all 6 multi-chapter recordings
+at every prefix length `k = 1...N`, asserting complete iff `k == N`, plus all 51 singles complete
+once quiet. Ratio → 0.5 fails the three tightest finals (6345 ch04, 6346 ch04, 6348 ch03); floor →
+20 GB fails all six recordings at **chapter 1/N** — precisely the premature-join regression the floor
+exists to prevent. 590 → 605 tests, 0 fail.

@@ -17,18 +17,19 @@
 
 ## Now
 - **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 590 app / 0 fail · 10 FeedbackKit pkg.**
+  (2026-07-18). **Tests: 605 app / 0 fail · 10 FeedbackKit pkg.**
   ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
   GoPro parser are on `main` but not in 1.0.4, so renamed folders still scan empty in the installed
   app until the next version bump.
-- **Focus:** **GoPro camera-family support** — waves **G0–G5 are closed**; the vertical slice now
-  groups a real recording's chapters, joins them with telemetry byte-exact, and verifies that
-  telemetry at both tiers. Spec `specs/gopro-camera-family.md`, plan
-  `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 + GoPro 7 stay footage-gated.
+- **Focus:** **GoPro camera-family support** — waves **G0–G6 are closed, so every engine wave is
+  done**: a real recording's chapters group, join with telemetry byte-exact, verify at both tiers,
+  and the watch-folder now knows when a GoPro set has finished arriving. Spec
+  `specs/gopro-camera-family.md`, plan `IMPLEMENTATION_PLAN-gopro.md` (waves G0–G8). Osmo Action 1 +
+  GoPro 7 stay footage-gated.
 - **Blockers:** none.
-- **Next:** **`/execute` Wave G6** (watch-folder complete-set rule) — the last engine wave, and the
-  only remaining one gated on nothing. Then G7 (camera-neutral UI copy, independent) and the **G8
-  final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still owed from capture (G8.1).
+- **Next:** **`/execute` Wave G7** (camera-neutral UI copy) — copy-only, no new control, gated on
+  nothing. Then the **G8 final gate** on real footage. One ~30 s Hero 11 clip in **H.264** is still
+  owed from capture (G8.1).
 - **Owed at the next release:** the 1.0.5 notes must say that **downgrading to 1.0.4 clears the
   queue** — G5 adds the first new `VerificationCheck.Kind` since shipping, and 1.0.4 predates
   G0.3's tolerant decoder, so its catch discards the *entire* queue on an unrecognised kind.
@@ -44,7 +45,16 @@
   (user-side clear-out, 2026-08-07); grouping tests are in-memory, so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-09 (latest)** — **The app now checks that GoPro's sensor data survived the join.** Both
+- **2026-08-09 (latest)** — **The watch folder now knows when a GoPro recording has finished
+  landing on the card.** It was using DJI's rule — a recording is still growing while its last piece
+  is bigger than about 4 GB — and GoPro's pieces are nearly three times that, with no fixed size at
+  all. GoPro pieces are now judged against *each other*: the last one is smaller than the ones
+  before it. The trap was the first moments of a copy, when only one piece exists and there is
+  nothing to compare it against; the plan said to let the quiet period decide, which would have
+  joined an 11.5 GB opening piece on its own and left the rest orphaned — worse than the shipped
+  app. A size floor, measured from the real footage, keeps that case correct. Both halves were
+  deliberately broken first to confirm the checks notice. 590 → 605 tests.
+- **2026-08-09** — **The app now checks that GoPro's sensor data survived the join.** Both
   depths of the after-the-join check — the quick count and the exhaustive byte-for-byte one — were
   counting only picture and sound, so a recording could have lost its sensor data and still come out
   marked green. The obvious way to point the checker at the right piece of data quietly points it at
@@ -65,10 +75,6 @@
 - **2026-08-07** — **The app now keeps track of where GoPro's telemetry lives inside a file.** Nothing
   uses it yet. Worth doing carefully because the position moves between clips, so anything assuming a
   fixed slot would quietly point at the wrong track. 525 → 531 tests.
-- **2026-08-07** — **The app can now read GoPro filenames**, including footage an archiving tool has
-  renamed; checked against all 71 real Hero 11 files. Storing which camera a clip came from forced the
-  save-to-disk code to be written by hand, creating the mirror of the previous session's bug — now
-  guarded. 512 → 525 tests.
 
 ## Backlog (all optional / post-ship)
 - **More camera families** — GoPro is specced and in progress (above); **Osmo Action 1 + GoPro 7**

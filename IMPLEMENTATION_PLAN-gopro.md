@@ -253,7 +253,30 @@ negative wrong-stream test carry it. A fixture whose source and output indices d
 
 ---
 
-## Wave G6 — Watch-folder complete-set rule (depends G3)
+## Wave G6 — Watch-folder complete-set rule (**CLOSED 2026-08-09**)
+
+Task done and merged — suite **605 / 0 fail** (590 → +15). GoPro groups no longer consult the
+absolute `splitThreshold`: a chapter is final when it is below **0.94×** the smallest preceding
+chapter. DJI delegates **verbatim** to the untouched 4-argument rule, so its verdicts are unchanged
+by construction. Both constants were measured against the real 71-file corpus and both sit in
+genuinely empty bands — ratio: finals 0.0762–0.8850 (tightest 6348 ch03) vs non-finals
+0.99989–1.00015 (which is why the comparison is a strict `<`, since a non-final ratio can exceed
+1.0); floor: largest true single-chapter recording 7.66 GB vs smallest cap-filled chapter 11.4976 GB.
+
+**Deviated from this task's text, on evidence.** The plan said "with only one member and no
+reference, the quiet window alone decides". But mid-copy a 4-chapter recording *is* a one-member
+group, so that rule would join an 11.5 GB chapter 01 by itself after 45 s of quiet — strictly worse
+than the shipped behaviour, where the absolute threshold blocks it. A **9.5 GB no-reference floor**
+preserves today's correctness with a GoPro-appropriate number. User decision, 2026-08-09; full
+reasoning in `decisions.md`. Also hardened past the task text: non-positive preceding sizes are
+filtered out before `min()` rather than poisoning it, so a stray `0` errs toward "wait", never
+toward "join" (defensive only — `FileStabilityGate.isSettled` rejects an unsampled clip at Gate 1
+first).
+
+Corpus criterion met and **falsified in both directions**: the test walks all 6 multi-chapter
+recordings at every prefix length asserting complete iff `k == N`, plus all 51 singles; ratio → 0.5
+fails the three tightest finals, floor → 20 GB fails all 6 at chapter 1/N — the exact regression
+the floor exists to prevent.
 
 | # | Task | Target | Success criteria | Backpressure |
 |---|---|---|---|---|
