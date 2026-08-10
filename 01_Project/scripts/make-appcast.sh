@@ -110,6 +110,16 @@ grep -q "url=\"${FEED_HOST}/Conjoyn-${SHORT}.dmg\"" "$APPCAST" \
     || die "enclosure url is not ${FEED_HOST}/Conjoyn-${SHORT}.dmg"
 echo "  ✓ enclosure url = ${FEED_HOST}/Conjoyn-${SHORT}.dmg"
 
+# release-notes fragment must carry noindex — it deploys to the PUBLIC site root
+# (crawlable bare-body page; Sparkle's WebKit view ignores the tag). 1.0.5 shipped
+# without it and had to be patched live; see App-Websites/docs/OPERATIONS.md.
+NOTES_HTML="${APPCAST_DIR}/Conjoyn-${SHORT}.html"
+if [ -f "$NOTES_HTML" ]; then
+    grep -q 'name="robots" content="noindex"' "$NOTES_HTML" \
+        || die "Conjoyn-${SHORT}.html lacks <meta name=\"robots\" content=\"noindex\"> — add it before deploying"
+    echo "  ✓ release notes fragment carries noindex"
+fi
+
 # soft (report-only) — shortVersionString + minimumSystemVersion
 SVS="$(grep -oE '<sparkle:shortVersionString>[^<]*</sparkle:shortVersionString>|sparkle:shortVersionString="[^"]*"' "$APPCAST" | head -1 || true)"
 MSV="$(grep -oE '<sparkle:minimumSystemVersion>[^<]*</sparkle:minimumSystemVersion>' "$APPCAST" | head -1 || true)"
