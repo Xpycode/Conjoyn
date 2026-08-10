@@ -48,6 +48,7 @@
   badge, notes page, appcast, DMG and `downloads/conjoyn.dmg` all deployed after a DRY_RUN preview;
   every live check byte-exact — appcast/notes/deltas `cmp`-identical, the DMG hash-identical via all
   three routes (versioned URL, `dl.php`, downloads swap). Release notes carry both owed lines.
+  **User eyeballed the real Sparkle update from installed 1.0.4 → offered + worked.**
 - **2026-08-09** — **A real GoPro recording went through the finished app, and the check
   that mattered was the one nobody had written.** Recording 6349 (two chapters, 12.6 GB) joined
   perfectly: picture, sound and sensor data all came out byte-for-byte identical to the originals,
