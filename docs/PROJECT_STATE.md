@@ -9,18 +9,15 @@
   folder `Conjoyn` (renamed from the `DJIjoiner` placeholder 2026-06-11).
 - **One-liner:** native macOS app that auto-stitches split DJI drone MP4 segments into one lossless
   file, fixes the date/timecode metadata, and re-times the `.SRT` telemetry sidecar.
-- **Started:** 2026-06-07 · **Last updated:** 2026-08-09 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
+- **Started:** 2026-06-07 · **Last updated:** 2026-08-10 · **Tags:** macOS, video, DJI, metadata, ffmpeg.
 - **Git:** canonical history at `github.com/Xpycode/Conjoyn` (public, **HTTPS via `gh`**, no SSH).
   Code syncs across Macs via **Syncthing, which excludes `.git`** → history travels **only via
   `origin`**. A fresh Mac (no `.git`) → run the **`git-bootstrap` skill**; **never `reset --hard`
   blind**. Commit identity `Luces Umbrarum <87826179+Xpycode@users.noreply.github.com>`.
 
 ## Now
-- **Phase:** implementation — feature-complete and **shipped public** at **1.0.4 / build 104**
-  (2026-07-18). **Tests: 618 app / 0 fail · 10 FeedbackKit pkg.**
-  ⚠️ **`main` is ahead of the shipped build** — the renamed-footage parser fix (2026-08-06) and the
-  whole GoPro family are on `main` but not in 1.0.4, so renamed folders still scan empty in the
-  installed app until the next version bump.
+- **Phase:** implementation — feature-complete and **shipped public** at **1.0.5 / build 105**
+  (2026-08-10). **Tests: 618 app / 0 fail · 10 FeedbackKit pkg.** `main` == the shipped build.
 - **Focus:** **GoPro camera-family support is complete** — waves **G0–G8 are closed** bar one
   footage-gated probe. A real recording's chapters group, join with telemetry byte-exact, verify at
   both tiers, keep the camera's own start timecode, the watch-folder knows when a GoPro set has
@@ -30,14 +27,10 @@
 - **Blockers:** none for shipping. **G8.1 alone is open** and needs hardware: one ~30 s Hero 11 clip
   shot in **H.264** (→ `GH…`). No such file exists on V26 or the boot disk as of 2026-08-09, and
   mediaingest preserves the GoPro stem, so no rename is hiding one.
-- **Next:** **cut 1.0.5.** Everything else is done; the shipped build is three fixes and a whole
-  camera family behind `main`. Ship recipe under Infrastructure below.
-- **Owed at the next release** (two release-note lines):
-  1. **Downgrading to 1.0.4 clears the queue** — G5 adds the first new `VerificationCheck.Kind`
-     since shipping, and 1.0.4 predates G0.3's tolerant decoder, so its catch discards the *entire*
-     queue on an unrecognised kind. Alternatives weighed → `decisions.md` (2026-08-09).
-  2. **Joined GoPro files from 1.0.4 and earlier carry a start timecode up to ~0.7 s early** —
-     G8.4 fixed the cause; re-join to correct an existing output. → `decisions.md` (2026-08-09).
+- **Next:** capture footage — the G8.1 Hero 11 **H.264** clip (~30 s → `GH…`), plus Osmo Action 1
+  and GoPro 7 material for the next camera families. Nothing else is owed.
+- Both release-note lines owed at 1.0.5 **shipped in its notes** (downgrade-to-1.0.4 clears the
+  queue; GoPro joins from ≤1.0.4 carry a start timecode up to ~0.7 s early — re-join to correct).
 - **Standing rule for every remaining wave** (both halves proven by deliberate reproduction): a new
   `DJIClip` field needs a `CodingKey`, a `decodeIfPresent` **and** a line in the hand-written
   `encode(to:)` — miss the decoder and a user's queue is silently wiped; miss the encoder and the
@@ -49,7 +42,13 @@
   (user-side clear-out, 2026-08-07); grouping tests are in-memory, so nothing is blocked.
 
 ## Recent (newest first — full logs in `docs/sessions/_index.md`)
-- **2026-08-09 (latest)** — **A real GoPro recording went through the finished app, and the check
+- **2026-08-10 (latest)** — **Shipped 1.0.5 / build 105.** Suite green pre-cut (618 / 0 fail), both
+  notary round-trips Accepted, app + DMG stapled, Gatekeeper OK. Appcast now serves 1.0.5 + 1.0.4 +
+  1.0.3 (1.0.2 rotated out) with **two** binary deltas (105→104 264 KB, 105→103 298 KB). Website
+  badge, notes page, appcast, DMG and `downloads/conjoyn.dmg` all deployed after a DRY_RUN preview;
+  every live check byte-exact — appcast/notes/deltas `cmp`-identical, the DMG hash-identical via all
+  three routes (versioned URL, `dl.php`, downloads swap). Release notes carry both owed lines.
+- **2026-08-09** — **A real GoPro recording went through the finished app, and the check
   that mattered was the one nobody had written.** Recording 6349 (two chapters, 12.6 GB) joined
   perfectly: picture, sound and sensor data all came out byte-for-byte identical to the originals,
   the originals themselves were untouched, and the app's own seal passed at both depths. But the
@@ -134,10 +133,11 @@
   (binaries gitignored).
 
 ## Infrastructure (operational reference)
-- **Version 1.0.4 / build 104** — keep monotonic for Sparkle. The appcast keeps 1.0.4 + 1.0.3 + 1.0.2
-  items **+ a 104→103 binary delta**. `generate_appcast` emits a `Conjoyn<new>-<old>.delta` whenever
-  the previous DMG is still in `04_Exports/appcast/` — **deploy it with the DMG**, else updaters on
-  the previous version 404 before falling back to the full download.
+- **Version 1.0.5 / build 105** — keep monotonic for Sparkle. The appcast keeps a rolling 3-item
+  window (now 1.0.5 + 1.0.4 + 1.0.3; `generate_appcast` drops the oldest itself) **+ binary deltas**
+  (105→104, 105→103). It emits a `Conjoyn<new>-<old>.delta` for every older DMG still in
+  `04_Exports/appcast/` — **deploy them with the DMG**, else updaters on those versions 404 before
+  falling back to the full download.
 - **DMG** = current `main`, notarized + double-stapled, `/Applications` drop-link, ~29 MB, installs
   offline. Cut on the **M4 Pro** (it holds the Developer ID identity, the `conjoyn-notary` profile and
   the Sparkle key; the M1 Max is down). The `conjoyn-notary` keychain profile is **per-Mac** —
