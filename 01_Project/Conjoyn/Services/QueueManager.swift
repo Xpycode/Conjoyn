@@ -393,15 +393,21 @@ final class QueueManager: ObservableObject {
 
     /// Checks whether a filename conflicts with any existing or queued outputs.
     private func isFilenameConflicting(_ url: URL) -> Bool {
-        let path = url.path
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        // Match the app's conservative case-insensitive naming policy, including paths through
+        // directory symlinks. Absent queued outputs cannot rely on a filesystem existence check.
+        func matches(_ candidate: URL) -> Bool {
+            candidate.resolvingSymlinksInPath().standardizedFileURL.path
+                .caseInsensitiveCompare(path) == .orderedSame
+        }
 
         // Check all job destinations (any state).
         for job in jobs {
-            if job.destinationURL.path == path {
+            if matches(job.destinationURL) {
                 return true
             }
             // Also check actual output files (may have been renamed during conversion).
-            if job.actualOutputURLs.contains(where: { $0.path == path }) {
+            if job.actualOutputURLs.contains(where: matches) {
                 return true
             }
         }

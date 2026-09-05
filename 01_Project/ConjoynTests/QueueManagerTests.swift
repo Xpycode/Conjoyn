@@ -158,6 +158,69 @@ final class QueueManagerTests: XCTestCase {
 
     // MARK: - Filename conflict resolution
 
+    func testAddJobReservesAbsentDestinationForDistinctSources() throws {
+        let manager = makeManager()
+        let first = try makeSizedJob(outputName: "Flight.mp4", totalBytes: 16)
+        var second = try makeSizedJob(outputName: "Flight.mp4", totalBytes: 32)
+        second.sourceBookmarkData = Data("source bookmark".utf8)
+        second.outputBookmarkData = Data("output bookmark".utf8)
+        XCTAssertNotEqual(first.clips[0].videoURL, second.clips[0].videoURL)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: first.destinationURL.path))
+
+        manager.addJob(first)
+        manager.addJob(second)
+
+        XCTAssertEqual(manager.jobs.map(\.destinationURL.lastPathComponent),
+                       ["Flight.mp4", "Flight (1).mp4"])
+        let queued = manager.jobs[1]
+        XCTAssertEqual(queued.id, second.id)
+        XCTAssertEqual(queued.clips.map(\.videoURL), second.clips.map(\.videoURL))
+        XCTAssertEqual(queued.sourceBookmarkData, second.sourceBookmarkData)
+        XCTAssertEqual(queued.outputBookmarkData, second.outputBookmarkData)
+        XCTAssertEqual(queued.sourceIdentities.count, 1)
+        XCTAssertNotEqual(queued.sourceIdentities, manager.jobs[0].sourceIdentities)
+
+        let restored = makeManager()
+        XCTAssertEqual(restored.jobs.map(\.destinationURL), manager.jobs.map(\.destinationURL))
+        XCTAssertEqual(restored.jobs[1].clips.map(\.videoURL), second.clips.map(\.videoURL))
+    }
+
+    func testAddJobSkipsBothQueuedAndExistingCounters() throws {
+        let manager = makeManager()
+        let existing = tmpDir.appendingPathComponent("Flight (1).mp4")
+        let sentinel = Data("existing output".utf8)
+        try sentinel.write(to: existing)
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+
+        XCTAssertEqual(manager.jobs.map(\.destinationURL.lastPathComponent),
+                       ["Flight.mp4", "Flight (2).mp4", "Flight (3).mp4"])
+        XCTAssertEqual(try Data(contentsOf: existing), sentinel)
+    }
+
+    func testAddJobReservesCaseEquivalentQueuedNames() {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        manager.addJob(makeJob(outputName: "flight.MP4"))
+        manager.addJob(makeJob(outputName: "FLIGHT.mp4"))
+
+        XCTAssertEqual(manager.jobs.map(\.destinationURL.lastPathComponent),
+                       ["Flight.mp4", "flight (1).MP4", "FLIGHT (2).mp4"])
+    }
+
+    func testAddJobAvoidsDirectoryAtDestination() throws {
+        let manager = makeManager()
+        let directory = tmpDir.appendingPathComponent("Flight.mp4", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+
+        XCTAssertEqual(manager.jobs.last?.destinationURL.lastPathComponent, "Flight (1).mp4")
+        var isDirectory: ObjCBool = false
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory))
+        XCTAssertTrue(isDirectory.boolValue)
+    }
+
     func testResolveFilenameConflictAppendsCounterForExistingFile() throws {
         let manager = makeManager()
         let target = tmpDir.appendingPathComponent("Output.mp4")

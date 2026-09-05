@@ -16,28 +16,13 @@ extension QueueManager {
     func addJob(_ job: ConversionJob, autoStart: Bool = false) {
         var finalJob = job
 
-        // A DJI job's destination is always a file. Only resolve conflicts if a file already
-        // exists there (skip if absent, or if something at that path is a directory).
-        var isDirectory: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: job.destinationURL.path, isDirectory: &isDirectory)
-        let shouldResolveConflict = exists && !isDirectory.boolValue
-
-        if shouldResolveConflict {
-            let resolvedURL = resolveFilenameConflict(for: job.destinationURL)
-
-            if resolvedURL != job.destinationURL {
-                // Rebuild the job with the resolved URL, preserving bookmark data.
-                finalJob = ConversionJob(
-                    folderName: job.folderName,
-                    sourceFolderURL: job.sourceFolderURL,
-                    clips: job.clips,
-                    settings: job.settings,
-                    destinationURL: resolvedURL,
-                    sourceBookmarkData: job.sourceBookmarkData,
-                    outputBookmarkData: job.outputBookmarkData
-                )
-                log("Renamed output to avoid conflict: \(resolvedURL.lastPathComponent)")
-            }
+        // Pending jobs reserve names even before their files exist. This synchronous MainActor
+        // funnel resolves against the queue and disk before appending, for GUI and watch jobs alike.
+        let resolvedURL = resolveFilenameConflict(for: job.destinationURL)
+        if resolvedURL != job.destinationURL {
+            // Only the filename changes; retain job identity, overrides and directory bookmarks.
+            finalJob.destinationURL = resolvedURL
+            log("Renamed output to avoid conflict: \(resolvedURL.lastPathComponent)")
         }
 
         // Snapshot each source segment's filesystem identity (device, inode) now, while these are the
