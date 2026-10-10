@@ -1,0 +1,22 @@
+{
+  "shared_clock_ordering_pass": true,
+  "disable_off_before_and_after_release": true,
+  "disable_source_retained": true,
+  "disable_no_job": true,
+  "decoded_output_matches_fixture": [
+    "01_Project/build/E1-Device-Acceptance/device-output/DJI_0001_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/healthy-output/DJI_0001_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/timing-repeat-output/DJI_0023_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/timing-repeat-output/DJI_0021_joined.mp4"
+  ],
+  "remaining_physical_mount_checks": true,
+  "relaunch_disabled_stays_off": true,
+  "relaunch_no_duplicate_outputs": true,
+  "relaunch_disabled_no_job": true,
+  "relaunch_disabled_ledger_unchanged": true,
+  "real_json_files_unchanged": 4,
+  "real_watch_preferences_unchanged": true,
+  "restored_app": "42069 /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/ReleaseBlockers-App-DD/Build/Products/Debug/Conjoyn.app/Contents/MacOS/Conjoyn",
+  "physical_unmount_attempted": false,
+  "physical_mount_blocker": "IINA holds an unrelated video open; user asked to close it"
+}

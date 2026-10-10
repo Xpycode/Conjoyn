@@ -1,0 +1,4 @@
+2026-10-10 21:28:09.299 xcodebuild[54946:6218840] [MT] IDEDistribution: -[IDEDistributionLogging _createLoggingBundleAtPath:]: Created bundle at path "/var/folders/ly/b2sk443n0hq1_z9mgf4q8f4w0000gn/T/Conjoyn_2026-10-10_21-28-09.298.xcdistributionlogs".
+Exported Conjoyn to: /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/export
+** EXPORT SUCCEEDED **
+

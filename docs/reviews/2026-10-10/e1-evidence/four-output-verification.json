@@ -1,0 +1,42 @@
+[
+  {
+    "source": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/card-a/DJI_0001.MP4",
+    "output": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output/DJI_0001_1.mp4",
+    "status": {
+      "type": "completed"
+    },
+    "video_frames_match": true,
+    "srt_cues_match": true,
+    "srt_bytes_match": false
+  },
+  {
+    "source": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/card-a/DJI_0003.MP4",
+    "output": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output/DJI_0003_2.mp4",
+    "status": {
+      "type": "completed"
+    },
+    "video_frames_match": true,
+    "srt_cues_match": true,
+    "srt_bytes_match": false
+  },
+  {
+    "source": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/card-b/DJI_0001.MP4",
+    "output": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output/DJI_0001_1 (1).mp4",
+    "status": {
+      "type": "completed"
+    },
+    "video_frames_match": true,
+    "srt_cues_match": true,
+    "srt_bytes_match": false
+  },
+  {
+    "source": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/card-b/DJI_0003.MP4",
+    "output": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output/DJI_0003_2 (1).mp4",
+    "status": {
+      "type": "completed"
+    },
+    "video_frames_match": true,
+    "srt_cues_match": true,
+    "srt_bytes_match": false
+  }
+]

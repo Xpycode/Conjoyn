@@ -4,6 +4,39 @@ This file tracks the WHY behind technical and design decisions for DJIjoiner.
 
 ---
 
+### 2026-10-10 — Keep discovery worker capacity across watch lifecycle changes
+**Context:** A timeout must return even when a media reader ignores cancellation, but discarding
+its task handle does not end the underlying work. Rebuilding the coordinator for settings, root
+recovery or a toggle must not allow unbounded readers against the same root.
+**Decision:** The manager retains a two-worker budget through entry IDs, canonical root aliases and
+saved bookmark associations, including removed entries. Each actual reader holds its slot until
+completion. Lifecycle/request/event fences prevent retired results from publishing. Retry is driven
+by the existing poll cadence; metadata re-probes use the same capacity. A stalled status explains
+that relaunch is the recovery when workers never return.
+**Alternatives:** Waiting on a cancelled task group would reintroduce the hang. Releasing a slot on
+timeout or keeping capacity only in each coordinator would bypass the bound during retries/rebuilds.
+**Consequences:** At most two underlying scans per associated root per process; stale workers can
+consume all capacity until completion or app restart. Healthy cached sampling remains independent.
+No on-disk schema or new user retry setting. Physical remount acceptance remains separate from the
+controlled changed-path manager regression. Evidence: `reviews/2026-10-10/release-blockers-wave4.md`.
+
+---
+
+### 2026-10-10 — Versioned watch identity foundation without switching admission
+**Context:** Filename-only watch hashes cannot distinguish reused camera names. New queued watch
+jobs also need a durable association with their ledger after a root remount or watch-entry removal.
+**Decision:** W1 uses a pure version-2 descriptor: length-prefixed UTF-8 canonical fields, explicit
+optional tags, exact reduced rational durations and capture timestamps rounded to microseconds.
+A snapshot stores the descriptor, schema version, watch-entry UUID and stable ledger namespace;
+manual/old jobs omit it. A fixed independently computed digest pins the canonical format.
+**Alternatives:** Delimiter strings are ambiguous; unordered JSON/date formatting makes byte
+stability implicit; live file-size reads mix observations; full video hashing exceeds this repair.
+**Consequences:** Callers must supply settled, generation-bound metadata. Missing evidence is weak;
+complete metadata is still not proof of unique content. Production ledger keys do not switch in
+Wave 1. Legacy/weak-history policy D1 remains unapproved and must be resolved before W2/W3.
+
+---
+
 ### 2026-06-12 - Ship Conjoyn ONLY with Sparkle auto-update; DMG enclosure, automatic checks, debut as 1.0
 **Context:** A `/status` review (2026-06-12c) surfaced that Conjoyn has **no auto-update mechanism** —
 a full code search found zero Sparkle/appcast integration; "notarized" had been conflated with
@@ -1371,3 +1404,131 @@ rebuilt app: `GX014623` (200 fps) stamped `13:44:07:127` and `GX014637` (100 fps
 **Owed at the next release:** joined GoPro files produced by 1.0.4 and earlier carry a start
 timecode up to ~0.7 s early. Worth a release-note line alongside the already-owed
 downgrade-clears-the-queue warning.
+
+---
+
+### 2026-10-10 — Publish output files without replacing existing paths
+**Context:** Two cards queued together could target the same absent filenames, and a file created
+later could still be overwritten despite enqueue reservations. Deleting a final path during cleanup
+also risks deleting a replacement belonging to another writer.
+**Decision:** Use exclusively created private workspace directories for writes and copies, then
+`renamex_np(RENAME_EXCL)` for final publication. Fail clearly on conflict; never remove a public
+output path as cleanup. If video publication succeeds before an SRT collision, retain and record
+that video and allow explicit Retry to choose a fresh video/SRT stem.
+**Alternatives:** An existence check followed by ordinary rename leaves a race; deleting/replacing
+on collision violates output ownership. A fully atomic two-file transaction is not available from
+the filesystem and would require a substantially larger storage design.
+**Consequences:** Existing bytes survive late collisions. A rare sidecar race can leave a complete
+video from a failed attempt; Reveal exposes it, and Retry preserves it. Filesystems lacking exclusive
+rename support fail closed. Validation and remaining device limits: reviews/2026-10-10/output-safety.md.
+
+
+## 2026-10-10 — Hold ambiguous watch history for review on upgrade
+
+**Context:** legacy processed-group hashes contain filenames/index/variant but cannot establish
+which historical capture was processed. Automatically carrying them forward could skip new footage
+with reused names; automatically reprocessing could duplicate old exports.
+
+**Decision:** the user explicitly chose **Hold for review** for actual upgrades. Present per-recording
+Already processed and Process once decisions bound to the exact v2 descriptor; preserve weak identity
+as weak and revalidate files/readiness before admission. Cancel leaves history unresolved. Preserve
+original v1 bytes and store versioned decisions separately. The initial Reprocess once answer was
+made under a testing-only misunderstanding and was superseded by the clarified choice.
+
+**Alternatives:** automatic one-time collision-safe reprocessing was rejected; permanent legacy-hash
+dedup and first-seen promotion cannot safely distinguish reused names.
+
+**Consequences:** Wave 2 supplies safe storage and explicit decisions. Wave 3 must integrate review
+and durable queue/ledger admission before the upgrade behavior is active. Unrelated unambiguous
+recordings can continue; unresolved history must never silently become already processed.
+
+
+## 2026-10-10 — Durable watch admission and retained cancellation
+
+**Context:** recording history was sealed after enqueue without a recovery gate. A partial save could
+create duplicate work or allow a job to run before history became durable, including after its watch
+entry was disabled or removed.
+
+**Decision:** save a pending watch job first, commit its v2 history second, then durably release the
+processing marker. The manager recovers queued admissions by their persisted namespace independently
+of active watches. Disable/removal preserves an explicit-start hold. Cancelled uncommitted admissions
+remain cancelled queue records across relaunch and exclude automatic rediscovery until explicit Retry
+or removal. No cancellation seals history as processed. D4's per-watch Review action and sheet were
+accepted through the next-step execution request.
+
+**Alternatives:** sealing history before queue persistence can suppress unqueued work; starting before
+history persistence risks duplicates. A permanent deletion-tombstone catalog exceeds this repair.
+
+**Consequences:** Start/Retry enforce the gate; queue/history failures remain visible. Removing a watch
+retains its storage for queued recovery. Removing/clearing a job invalidates that job's retry, without
+permanently banning future discovery. The descriptor remains metadata identity, not a content hash.
+Evidence: reviews/2026-10-10/release-blockers-wave3.md. Live repair/upgrade acceptance remains E1.
+
+## 2026-10-10 — Watch admission requires complete filename membership evidence
+
+**Context:** Generation-bound metadata proves the freshness of known clips but cannot establish
+that a cached group still contains all possible segments. A short tail copied before its predecessor
+could settle while discovery stalled; a failed predecessor probe could also disappear from grouping.
+
+**Decision:** Compare a cheap filename census before/after discovery and before polling/review
+admission. Partition only by hard grouping boundaries (family, DJI variant, GoPro recording number).
+Every candidate in an admitted bucket must have current successfully probed metadata. Membership
+changes invalidate its quiet window/review and require regrouping. Run census and path alias resolution
+inside the existing bounded background worker mechanism; retain the slot after timeout until actual
+completion. Coalesced reads retain their launch event/request identity, and pending refresh survives
+failed/obsolete reads. UI review actions await freshness before persisting a decision.
+
+**Alternatives:** Invalidating every group on every event would unnecessarily block independent
+buckets; relying only on returned metadata groups misses rejected probes; synchronous census can
+freeze MainActor on unavailable storage. Filename indices cannot safely partition DJI recordings.
+
+**Consequences:** Same-variant DJI recordings wait conservatively while that bucket's metadata is
+incomplete; other proven-independent buckets progress. Census and metadata together remain capped
+at two actual workers per associated root. Permanently stuck workers require app relaunch. Relative
+membership keys normalize selected/discovered aliases inside background work. No new durable history
+format or byte-level identity claim. Eight regressions and full 721/0 pass; E1 live/device acceptance
+is still required. Evidence: `reviews/2026-10-10/release-blockers-wave5.md`.
+
+
+### 2026-10-10 — Defer active-read device-loss acceptance to 1.1
+**Context:** E1 live checks and real-volume mount/path recovery passed. macOS refused graceful
+unmount while the isolated app read a fixture on the populated external SSD. Physical loss during
+active discovery remains unverified; no forced unmount or cable pull was performed.
+**Options:** Keep this as a 1.0.6 gate and obtain disposable media now, or defer that specific
+acceptance scenario to 1.1 while retaining the completed checks and remaining release gates.
+**Decision:** At the user's request, defer active-read disconnect/reconnect acceptance to **1.1**.
+E1 is accepted for the revised 1.0.6 scope; the deferred scenario is explicitly not a test pass.
+Track it in TASKS under 1.1 acceptance and use disposable media when it is exercised.
+**Rationale:** The user chose to separate this remaining hardware interruption check from 1.0.6.
+Existing automated, controlled live and physical-volume mount evidence remains valid.
+**Consequences:** 1.0.6 makes no claim that abrupt loss during active discovery has been physically
+validated. E2 source inclusion/freeze and E3 exact signed-artifact, clean-install and upgrade checks
+remain required. No release, push, or deployment is authorized by this deferral.
+Evidence: `reviews/2026-10-10/physical-mount-acceptance.md`.
+
+
+### 2026-10-10 — Include all eight reviewed source/test paths in 1.0.6
+**Context:** Scan ownership overlaps pre-existing recordings search/Find and restored-queue Apply
+changes. Independent review recommended the eight-file set unchanged; validation covered that set.
+**Options:** Include the reviewed set intact, or defer search and re-review/revalidate a reduced set.
+**Decision:** User selected the eight-file release-scope confirmation. Include all eight unchanged;
+freeze them in local commit `c6a1b23d5ba03c322ab2fcbdf824cdc8c767e581`. Exact paths/hashes: `reviews/2026-10-10/release-source-freeze.json`.
+**Rationale:** Preserves the already reviewed/tested candidate without introducing a new source variant.
+**Consequences:** E2 complete; E3 exact signed-artifact acceptance remains. Other dirty docs/evidence
+are preserved outside this scoped source commit. No merge, push, packaging or deployment in this step.
+
+
+## 2026-10-10 — Publish 1.0.6 with an explicit GUI acceptance waiver
+
+The signed 1.0.6/106 app and DMG passed notarization, stapling, signature and helper checks.
+Nine feed signatures and three delta reconstructions passed; the unchanged source previously
+passed 721 tests. A disposable macOS GUI environment is unavailable.
+
+The user explicitly chose: **“Publish 1.0.6; waive pending GUI acceptance.”** This replaces the
+prior release hold for clean installation, actual Sparkle 1.0.5→1.0.6 installation/relaunch,
+legacy-history migration and final exact-artifact GUI smoke checks. These checks remain
+**unperformed**, not passed. The alternative was to retain public 1.0.5 until testing was possible.
+
+Publish the exact verified artifact without rebuilding. Retain automated/cryptographic evidence
+and record the waiver in the release closeout. Active-read physical device-loss acceptance stays
+in the existing 1.1 backlog; this waiver does not change that separate deferral.

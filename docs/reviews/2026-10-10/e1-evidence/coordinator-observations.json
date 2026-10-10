@@ -1,0 +1,31 @@
+{
+  "evidence_kind": "coordinator-observed tool results recorded after execution, not an independent replay",
+  "finder_selection": {
+    "observed_path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/Home/Library/Application Support/Conjoyn/queue-recovery-E67926C4-1267-416A-A6BC-B97EDF8FAAFA.json",
+    "method": "AX Show in Finder then osascript Finder selection path",
+    "matches_retained_original": true
+  },
+  "keep_and_picker_cancel": {
+    "observed": "Keep then reopen destination picker and Cancel; pending (id,destinationPathString) pairs unchanged",
+    "assertion_passed": true,
+    "raw_snapshot_after_each_action_retained": false
+  },
+  "apply": {
+    "before_snapshot": "01_Project/build/E1-Acceptance/apply-before.json",
+    "after_snapshot": "01_Project/build/E1-Acceptance/apply-after.json",
+    "two_pending_ids_preserved": true,
+    "destinations_changed_only_after_apply": true
+  },
+  "queue_recovery": {
+    "original_sha256": "027444a4f8f3817ae10a66f56e1925326ce764560045f8cc38b52ce2cc7098a8",
+    "retained_sha256": "027444a4f8f3817ae10a66f56e1925326ce764560045f8cc38b52ce2cc7098a8"
+  },
+  "legacy_history": {
+    "original_sha256": "21b1c8bfed3c144a8bdfe1a5de0534a037a90ab8b5d5148d8b229884e126bc25",
+    "retained_sha256": "21b1c8bfed3c144a8bdfe1a5de0534a037a90ab8b5d5148d8b229884e126bc25"
+  },
+  "escape_reset": {
+    "observed": "Escape sent after populated search; subsequent card-a UI showed both records and both selected before enqueue",
+    "independent_action_replay": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "real_json_files_checked": 4,
+  "real_json_bytes_unchanged_after_restore": true,
+  "real_watch_preferences_unchanged_after_restore": true,
+  "fault_permission_modes_restored": true,
+  "physical_device_tested": false,
+  "physical_changed_mount_path_tested": false,
+  "restored_app_pid": 33591,
+  "restored_app": "01_Project/build/ReleaseBlockers-App-DD/Build/Products/Debug/Conjoyn.app",
+  "evidence_sha256": {
+    "recovery-ax.txt": "20a6ce4812fd0705e8008aeef469d6a9dcad1ec57ef633a08ced9a4e6b5823b9",
+    "search-ax.txt": "412e40047a5218cb146d267a2f4c69c3beeb7663887831ce2a93b6c0b50bb14a",
+    "menus-ax.txt": "7bafb4b4219a7e736f3f164b3dc24342e7e8361df353336d1c760e87f6b9c8a5",
+    "four-done-ax.txt": "530c5d2686ee196e27d14823727b77f401f376fd674f3189fa0ba421313fcadc",
+    "four-output-verification.json": "5c3bf945dfa4026311f804efdcabc72d0d79c736bc79349d9fa71f8a62020d6f",
+    "acceptance-binary-provenance.json": "09f772c30bc3b441cc1ef8a0c253ecdcb109872a68fb186e08eb7d4017b69b67",
+    "history-review-ax.txt": "041ba04dce7b52d06a963e22e32119e8cb42096ad03309fa79cf1a99d727852c",
+    "review-after-relaunch-ax.txt": "3a18d5030ec7cc015521511b54082874d082c60d11bb5c2f7dcaedddb52814b4",
+    "fault-and-reused-ax.txt": "699a39c5ec28f6480a229107f846fbc2f3347afda2ef351cd43a9380f7360ad6",
+    "fault-after-remove-ax.txt": "952bb9210a39bf3fc93ccc3163d0c37130eb9e31c23c3b2bd86e7a93e87fc5e2",
+    "fault-after-relaunch-ax.txt": "70703e98be9b32f028a0216a852657c6155ea1c91e24de5f9a4aa4d2abf74c07",
+    "fault-retry-rendered-ax.txt": "f1e867041afdd3c703ff61c8cf9448f4874178c8c416957621b2cba17f3c54e9",
+    "fault-recovered-ax.txt": "fad48048bbbf6c61cc39dfff8bc73c531cfa8b19398f440bf247ae30e0cafe66",
+    "scan-a-start-ax.txt": "18de373090a4da7e81a42c972d9c74f18a8f147c4c714a3b959184ff898e171a",
+    "scan-b-result-ax.txt": "3f49bc6570c6a34a464bad131e1fa475044e6685bdf3b416733e367f1fced2f5",
+    "output-unavailable2-ax.txt": "b9633a7d55e48a144d610e3203e32e7251cd249db4553f3c8cf20617a8153de0",
+    "watch-scan-start-ax.txt": "f019c9f497f3d90f3555d44020bbaf20a2666af3507352c7e773475eb6cec035",
+    "watch-disabled-ax.txt": "52e7775d0243a52f9514cc518da5a7561107849d6fbf568b9bf9c37739428b09",
+    "apply-restored-ax.txt": "5437d72cd748085403b6124bc2d49f3f4a5c9eb64bb769018545092013ac348f",
+    "restore-normal.log": "2980b27b8719505a46176bb81deed96503610e9b7a6d0167e6644e4d5b80053e",
+    "coordinator-observations.json": "315ad7ced3c9fa53a421dd08ed1defa1076655b09a526fbbe437b96bec8917a4"
+  }
+}

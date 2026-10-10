@@ -1,0 +1,10 @@
+{
+  "observed_seconds": 8,
+  "ledger_bytes_unchanged": true,
+  "new_persisted_jobs": 0,
+  "retained_completed_jobs": 2,
+  "external_outputs": 4,
+  "healthy_outputs": 2,
+  "output_bytes_unchanged": true,
+  "driver_correction": "Initial empty persisted queue expectation was wrong: completed queue records remain on disk. Compared exact before/after records and IDs instead."
+}

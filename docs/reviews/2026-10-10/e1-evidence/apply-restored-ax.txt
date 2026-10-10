@@ -1,0 +1,79 @@
+PID 33225; AX trusted true
+AXRole=AXWindow | AXTitle=Conjoyn | AXIdentifier=main | AXFocused=0
+ AXRole=AXGroup | AXFocused=0
+  AXRole=AXSplitGroup | AXFocused=0
+   AXRole=AXGroup | AXFocused=0
+    AXRole=AXImage | AXDescription=Sd Memory Card | AXIdentifier=sdcard | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Choose a folder or drop a card to begin | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Long recordings get split into several files on the card. Conjoyn finds those pieces and joins them back into one. | AXEnabled=1
+    AXRole=AXButton | AXDescription=Choose Folder… | AXEnabled=1 | AXFocused=0
+    AXRole=AXStaticText | AXValue=Output | AXEnabled=1
+    AXRole=AXImage | AXDescription=Move | AXIdentifier=folder | AXEnabled=1
+    AXRole=AXStaticText | AXValue=/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/apply-output | AXEnabled=1
+    AXRole=AXButton | AXDescription=Choose… | AXEnabled=1 | AXFocused=0
+    AXRole=AXStaticText | AXValue=Fix recording date | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1 | AXFocused=0
+    AXRole=AXStaticText | AXValue=Timecode from recording time | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1 | AXFocused=0
+    AXRole=AXStaticText | AXValue=Stitch telemetry | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1 | AXFocused=0
+    AXRole=AXStaticText | AXValue=Rename files | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=0 | AXEnabled=1 | AXFocused=0
+    AXRole=AXButton | AXDescription=Gear Shape | AXHelp=More output options | AXIdentifier=gearshape | AXEnabled=1 | AXFocused=0
+    AXRole=AXButton | AXDescription=Add to Queue | AXEnabled=0
+    AXRole=AXPopover | AXDescription= | AXFocused=0
+     AXRole=AXGroup | AXFocused=0
+      AXRole=AXStaticText | AXValue=Apply new output folder to 2 pending jobs? | AXEnabled=1
+      AXRole=AXStaticText | AXValue=Queued jobs keep the folder they were added with. Apply moves the pending ones to “apply-output”. Started and finished jobs are never changed. | AXEnabled=1
+      AXRole=AXButton | AXDescription=Keep | AXEnabled=1 | AXFocused=1
+      AXRole=AXButton | AXDescription=Apply | AXEnabled=1 | AXFocused=0
+   AXRole=AXSplitter | AXValue=401.5 | AXEnabled=0 | AXFocused=0
+   AXRole=AXGroup | AXFocused=0
+    AXRole=AXStaticText | AXValue=QUEUE | AXEnabled=1
+    AXRole=AXStaticText | AXValue=2 jobs | AXEnabled=1
+    AXRole=AXButton | AXDescription=Clear Queue | AXHelp=Remove all jobs (a running job keeps going — press Stop first to abandon it) | AXEnabled=1 | AXFocused=0
+    AXRole=AXImage | AXDescription=Clock With A Counterclockwise Triangle-Headed Arrow Rotated 90 Degrees | AXIdentifier=clock.arrow.trianglehead.counterclockwise.rotate.90 | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Restored 2 jobs from last session | AXEnabled=1
+    AXRole=AXButton | AXDescription=Clear pending | AXEnabled=1 | AXFocused=0
+    AXRole=AXButton | AXDescription=Dismiss | AXEnabled=1 | AXFocused=0
+    AXRole=AXScrollArea | AXFocused=0
+     AXRole=AXOpaqueProviderGroup | AXEnabled=1
+      AXRole=AXButton | AXDescription=Forward | AXHelp= | AXIdentifier=chevron.right | AXEnabled=1 | AXFocused=0
+      AXRole=AXStaticText | AXHelp= | AXValue=DJI_0001_1 (3).mp4 | AXEnabled=1
+      AXRole=AXImage | AXDescription=Warning | AXHelp= | AXIdentifier=exclamationmark.triangle.fill | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=Queued | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=SINGLE | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=· | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=0:01 | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=· | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=0 MB | AXEnabled=1
+      AXRole=AXButton | AXDescription=Close | AXHelp= | AXIdentifier=xmark | AXEnabled=1 | AXFocused=0
+      AXRole=AXStaticText | AXValue=⚠ → /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output  (≠ current output) | AXEnabled=1
+      AXRole=AXButton | AXDescription=Forward | AXHelp= | AXIdentifier=chevron.right | AXEnabled=1 | AXFocused=0
+      AXRole=AXStaticText | AXHelp= | AXValue=DJI_0003_2 (3).mp4 | AXEnabled=1
+      AXRole=AXImage | AXDescription=Warning | AXHelp= | AXIdentifier=exclamationmark.triangle.fill | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=Queued | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=SINGLE | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=· | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=0:01 | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=· | AXEnabled=1
+      AXRole=AXStaticText | AXHelp= | AXValue=0 MB | AXEnabled=1
+      AXRole=AXButton | AXDescription=Close | AXHelp= | AXIdentifier=xmark | AXEnabled=1 | AXFocused=0
+      AXRole=AXStaticText | AXValue=⚠ → /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Acceptance/output  (≠ current output) | AXEnabled=1
+    AXRole=AXImage | AXDescription=Forward | AXIdentifier=chevron.right | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Console | AXEnabled=1
+    AXRole=AXStaticText | AXValue=1 lines | AXEnabled=1
+  AXRole=AXStaticText | AXValue=0 of 2 joined · 0 failed | AXEnabled=1
+  AXRole=AXButton | AXDescription=Start | AXEnabled=1 | AXFocused=0
+ AXRole=AXToolbar | AXFocused=0
+  AXRole=AXGroup | AXFocused=0
+   AXRole=AXImage | AXDescription=Sd Memory Card | AXIdentifier=sdcard | AXEnabled=1
+   AXRole=AXStaticText | AXValue=No source selected | AXEnabled=1
+   AXRole=AXButton | AXDescription=Choose… | AXEnabled=1 | AXFocused=0
+  AXRole=AXButton | AXDescription=Scan | AXIdentifier= | AXEnabled=0 | AXFocused=0
+  AXRole=AXButton | AXDescription=Question Mark In A Circle | AXHelp=Open Conjoyn Help | AXIdentifier=questionmark.circle | AXEnabled=1 | AXFocused=0
+ AXRole=AXButton | AXEnabled=1 | AXFocused=0
+ AXRole=AXButton | AXHelp=this button also has an action to zoom the window | AXEnabled=1 | AXFocused=0
+  AXRole=AXGroup | AXFocused=0
+   AXRole=AXGroup | AXFocused=0
+ AXRole=AXButton | AXEnabled=1 | AXFocused=0

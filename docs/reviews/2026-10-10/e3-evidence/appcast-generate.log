@@ -1,0 +1,13 @@
+hdiutil: WARNING: 'hdiutil attach -mountpoint -nobrowse ...' is deprecated. Please use 'diskutil image attach --mountPoint --mountOptions nobrowse ...' instead.
+hdiutil: WARNING: 'hdiutil attach -mountpoint -nobrowse ...' is deprecated. Please use 'diskutil image attach --mountPoint --mountOptions nobrowse ...' instead.
+hdiutil: WARNING: 'hdiutil attach -mountpoint -nobrowse ...' is deprecated. Please use 'diskutil image attach --mountPoint --mountOptions nobrowse ...' instead.
+hdiutil: WARNING: 'hdiutil attach -mountpoint -nobrowse ...' is deprecated. Please use 'diskutil image attach --mountPoint --mountOptions nobrowse ...' instead.
+Warning: Private key for account conjoyn not found in the Keychain (-25300). Please run the generate_keys tool
+Error: could not sign /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.6.dmg due to lack of private EdDSA key
+Error: could not sign /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.5.dmg due to lack of private EdDSA key
+Error: could not sign /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.4.dmg due to lack of private EdDSA key
+Delta /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-105.delta ignored, because it could not be signed
+Delta /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-104.delta ignored, because it could not be signed
+Delta /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-103.delta ignored, because it could not be signed
+Error generating appcast from directory /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast 
+ Error Domain=SUSparkleErrorDomain Code=2 "Could not sign /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.6.dmg due to lack of private EdDSA key" UserInfo={NSLocalizedDescription=Could not sign /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.6.dmg due to lack of private EdDSA key}

@@ -1,0 +1,12 @@
+{
+  "DeviceIdentifier": "disk11s1",
+  "VolumeUUID": "A7FC471B-9BBD-4190-98B6-0A5D3FA30278",
+  "VolumeName": "4.x - MORE",
+  "MountPoint": "/Volumes/4.x - MORE",
+  "BusProtocol": "USB",
+  "Internal": false,
+  "Removable": false,
+  "RemovableMedia": false,
+  "FilesystemName": "APFS",
+  "TotalSize": 4000542687232
+}

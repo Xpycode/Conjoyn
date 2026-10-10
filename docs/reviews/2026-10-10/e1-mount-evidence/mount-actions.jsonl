@@ -1,0 +1,33 @@
+{"kind": "unmount-request", "mono": 201665.345845, "device": "disk11s1", "mount": "/Volumes/4.x - MORE"}
+{"kind": "unmounted", "mono": 201666.13162908333, "result": "Volume 4.x - MORE on disk11s1 unmounted\n"}
+{"kind": "launch-absent", "mono": 201666.702925, "result": "Launched 44475 /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Device-Acceptance/Conjoyn.app/Contents/MacOS/Conjoyn\n"}
+{"kind": "snapshot", "mono": 201667.383152625, "name": "absent-at-launch"}
+{"kind": "healthy-added-while-absent", "mono": 201667.50565208335}
+{"kind": "healthy-exported-while-absent", "mono": 201670.27442195834}
+{"kind": "snapshot", "mono": 201670.368951, "name": "healthy-while-absent"}
+{"kind": "mount-request", "mono": 201670.47889558334, "device": "disk11s1"}
+{"kind": "mounted", "mono": 201670.81727354164, "result": "Volume 4.x - MORE on disk11s1 mounted\n"}
+{"kind": "external-exported-after-mount", "mono": 201673.034271875, "outputs": ["DJI_0041_joined.mp4"]}
+{"kind": "snapshot", "mono": 201673.141436875, "name": "mounted-recovered"}
+{"kind": "loss-new-file-added", "mono": 201711.56016683334}
+{"kind": "loss-reader-held", "mono": 201711.71580166667, "pid": 44833}
+{"kind": "loss-new-file-added", "mono": 201740.29851333334}
+{"kind": "loss-reader-held", "mono": 201740.91960916665, "pid": 45068}
+{"kind": "owned-read-open-at-unmount", "mono": 201741.17341058335, "rows": [["Conjoyn", "44724", "sim", "9r", "REG", "1,36", "2413", "26734", "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/mount-device/DJI_0045.MP4"]]}
+{"kind": "unmount-request", "mono": 201741.17358925, "device": "disk11s1", "mount": "/Volumes/4.x - MORE"}
+{"kind": "unmount-request", "mono": 201788.105519, "device": "disk11s1", "mount": "/Volumes/4.x - MORE"}
+{"kind": "unmounted", "mono": 201788.642726125, "result": "Volume 4.x - MORE on disk11s1 unmounted\n"}
+{"kind": "snapshot", "mono": 201788.83189166666, "name": "idle-unmounted"}
+{"kind": "healthy-added-during-idle-loss", "mono": 201788.83235245835}
+{"kind": "snapshot", "mono": 201791.825570375, "name": "healthy-during-idle-loss"}
+{"kind": "alternate-mount-request", "mono": 201791.94377829166, "path": "/private/tmp/Conjoyn-E1-Physical-Mount-20261010"}
+{"kind": "alternate-mounted", "mono": 201792.416379, "result": "Volume 4.x - MORE on disk11s1 mounted\n"}
+{"kind": "alternate-new-footage", "mono": 201792.41782433333}
+{"kind": "snapshot", "mono": 201795.330442875, "name": "alternate-path-recovered"}
+{"kind": "recovered-at-alternate-path", "mono": 201795.33111645834, "outputs": ["DJI_0041_joined.mp4", "DJI_0043_joined.mp4", "DJI_0045_joined.mp4", "DJI_0047_joined.mp4"]}
+{"kind": "unmount-request", "mono": 201798.59312429166, "device": "disk11s1", "mount": "/private/tmp/Conjoyn-E1-Physical-Mount-20261010"}
+{"kind": "unmounted", "mono": 201799.19912033333, "result": "Volume 4.x - MORE on disk11s1 unmounted\n"}
+{"kind": "mount-request", "mono": 201799.30764029166, "device": "disk11s1"}
+{"kind": "mounted", "mono": 201799.763419875, "result": "Volume 4.x - MORE on disk11s1 mounted\n"}
+{"kind": "snapshot", "mono": 201805.20174479164, "name": "original-path-restored"}
+{"kind": "normal-path-no-duplicates", "mono": 201805.20198895835}

@@ -1,0 +1,61 @@
+{
+  "note": "Disposable copies of bundled GoPro seam fixtures; four queued jobs, two surviving output paths.",
+  "jobs": [
+    {
+      "folderName": "card-a",
+      "destinationPathString": "/private/tmp/conjoyn-review-media/output/GX016349_1.mp4",
+      "actualOutputPathStrings": [
+        "/private/tmp/conjoyn-review-media/output/GX016349_1.mp4"
+      ],
+      "status": {
+        "type": "completed"
+      },
+      "verificationStatus": {
+        "type": "verified"
+      }
+    },
+    {
+      "folderName": "card-a",
+      "destinationPathString": "/private/tmp/conjoyn-review-media/output/GX026349_2.mp4",
+      "actualOutputPathStrings": [
+        "/private/tmp/conjoyn-review-media/output/GX026349_2.mp4"
+      ],
+      "status": {
+        "type": "completed"
+      },
+      "verificationStatus": {
+        "type": "verified"
+      }
+    },
+    {
+      "folderName": "card-b",
+      "destinationPathString": "/private/tmp/conjoyn-review-media/output/GX016349_1.mp4",
+      "actualOutputPathStrings": [
+        "/private/tmp/conjoyn-review-media/output/GX016349_1.mp4"
+      ],
+      "status": {
+        "type": "completed"
+      },
+      "verificationStatus": {
+        "type": "verified"
+      }
+    },
+    {
+      "folderName": "card-b",
+      "destinationPathString": "/private/tmp/conjoyn-review-media/output/GX026349_2.mp4",
+      "actualOutputPathStrings": [
+        "/private/tmp/conjoyn-review-media/output/GX026349_2.mp4"
+      ],
+      "status": {
+        "type": "completed"
+      },
+      "verificationStatus": {
+        "type": "verified"
+      }
+    }
+  ],
+  "output_files": [
+    "GX016349_1.mp4",
+    "GX026349_2.mp4"
+  ]
+}

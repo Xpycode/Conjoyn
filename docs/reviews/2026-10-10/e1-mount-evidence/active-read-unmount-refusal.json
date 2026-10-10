@@ -1,0 +1,13 @@
+{
+  "evidence_origin": "Transcribed from exec tool response for mount-loss2.py; stdout/stderr were not redirected by that driver",
+  "request_mono": 201741.17358925,
+  "command": [
+    "diskutil",
+    "unmount",
+    "disk11s1"
+  ],
+  "exit_code": 1,
+  "stderr": "Volume 4.x - MORE on disk11s1 failed to unmount: dissented by PID 44724 (/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Device-Acceptance/Conjoyn.app/Contents/MacOS/Conjoyn)\nDissenter parent PPID 1 (/sbin/launchd)",
+  "force_used": false,
+  "volume_unmounted": false
+}

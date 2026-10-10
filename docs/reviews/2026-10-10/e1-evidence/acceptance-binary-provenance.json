@@ -1,0 +1,14 @@
+{
+  "original_executable_sha256": "050b256e878bc77ade7da26130d4388406fb41a1a26b0e6d451ef4acaf941328",
+  "acceptance_executable_sha256": "c596cd1122601b90b1dc12b0547e173b4c20bd2bf6aa99022ef8104da153dd23",
+  "compiled_text_sha256": "048996379d05350a376634e47562856c0b73a149128779dad6ceccc0737a0436",
+  "compiled_text_identical": true,
+  "harness_changes": [
+    "CFBundleIdentifier=com.lucesumbrarum.conjoyn.e1acceptance",
+    "ad-hoc bundle re-sign",
+    "HOME and CFFIXED_USER_HOME redirected"
+  ],
+  "signed_release_acceptance": false,
+  "debug_dylib_compiled_text_sha256": "f7033852cc2169de1ff9fb0ff09f8aecc9a734ede80682468cc88c007abf8d57",
+  "debug_dylib_compiled_text_identical": true
+}

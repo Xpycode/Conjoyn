@@ -4,8 +4,10 @@
 > P2toMXF port inventory, and four research sweeps (DJI domain, Apple APIs, FFmpeg/exiftool/
 > notarization). Plans are disposable — regenerate if trajectory diverges.
 >
-> **This is the v1 (DJI) plan — waves 0–6, shipped as 1.0.4.** The active plan for the next
-> feature is **`IMPLEMENTATION_PLAN-gopro.md`** (GoPro camera family, waves G0–G8, 2026-08-07).
+> **This is the historical v1 (DJI) plan — waves 0–6, shipped as 1.0.4.**
+> **Completed repair plan: `docs/plans/release-blockers-1.0.6.md`** — 1.0.6 published; E1 device-loss check deferred to 1.1; E2 source frozen; E3 closed with explicit user waiver of unperformed GUI acceptance.
+> **Completed safety plan: `docs/plans/output-safety-1.0.6.md`** (all acceptance passed 2026-10-10).
+> `IMPLEMENTATION_PLAN-gopro.md` retains GoPro feature history and the G8.1 footage gate.
 
 ## Goal
 A native macOS app (SwiftUI/Swift 6, macOS 14+, arm64, direct-distribution + notarized) that

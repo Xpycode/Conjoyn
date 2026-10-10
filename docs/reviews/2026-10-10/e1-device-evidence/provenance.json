@@ -1,0 +1,18 @@
+{
+  "Conjoyn": {
+    "original_text_sha256": "048996379d05350a376634e47562856c0b73a149128779dad6ceccc0737a0436",
+    "acceptance_text_sha256": "048996379d05350a376634e47562856c0b73a149128779dad6ceccc0737a0436",
+    "matches": true
+  },
+  "Conjoyn.debug.dylib": {
+    "original_text_sha256": "f7033852cc2169de1ff9fb0ff09f8aecc9a734ede80682468cc88c007abf8d57",
+    "acceptance_text_sha256": "f7033852cc2169de1ff9fb0ff09f8aecc9a734ede80682468cc88c007abf8d57",
+    "matches": true
+  },
+  "harness_changes": [
+    "bundle ID com.lucesumbrarum.conjoyn.e1device",
+    "ad-hoc re-sign",
+    "HOME and CFFIXED_USER_HOME isolation",
+    "bounded logging ffprobe wrapper during controlled timing only; original helper restored for relaunch"
+  ]
+}

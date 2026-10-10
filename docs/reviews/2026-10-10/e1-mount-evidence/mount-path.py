@@ -1,0 +1,37 @@
+import runpy,pathlib,subprocess,json,time,shutil
+m=runpy.run_path(str(pathlib.Path(__file__).with_name('mount-test.py')))
+globals().update({k:v for k,v in m.items() if not k.startswith('__')})
+ALT=pathlib.Path('/private/tmp/Conjoyn-E1-Physical-Mount-20261010')
+try:
+    run(UI,'press','Watch Folders…')
+    wait(lambda:len(outputs('mount-device-output'))==3)
+    time.sleep(2)
+    unmount()
+    wait(lambda:'AXValue=WAITING' in run(UI,'dump'));snapshot('idle-unmounted')
+    shutil.copy2(B/'strong-fixture.MP4',B/'mount-healthy/DJI_0053.MP4');record('healthy-added-during-idle-loss')
+    wait(lambda:len(outputs('mount-healthy-output'))==2)
+    assert not info()['Mounted'];snapshot('healthy-during-idle-loss')
+    assert not ALT.exists();ALT.mkdir()
+    d=info();record('alternate-mount-request',path=str(ALT))
+    result=run('diskutil','mount','-mountPoint',str(ALT),d['DeviceIdentifier'])
+    assert info()['MountPoint']==str(ALT);record('alternate-mounted',result=result)
+    root=ALT/'Conjoyn-Acceptance-20261010/mount-device'
+    shutil.copy2(B/'strong-fixture.MP4',root/'DJI_0047.MP4');record('alternate-new-footage')
+    wait(lambda:len(outputs('mount-device-output'))==4)
+    tree=snapshot('alternate-path-recovered')
+    assert str(root) in tree
+    p=B/'Home/Library/Application Support/Conjoyn/queue.json';shutil.copy2(p,E/'alternate-path-queue.json')
+    jobs=json.loads(p.read_text());job=next(j for j in jobs if any('DJI_0047' in c['videoFilePath'] for c in j['clips']))
+    assert all(c['videoFilePath'].startswith(str(ALT)) for c in job['clips'])
+    record('recovered-at-alternate-path',outputs=outputs('mount-device-output'))
+    time.sleep(3)
+    unmount();mount()
+    wait(lambda:str(V)+'/Conjoyn-Acceptance-20261010/mount-device' in run(UI,'dump'))
+    time.sleep(5);snapshot('original-path-restored')
+    assert len(outputs('mount-device-output'))==4 and len(outputs('mount-healthy-output'))==2
+    record('normal-path-no-duplicates')
+finally:
+    d=info()
+    if d['Mounted'] and d['MountPoint']!=str(V):unmount()
+    mount()
+    if ALT.exists() and not any(ALT.iterdir()):ALT.rmdir()

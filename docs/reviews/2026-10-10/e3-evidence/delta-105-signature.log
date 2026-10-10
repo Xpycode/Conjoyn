@@ -1,0 +1,12 @@
+--prepared:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app: valid on disk
+/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/reconstructed-105/Conjoyn.app: satisfies its Designated Requirement

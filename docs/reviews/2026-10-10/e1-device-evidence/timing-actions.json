@@ -1,0 +1,55 @@
+[
+  {
+    "kind": "launch",
+    "mono": 201074.85012404167,
+    "result": "Launched 41473 /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E1-Device-Acceptance/Conjoyn.app/Contents/MacOS/Conjoyn\n"
+  },
+  {
+    "kind": "reader-held",
+    "mono": 201075.33084920835
+  },
+  {
+    "kind": "new-file-written",
+    "mono": 201075.333049875,
+    "path": "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/timing-repeat/DJI_0023.MP4"
+  },
+  {
+    "kind": "no-early-output",
+    "mono": 201078.33569308335
+  },
+  {
+    "kind": "release-trailing",
+    "mono": 201078.33653054165
+  },
+  {
+    "kind": "trailing-two-outputs",
+    "mono": 201081.89303125,
+    "files": [
+      "DJI_0023_joined.mp4",
+      "DJI_0021_joined.mp4"
+    ]
+  },
+  {
+    "kind": "disable-new-file",
+    "mono": 201082.35018508334
+  },
+  {
+    "kind": "disable-reader-held",
+    "mono": 201082.45881816666
+  },
+  {
+    "kind": "disable-ui-action",
+    "mono": 201082.59970791667,
+    "result": "press role:AXCheckBox: 0\n"
+  },
+  {
+    "kind": "release-disabled-reader",
+    "mono": 201082.752839625
+  },
+  {
+    "kind": "disable-pass",
+    "mono": 201087.979762375,
+    "queue_jobs": 2,
+    "timing_outputs": 2
+  }
+]

@@ -1,0 +1,169 @@
+{
+  "logFormatVersion": 1,
+  "jobId": "99c1f515-743c-41ec-9571-ad0a78d2b6e8",
+  "status": "Accepted",
+  "statusSummary": "Ready for distribution",
+  "statusCode": 0,
+  "archiveFilename": "Conjoyn-1.0.6-pre-notary.zip",
+  "uploadDate": "2026-10-10T19:32:34.088Z",
+  "sha256": "aca40b09d83e7b93b0be53d3114d389ad607dc223778bdbb7dfc51577a885797",
+  "ticketContents": [
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "fcb2a3998141db51aeb5ff5d21e02666d1d3700c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "80dd41bdcc1c1aa193950201849c51d28f2302e6",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "fcb2a3998141db51aeb5ff5d21e02666d1d3700c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "80dd41bdcc1c1aa193950201849c51d28f2302e6",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7aef0276a10794afc69267e7fee21ac489cb7283",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "47f0925db24b11d0e5d30391e803c71cf0b4d167",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f6322ccde56912d8c8d2470e01be2eda766da75d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "09c474ddfb4c9eca8dba93da50cbe37452fff973",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6fe5001b93bd5fb8175d44402b17e8bdb6c2403d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6a5f51b20cfa1cdb6783a912558bb2b08affeedc",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "fcb2a3998141db51aeb5ff5d21e02666d1d3700c",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "80dd41bdcc1c1aa193950201849c51d28f2302e6",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "066bf62649d4bd8f29399b4bec998c22fd147aa1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "df27453c5f50ea4c30cad9929ddcbd1972b90247",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c9e4d1c31d0d019d0c8891298681acb3ed9317a3",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/MacOS/Conjoyn",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "c9e4d1c31d0d019d0c8891298681acb3ed9317a3",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Resources/Helpers/ffmpeg",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "93f6115c116e9a34305188a220dfc7ec77ec15f2",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Resources/Helpers/ffprobe",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "2e6f29dbb22c3e954f288751fde69baab28ad108",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "066bf62649d4bd8f29399b4bec998c22fd147aa1",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "df27453c5f50ea4c30cad9929ddcbd1972b90247",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "f6322ccde56912d8c8d2470e01be2eda766da75d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "09c474ddfb4c9eca8dba93da50cbe37452fff973",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "7aef0276a10794afc69267e7fee21ac489cb7283",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "47f0925db24b11d0e5d30391e803c71cf0b4d167",
+      "arch": "arm64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6fe5001b93bd5fb8175d44402b17e8bdb6c2403d",
+      "arch": "x86_64"
+    },
+    {
+      "path": "Conjoyn-1.0.6-pre-notary.zip/Conjoyn.app/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer",
+      "digestAlgorithm": "SHA-256",
+      "cdhash": "6a5f51b20cfa1cdb6783a912558bb2b08affeedc",
+      "arch": "arm64"
+    }
+  ],
+  "issues": null
+}

@@ -1,0 +1,27 @@
+{
+  "decoded_frames_match": [
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0041_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0043_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0045_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0047_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy-output/DJI_0051_joined.mp4",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy-output/DJI_0053_joined.mp4"
+  ],
+  "source_bytes_match": [
+    "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/mount-device/DJI_0045.MP4",
+    "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/mount-device/DJI_0047.MP4",
+    "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/mount-device/DJI_0043.MP4",
+    "/Volumes/4.x - MORE/Conjoyn-Acceptance-20261010/mount-device/DJI_0041.MP4",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy/DJI_0051.MP4",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy/DJI_0053.MP4"
+  ],
+  "source_sha256": "652da40a805b3a9e352317874131d56bfa77095eed7816a3b247d6e28026882a",
+  "output_hashes": {
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0041_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0043_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0045_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d",
+    "01_Project/build/E1-Device-Acceptance/mount-device-output/DJI_0047_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy-output/DJI_0051_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d",
+    "01_Project/build/E1-Device-Acceptance/mount-healthy-output/DJI_0053_joined.mp4": "37e4a0c3253c35aa1de853b6c3ce92083d82a376caf19be0a7200702953de04d"
+  }
+}

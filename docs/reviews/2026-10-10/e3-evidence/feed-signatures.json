@@ -1,0 +1,50 @@
+{
+  "publicKey": "Ks14npeWNt9Rd8QawQiBYQuzFq08vPe2hXgu1s5zVOE=",
+  "archives": [
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.6.dmg",
+      "length": 29722779,
+      "signature": "tLEDyAsMzVPg3V0p+vkPiuf0BMrjL2YYze5eVVJhPOm5ln8QRgDim2uQ4yNOEorvZSaVaWIxbGX2ciCzHifbCA=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-105.delta",
+      "length": 835770,
+      "signature": "K28JZ4Xkzz/q61L4kw4yOcl1eRo6ZsJuTYK2lfqjg8b8U4/IsC3xrRtzQDxcAvomQSmLvIwLc5KWcCrjC0MFCw=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-104.delta",
+      "length": 865994,
+      "signature": "YNoPDgXy/xipBhTO+6cm1Li10FVP3sHqkw8tNBqwAyQaXv6WE+U8YbZCppgMEt+bue0VdxfNou4O2TovfwdQBA=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn106-103.delta",
+      "length": 873262,
+      "signature": "yU3dkFirML/R0FCvpP/rj3UMdkCtZXO8APKUNSr4lLnkrLrbF3vntdHTayzm0/waO1C2AqpZH+mVy5xVhB1qDA=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.5.dmg",
+      "length": 29602595,
+      "signature": "OHckTHWTnJJwKtB75hQbGlc6jRbJ0dTDoPFthuGPDZXkzv1N4C21Mk+YNIxkgySyDtacCMCqLafFOPf+cltsBA=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn105-104.delta",
+      "length": 264222,
+      "signature": "aAXuZp7imHY767j1zZSikSv0NDKCKFIwNYMFjFk0s1IRplmey7Y9R3Vl5bWa5m4oz4EKzy9Lkcn8DgicXuDTCg=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn105-103.delta",
+      "length": 297558,
+      "signature": "DJJxv+Vx7ty2YsNWN7Pft+sPnP1vtTTxZpmqIi4Nd4T4gw4CGc0oA4fC8mMSAlD4l9QTiBy44xQg9LuG6y2lBQ=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn-1.0.4.dmg",
+      "length": 29575415,
+      "signature": "qAwOWC4gwvij0aTXaTr31mN7begpOJ28kBTE4vtuv97chiJjGdsjCnJ/5SfS6NN8niuYP4olBG8j/OXnfq7VCw=="
+    },
+    {
+      "path": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/E3-Acceptance/appcast/Conjoyn104-103.delta",
+      "length": 212674,
+      "signature": "cO0mUzUv2Pvt5B+7SSsS09C2wybMybqOZZ+sKLAQkts0HFKbUrtx14XyQ+XNZsdaJhL7aO6RGH7l/XDj29HmBw=="
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+APP 94435 /Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/Review-DD/Build/Products/Debug/Conjoyn.app/Contents/MacOS/Conjoyn
+AXRole=AXWindow | AXTitle=Conjoyn
+ AXRole=AXGroup
+  AXRole=AXSplitGroup
+   AXRole=AXGroup
+    AXRole=AXStaticText | AXValue=DISCOVERED RECORDINGS | AXEnabled=1
+    AXRole=AXStaticText | AXValue=0 of 2 selected · 2 clips on card | AXEnabled=1
+    AXRole=AXImage | AXDescription=Search | AXEnabled=1
+    AXRole=AXTextField | AXValue= | AXEnabled=1
+    AXRole=AXButton | AXDescription=All | AXEnabled=1
+    AXRole=AXButton | AXDescription=None | AXEnabled=1
+    AXRole=AXButton | AXDescription=Splits | AXEnabled=1
+    AXRole=AXButton | AXDescription=Singles | AXEnabled=1
+    AXRole=AXButton | AXDescription=NAME | AXEnabled=1
+    AXRole=AXButton | AXDescription=DATE | AXEnabled=1
+    AXRole=AXStaticText | AXValue=FILES | AXEnabled=1
+    AXRole=AXButton | AXDescription=DURATION | AXEnabled=1
+    AXRole=AXButton | AXDescription=SIZE | AXEnabled=1
+    AXRole=AXScrollArea
+     AXRole=AXOpaqueProviderGroup | AXEnabled=1
+      AXRole=AXButton | AXEnabled=1
+      AXRole=AXImage | AXEnabled=1
+      AXRole=AXStaticText | AXValue=GX016349 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=Sep 5, 2026 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=14:34:21 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=from file date | AXEnabled=1
+      AXRole=AXImage | AXDescription=Warning | AXEnabled=1
+      AXRole=AXStaticText | AXValue=missing a chapter | AXEnabled=1
+      AXRole=AXStaticText | AXValue=HEVC · 3840×2160 · 25 fps | AXEnabled=1
+      AXRole=AXStaticText | AXValue=SINGLE | AXEnabled=1
+      AXRole=AXStaticText | AXValue=1 file | AXEnabled=1
+      AXRole=AXStaticText | AXValue=0:01 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=6 MB | AXEnabled=1
+      AXRole=AXButton | AXEnabled=1
+      AXRole=AXImage | AXEnabled=1
+      AXRole=AXStaticText | AXValue=GX026349 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=Sep 5, 2026 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=14:34:21 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=from file date | AXEnabled=1
+      AXRole=AXImage | AXDescription=Warning | AXEnabled=1
+      AXRole=AXStaticText | AXValue=missing a chapter | AXEnabled=1
+      AXRole=AXStaticText | AXValue=HEVC · 3840×2160 · 25 fps | AXEnabled=1
+      AXRole=AXStaticText | AXValue=SINGLE | AXEnabled=1
+      AXRole=AXStaticText | AXValue=1 file | AXEnabled=1
+      AXRole=AXStaticText | AXValue=0:01 | AXEnabled=1
+      AXRole=AXStaticText | AXValue=6 MB | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Output | AXEnabled=1
+    AXRole=AXImage | AXDescription=Move | AXEnabled=1
+    AXRole=AXStaticText | AXValue=/private/tmp/conjoyn-review-media/card-a | AXEnabled=1
+    AXRole=AXButton | AXDescription=Choose… | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Fix recording date | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Timecode from recording time | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Stitch telemetry | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=1 | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Rename files | AXEnabled=1
+    AXRole=AXCheckBox | AXValue=0 | AXEnabled=1
+    AXRole=AXButton | AXDescription=Gear Shape | AXEnabled=1
+    AXRole=AXButton | AXDescription=Add to Queue | AXEnabled=0
+   AXRole=AXSplitter | AXValue=413.5 | AXEnabled=0
+   AXRole=AXGroup
+    AXRole=AXStaticText | AXValue=QUEUE | AXEnabled=1
+    AXRole=AXStaticText | AXValue=No jobs yet — select recordings above and press “Add to Queue”. | AXEnabled=1
+    AXRole=AXImage | AXDescription=Forward | AXEnabled=1
+    AXRole=AXStaticText | AXValue=Console | AXEnabled=1
+  AXRole=AXStaticText | AXValue=Queue empty | AXEnabled=1
+  AXRole=AXButton | AXDescription=Start | AXEnabled=0
+ AXRole=AXToolbar
+  AXRole=AXGroup
+   AXRole=AXImage | AXDescription=Sd Memory Card | AXEnabled=1
+   AXRole=AXStaticText | AXValue=/private/tmp/conjoyn-review-media/card-a | AXEnabled=1
+   AXRole=AXButton | AXDescription=Choose… | AXEnabled=1
+  AXRole=AXButton | AXDescription=Scan | AXEnabled=1
+  AXRole=AXButton | AXDescription=Question Mark In A Circle | AXEnabled=1
+ AXRole=AXButton | AXEnabled=1
+ AXRole=AXButton | AXEnabled=1
+  AXRole=AXGroup
+ AXRole=AXButton | AXEnabled=1
+WINDOW 61902 {
+    Height = 800;
+    Width = 1240;
+    X = 427;
+    Y = 123;
+}

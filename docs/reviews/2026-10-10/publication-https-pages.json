@@ -1,0 +1,17 @@
+[
+  {
+    "path": "index.html",
+    "sha256": "b1f5454d92c7721c3deceba44f77b1c1f12949f66d39ed5dff37f419fd899222",
+    "bytes": 12652
+  },
+  {
+    "path": "changelog.html",
+    "sha256": "0f205c4887d92b6031d556c18e8b93a5e9efdf73505003df34e5fe1a0e148559",
+    "bytes": 9978
+  },
+  {
+    "path": "appcast.xml",
+    "sha256": "64c92af5b5131d38090176c248132f9238c3cf2cc7759ed34dff66da2bf939ae",
+    "bytes": 4942
+  }
+]

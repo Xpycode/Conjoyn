@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="robots" content="noindex">
+<style>body { font: 13px -apple-system, system-ui, sans-serif; color: #1d1d1f; } li { margin-bottom: 8px; line-height: 1.45; }</style>
+</head><body><h2>What's New in 1.0.6</h2><ul>
+<li><strong>More reliable source scans.</strong> Switching folders prevents an older scan from replacing the latest results or adding outdated selections to the queue.</li>
+<li><strong>Watch-folder recovery.</strong> Discovery catches changes that arrive during a scan, retries stalled work, and resumes available watch folders after remounting.</li>
+<li><strong>Recording-aware history.</strong> Watch history distinguishes reused filenames using recording metadata. Ambiguous older history is held for review, with Already processed and Process once choices.</li>
+<li><strong>Queue recovery.</strong> Unreadable saved queues are preserved for recovery. Watch jobs wait until queue and history records can be saved safely.</li>
+<li><strong>Output collision protection.</strong> Queued videos and telemetry sidecars stay paired without replacing existing output files.</li>
+<li><strong>Recordings search and destination changes.</strong> Search is available through Edit &rarr; Find. Choosing a destination after restoring a queue offers Apply for pending jobs that still target another folder.</li>
+</ul><p>Search filters the visible list and preserves selection. If watch discovery remains stalled because both workers do not return, relaunch conjoyn. Recording identity uses metadata and file descriptors; it cannot distinguish every replacement with identical descriptors.</p>
+</body></html>

@@ -1,0 +1,238 @@
+[
+  {
+    "actualOutputPathStrings" : [
+      "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-healthy-output\/DJI_0053_joined.mp4"
+    ],
+    "appliedTimecode" : "14:00:00:00",
+    "clips" : [
+      {
+        "creationDate" : "2026-10-01T12:00:00Z",
+        "durationTimescale" : 1000,
+        "durationValue" : 1000,
+        "id" : "97DBE7C6-E61B-48F7-B1B5-A6F04D940940",
+        "index" : 53,
+        "stem" : "DJI_0053",
+        "streamInfo" : {
+          "video" : {
+            "avgFrameRate" : "25\/1",
+            "codecName" : "mpeg4",
+            "height" : 90,
+            "pixelFormat" : "yuv420p",
+            "rFrameRate" : "25\/1",
+            "timeBase" : "1\/12800",
+            "width" : 160
+          }
+        },
+        "videoFilePath" : "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-healthy\/DJI_0053.MP4"
+      }
+    ],
+    "createdAt" : "2026-10-10T18:55:16Z",
+    "destinationPathString" : "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-healthy-output\/DJI_0053_joined.mp4",
+    "folderName" : "mount-healthy",
+    "id" : "01ABE00B-6BCE-4C48-980C-F2D0B20AEE71",
+    "outputBookmarkData" : "Ym9va7ADAAAAAAUQQAAAAMOTiYs9gV\/tNOiB8uXgkAlTW9KW5jPCRJS7NhJyX4e3AAAAAAAAAAAAAAAAAAAAAJwCAAAEAAAAAwMAAAAIACgFAAAAAQEAAFVzZXJzAAAAAwAAAAEBAABzaW0AEwAAAAEBAABQcm9ncmFtbWluZ1Byb2plY3RzAAcAAAABAQAAMS1tYWNPUwAHAAAAAQEAAENvbmpveW4ACgAAAAEBAAAwMV9Qcm9qZWN0AAAFAAAAAQEAAGJ1aWxkAAAAFAAAAAEBAABFMS1EZXZpY2UtQWNjZXB0YW5jZRQAAAABAQAAbW91bnQtaGVhbHRoeS1vdXRwdXQkAAAAAQYAABAAAAAgAAAALAAAAEgAAABYAAAAaAAAAHwAAACMAAAAqAAAAAgAAAAEAwAAP0gAAAAAAAAIAAAABAMAAB9+AAAAAAAACAAAAAQDAAAM1Q8AAAAAAAgAAAAEAwAA+tYPAAAAAAAIAAAABAMAACQKEAAAAAAACAAAAAQDAAAlChAAAAAAAAgAAAAEAwAAuYQXAAAAAAAIAAAABAMAADM52wEAAAAACAAAAAQDAACFQ9sBAAAAACQAAAABBgAA8AAAAAABAAAQAQAAIAEAADABAABAAQAAUAEAAGABAABwAQAACAAAAAAEAABByD1ge7NZzxgAAAABAgAAAgAAAAAAAAAPAAAAAAAAAAAAAAAAAAAACAAAAAQDAAAHAAAAAAAAAAQAAAADAwAA9QEAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAJCClucAAAAIAAAAAAQAAEHILzUqAAAAJAAAAAEBAAA0QkZDMjRCNC1FQ0Q1LTQzRDAtODdDQS1EQkMxNDI0NDgxQTEYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAAAAAAABBQAAzAAAAP7\/\/\/8BAAAAAAAAABAAAAAEEAAAxAAAAAAAAAAFEAAAgAEAAAAAAAAQEAAAvAEAAAAAAABAEAAArAEAAAAAAAACIAAAiAIAAAAAAAAFIAAA+AEAAAAAAAAQIAAACAIAAAAAAAARIAAAPAIAAAAAAAASIAAAHAIAAAAAAAATIAAALAIAAAAAAAAgIAAAaAIAAAAAAAAwIAAAlAIAAAAAAAABwAAA3AEAAAAAAAARwAAAIAAAAAAAAAASwAAA7AEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress" : 0.99,
+    "settings" : {
+      "deleteOriginalsAfterVerify" : false,
+      "fixCreationDate" : true,
+      "outputContainer" : "MP4",
+      "outputFilename" : "",
+      "preserveTimecode" : true,
+      "reEncodeOnMismatch" : false,
+      "stitchSRT" : true,
+      "useFolderNameAsFilename" : false
+    },
+    "sourceBookmarkData" : "Ym9va6wDAAAAAAUQQAAAADlKCSeXmBKUwrPjgd4jBEpDVS9XGufa\/XD+BfVslPs7AAAAAAAAAAAAAAAAAAAAAJgCAAAEAAAAAwMAAAAIACgFAAAAAQEAAFVzZXJzAAAAAwAAAAEBAABzaW0AEwAAAAEBAABQcm9ncmFtbWluZ1Byb2plY3RzAAcAAAABAQAAMS1tYWNPUwAHAAAAAQEAAENvbmpveW4ACgAAAAEBAAAwMV9Qcm9qZWN0AAAFAAAAAQEAAGJ1aWxkAAAAFAAAAAEBAABFMS1EZXZpY2UtQWNjZXB0YW5jZQ0AAAABAQAAbW91bnQtaGVhbHRoeQAAACQAAAABBgAAEAAAACAAAAAsAAAASAAAAFgAAABoAAAAfAAAAIwAAACoAAAACAAAAAQDAAA\/SAAAAAAAAAgAAAAEAwAAH34AAAAAAAAIAAAABAMAAAzVDwAAAAAACAAAAAQDAAD61g8AAAAAAAgAAAAEAwAAJAoQAAAAAAAIAAAABAMAACUKEAAAAAAACAAAAAQDAAC5hBcAAAAAAAgAAAAEAwAAMznbAQAAAAAIAAAABAMAAIND2wEAAAAAJAAAAAEGAADsAAAA\/AAAAAwBAAAcAQAALAEAADwBAABMAQAAXAEAAGwBAAAIAAAAAAQAAEHIPWB7s1VqGAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAAIAAAABAMAAAcAAAAAAAAABAAAAAMDAAD1AQAACAAAAAEJAABmaWxlOi8vLwwAAAABAQAATWFjaW50b3NoIEhECAAAAAQDAAAAkIKW5wAAAAgAAAAABAAAQcgvNSoAAAAkAAAAAQEAADRCRkMyNEI0LUVDRDUtNDNEMC04N0NBLURCQzE0MjQ0ODFBMRgAAAABAgAAgQAAAAEAAADvEwAAAQAAAAAAAAAAAAAAAQAAAAEBAAAvAAAAAAAAAAEFAADMAAAA\/v\/\/\/wEAAAAAAAAAEAAAAAQQAADAAAAAAAAAAAUQAAB8AQAAAAAAABAQAAC4AQAAAAAAAEAQAACoAQAAAAAAAAIgAACEAgAAAAAAAAUgAAD0AQAAAAAAABAgAAAEAgAAAAAAABEgAAA4AgAAAAAAABIgAAAYAgAAAAAAABMgAAAoAgAAAAAAACAgAABkAgAAAAAAADAgAACQAgAAAAAAAAHAAADYAQAAAAAAABHAAAAgAAAAAAAAABLAAADoAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString" : "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-healthy",
+    "sourceTargetResult" : {
+      "checks" : [
+        {
+          "detail" : "",
+          "kind" : "readability",
+          "label" : "Readability",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "packetCount",
+          "label" : "Packet count (video)",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "packetBytes",
+          "label" : "Packet bytes (video)",
+          "severity" : 0
+        },
+        {
+          "detail" : "Δ 0ms (within ±1 frame)",
+          "kind" : "duration",
+          "label" : "Duration",
+          "severity" : 1
+        },
+        {
+          "detail" : "",
+          "kind" : "codecParams",
+          "label" : "Codec parameters",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "timecodeWriteback",
+          "label" : "Timecode write-back",
+          "severity" : 0
+        }
+      ],
+      "duration" : 0.06689000129699707,
+      "tier" : "fast",
+      "verifiedAt" : "2026-10-10T18:55:17Z"
+    },
+    "startedAt" : "2026-10-10T18:55:16Z",
+    "status" : {
+      "type" : "completed"
+    },
+    "verificationProgress" : 1,
+    "verificationStatus" : {
+      "type" : "verified"
+    },
+    "watchIdentitySnapshot" : {
+      "descriptor" : {
+        "clips" : [
+          {
+            "cameraFamily" : "dji",
+            "captureMicroseconds" : 1790856000000000,
+            "duration" : {
+              "timescale" : 1,
+              "value" : 1
+            },
+            "index" : 53,
+            "relativePath" : "DJI_0053.MP4",
+            "settledVideoBytes" : 2413,
+            "stem" : "DJI_0053"
+          }
+        ]
+      },
+      "ledgerNamespace" : "99999999-9999-4999-8999-999999999999",
+      "version" : 2,
+      "watchEntryID" : "99999999-9999-4999-8999-999999999999"
+    }
+  },
+  {
+    "actualOutputPathStrings" : [
+      "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-device-output\/DJI_0047_joined.mp4"
+    ],
+    "appliedTimecode" : "14:00:00:00",
+    "clips" : [
+      {
+        "creationDate" : "2026-10-01T12:00:00Z",
+        "durationTimescale" : 1000,
+        "durationValue" : 1000,
+        "id" : "CFD4BD66-D41D-4415-A01C-962423116A4A",
+        "index" : 47,
+        "stem" : "DJI_0047",
+        "streamInfo" : {
+          "video" : {
+            "avgFrameRate" : "25\/1",
+            "codecName" : "mpeg4",
+            "height" : 90,
+            "pixelFormat" : "yuv420p",
+            "rFrameRate" : "25\/1",
+            "timeBase" : "1\/12800",
+            "width" : 160
+          }
+        },
+        "videoFilePath" : "\/private\/tmp\/Conjoyn-E1-Physical-Mount-20261010\/Conjoyn-Acceptance-20261010\/mount-device\/DJI_0047.MP4"
+      }
+    ],
+    "createdAt" : "2026-10-10T18:55:20Z",
+    "destinationPathString" : "\/Users\/sim\/ProgrammingProjects\/1-macOS\/Conjoyn\/01_Project\/build\/E1-Device-Acceptance\/mount-device-output\/DJI_0047_joined.mp4",
+    "folderName" : "mount-device",
+    "id" : "E41DABD4-A824-499C-8C43-F7F73476FA4E",
+    "outputBookmarkData" : "Ym9va7ADAAAAAAUQQAAAAFMnd6vJJpk+EjGBlkghxcgvP50WLvLVw1HQqhGWiIX1AAAAAAAAAAAAAAAAAAAAAJwCAAAEAAAAAwMAAAAIACgFAAAAAQEAAFVzZXJzAAAAAwAAAAEBAABzaW0AEwAAAAEBAABQcm9ncmFtbWluZ1Byb2plY3RzAAcAAAABAQAAMS1tYWNPUwAHAAAAAQEAAENvbmpveW4ACgAAAAEBAAAwMV9Qcm9qZWN0AAAFAAAAAQEAAGJ1aWxkAAAAFAAAAAEBAABFMS1EZXZpY2UtQWNjZXB0YW5jZRMAAAABAQAAbW91bnQtZGV2aWNlLW91dHB1dAAkAAAAAQYAABAAAAAgAAAALAAAAEgAAABYAAAAaAAAAHwAAACMAAAAqAAAAAgAAAAEAwAAP0gAAAAAAAAIAAAABAMAAB9+AAAAAAAACAAAAAQDAAAM1Q8AAAAAAAgAAAAEAwAA+tYPAAAAAAAIAAAABAMAACQKEAAAAAAACAAAAAQDAAAlChAAAAAAAAgAAAAEAwAAuYQXAAAAAAAIAAAABAMAADM52wEAAAAACAAAAAQDAACEQ9sBAAAAACQAAAABBgAA8AAAAAABAAAQAQAAIAEAADABAABAAQAAUAEAAGABAABwAQAACAAAAAAEAABByD1ge7NX\/xgAAAABAgAAAgAAAAAAAAAPAAAAAAAAAAAAAAAAAAAACAAAAAQDAAAHAAAAAAAAAAQAAAADAwAA9QEAAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAJCClucAAAAIAAAAAAQAAEHILzUqAAAAJAAAAAEBAAA0QkZDMjRCNC1FQ0Q1LTQzRDAtODdDQS1EQkMxNDI0NDgxQTEYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAAAAAAABBQAAzAAAAP7\/\/\/8BAAAAAAAAABAAAAAEEAAAxAAAAAAAAAAFEAAAgAEAAAAAAAAQEAAAvAEAAAAAAABAEAAArAEAAAAAAAACIAAAiAIAAAAAAAAFIAAA+AEAAAAAAAAQIAAACAIAAAAAAAARIAAAPAIAAAAAAAASIAAAHAIAAAAAAAATIAAALAIAAAAAAAAgIAAAaAIAAAAAAAAwIAAAlAIAAAAAAAABwAAA3AEAAAAAAAARwAAAIAAAAAAAAAASwAAA7AEAAAAAAAAQ0AAABAAAAAAAAAA=",
+    "progress" : 0.99,
+    "settings" : {
+      "deleteOriginalsAfterVerify" : false,
+      "fixCreationDate" : true,
+      "outputContainer" : "MP4",
+      "outputFilename" : "",
+      "preserveTimecode" : true,
+      "reEncodeOnMismatch" : false,
+      "stitchSRT" : true,
+      "useFolderNameAsFilename" : false
+    },
+    "sourceBookmarkData" : "Ym9va3gEAAAAAAUQQAAAAGlrjPL\/W0x9lFzVeNjaleF9wurhNF40e+ZtKW5rox1lAAAAAAAAAAAAAAAAAAAAAIgDAAAEAAAAAwMAAAAIACgHAAAAAQEAAHByaXZhdGUAAwAAAAEBAAB0bXAAIgAAAAEBAABDb25qb3luLUUxLVBoeXNpY2FsLU1vdW50LTIwMjYxMDEwAAAbAAAAAQEAAENvbmpveW4tQWNjZXB0YW5jZS0yMDI2MTAxMAAMAAAAAQEAAG1vdW50LWRldmljZRQAAAABBgAAEAAAACAAAAAsAAAAWAAAAHwAAAAIAAAABAMAAFGjsAEAAAAACAAAAAQDAAAnpLABAAAAAAgAAAAEAwAAAgAAAAAAAAAIAAAABAMAAChoAAAAAAAACAAAAAQDAABAaAAAAAAAABQAAAABBgAArAAAALwAAADMAAAA3AAAAOwAAAAIAAAAAAQAAEHIPWB7s1I8GAAAAAECAAACAAAAAAAAAA8AAAAAAAAAAAAAAAAAAAA3AAAAAQkAAGZpbGU6Ly8vcHJpdmF0ZS90bXAvQ29uam95bi1FMS1QaHlzaWNhbC1Nb3VudC0yMDI2MTAxMC8ACgAAAAEBAAA0LnggLSBNT1JFAAAIAAAABAMAAAAA7XKjAwAACAAAAAAEAABByCGzJZznPSQAAAABAQAAQTdGQzQ3MUItOUJCRC00MTkwLTk4QjYtMEE1RDNGQTMwMjc4GAAAAAECAAABAQAAAQAAAO8TAAABAAAAAAAAAAAAAAAvAAAAAQEAAC9wcml2YXRlL3RtcC9Db25qb3luLUUxLVBoeXNpY2FsLU1vdW50LTIwMjYxMDEwAAgAAAABCQAAZmlsZTovLy8MAAAAAQEAAE1hY2ludG9zaCBIRAgAAAAEAwAAAJCClucAAAAIAAAAAAQAAEHILzUqAAAAJAAAAAEBAAA0QkZDMjRCNC1FQ0Q1LTQzRDAtODdDQS1EQkMxNDI0NDgxQTEYAAAAAQIAAIEAAAABAAAA7xMAAAEAAAAAAAAAAAAAAAEAAAABAQAALwAAAGAAAAD+\/\/\/\/APAAAAAAAAAHAAAAAiAAANACAAAAAAAABSAAAEACAAAAAAAAECAAAFACAAAAAAAAESAAAIQCAAAAAAAAEiAAAGQCAAAAAAAAEyAAAHQCAAAAAAAAICAAALACAAAAAAAABAAAAAMDAAAA8AAABAAAAAMDAAAAAAAABAAAAAMDAAABAAAAGAAAAAEGAABEAwAAUAMAAFADAABcAwAAUAMAAFADAACoAAAA\/v\/\/\/wEAAADcAgAADQAAAAQQAACQAAAAAAAAAAUQAAD8AAAAAAAAABAQAAAoAQAAAAAAAEAQAAAYAQAAAAAAAAAgAABoAwAAAAAAAAIgAAAIAgAAAAAAAAUgAABIAQAAAAAAABAgAACIAQAAAAAAABEgAAC8AQAAAAAAABIgAACcAQAAAAAAABMgAACsAQAAAAAAACAgAADoAQAAAAAAABDQAAAEAAAAAAAAAA==",
+    "sourceFolderPathString" : "\/private\/tmp\/Conjoyn-E1-Physical-Mount-20261010\/Conjoyn-Acceptance-20261010\/mount-device",
+    "sourceTargetResult" : {
+      "checks" : [
+        {
+          "detail" : "",
+          "kind" : "readability",
+          "label" : "Readability",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "packetCount",
+          "label" : "Packet count (video)",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "packetBytes",
+          "label" : "Packet bytes (video)",
+          "severity" : 0
+        },
+        {
+          "detail" : "Δ 0ms (within ±1 frame)",
+          "kind" : "duration",
+          "label" : "Duration",
+          "severity" : 1
+        },
+        {
+          "detail" : "",
+          "kind" : "codecParams",
+          "label" : "Codec parameters",
+          "severity" : 0
+        },
+        {
+          "detail" : "",
+          "kind" : "timecodeWriteback",
+          "label" : "Timecode write-back",
+          "severity" : 0
+        }
+      ],
+      "duration" : 0.0667029619216919,
+      "tier" : "fast",
+      "verifiedAt" : "2026-10-10T18:55:20Z"
+    },
+    "startedAt" : "2026-10-10T18:55:20Z",
+    "status" : {
+      "type" : "completed"
+    },
+    "verificationProgress" : 1,
+    "verificationStatus" : {
+      "type" : "verified"
+    },
+    "watchIdentitySnapshot" : {
+      "descriptor" : {
+        "clips" : [
+          {
+            "cameraFamily" : "dji",
+            "captureMicroseconds" : 1790856000000000,
+            "duration" : {
+              "timescale" : 1,
+              "value" : 1
+            },
+            "index" : 47,
+            "relativePath" : "DJI_0047.MP4",
+            "settledVideoBytes" : 2413,
+            "stem" : "DJI_0047"
+          }
+        ]
+      },
+      "ledgerNamespace" : "88888888-8888-4888-8888-888888888888",
+      "version" : 2,
+      "watchEntryID" : "88888888-8888-4888-8888-888888888888"
+    }
+  }
+]

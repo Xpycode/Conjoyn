@@ -1,0 +1,48 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Conjoyn</title>
+        <item>
+            <title>1.0.6</title>
+            <pubDate>Sat, 10 Oct 2026 21:33:59 +0200</pubDate>
+            <sparkle:version>106</sparkle:version>
+            <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <sparkle:releaseNotesLink>https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.6.html</sparkle:releaseNotesLink>
+            <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.6.dmg" length="29722779" type="application/octet-stream" sparkle:edSignature="tLEDyAsMzVPg3V0p+vkPiuf0BMrjL2YYze5eVVJhPOm5ln8QRgDim2uQ4yNOEorvZSaVaWIxbGX2ciCzHifbCA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn106-105.delta" sparkle:deltaFrom="105" length="835770" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="K28JZ4Xkzz/q61L4kw4yOcl1eRo6ZsJuTYK2lfqjg8b8U4/IsC3xrRtzQDxcAvomQSmLvIwLc5KWcCrjC0MFCw=="/>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn106-104.delta" sparkle:deltaFrom="104" length="865994" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="YNoPDgXy/xipBhTO+6cm1Li10FVP3sHqkw8tNBqwAyQaXv6WE+U8YbZCppgMEt+bue0VdxfNou4O2TovfwdQBA=="/>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn106-103.delta" sparkle:deltaFrom="103" length="873262" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="yU3dkFirML/R0FCvpP/rj3UMdkCtZXO8APKUNSr4lLnkrLrbF3vntdHTayzm0/waO1C2AqpZH+mVy5xVhB1qDA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
+            <title>1.0.5</title>
+            <pubDate>Mon, 10 Aug 2026 18:26:28 +0200</pubDate>
+            <sparkle:version>105</sparkle:version>
+            <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <sparkle:releaseNotesLink>https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.5.html</sparkle:releaseNotesLink>
+            <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.5.dmg" length="29602595" type="application/octet-stream" sparkle:edSignature="OHckTHWTnJJwKtB75hQbGlc6jRbJ0dTDoPFthuGPDZXkzv1N4C21Mk+YNIxkgySyDtacCMCqLafFOPf+cltsBA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn105-104.delta" sparkle:deltaFrom="104" length="264222" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="aAXuZp7imHY767j1zZSikSv0NDKCKFIwNYMFjFk0s1IRplmey7Y9R3Vl5bWa5m4oz4EKzy9Lkcn8DgicXuDTCg=="/>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn105-103.delta" sparkle:deltaFrom="103" length="297558" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="DJJxv+Vx7ty2YsNWN7Pft+sPnP1vtTTxZpmqIi4Nd4T4gw4CGc0oA4fC8mMSAlD4l9QTiBy44xQg9LuG6y2lBQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
+            <title>1.0.4</title>
+            <pubDate>Sat, 18 Jul 2026 19:00:42 +0200</pubDate>
+            <sparkle:version>104</sparkle:version>
+            <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <sparkle:releaseNotesLink>https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.4.html</sparkle:releaseNotesLink>
+            <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn-1.0.4.dmg" length="29575415" type="application/octet-stream" sparkle:edSignature="qAwOWC4gwvij0aTXaTr31mN7begpOJ28kBTE4vtuv97chiJjGdsjCnJ/5SfS6NN8niuYP4olBG8j/OXnfq7VCw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://conjoyn.lucesumbrarum.com/Conjoyn104-103.delta" sparkle:deltaFrom="103" length="212674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977840" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="cO0mUzUv2Pvt5B+7SSsS09C2wybMybqOZZ+sKLAQkts0HFKbUrtx14XyQ+XNZsdaJhL7aO6RGH7l/XDj29HmBw=="/>
+            </sparkle:deltas>
+        </item>
+    </channel>
+</rss>

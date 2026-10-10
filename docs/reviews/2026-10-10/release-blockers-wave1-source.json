@@ -1,0 +1,26 @@
+{
+  "head": "2590972d625d69fffb6c17fb4c0a819ddf6b0330",
+  "capturedUTC": "2026-10-10T16:42:11.918805+00:00",
+  "sourcePatch": "01_Project/build/ReleaseBlockers-Wave1-Source.patch",
+  "sourcePatchSHA256": "0798a11d4f3e647e70bd17c64f9cf0498349ac78359c13309193103db5d2137e",
+  "files": {
+    "01_Project/Conjoyn/ConjoynApp.swift": "5cde1a5266273b96f28cffc50b31d1c0427b2eb3cc2fee4604e8e995112651ce",
+    "01_Project/Conjoyn/ContentView.swift": "3882fa6be59d1075d146f31fbe618857632879fcd0f04f5ada8a8a33ab957c95",
+    "01_Project/Conjoyn/ConversionViewModel.swift": "26a8712ebafab1c40ac570c104ccff61b3e7e7228d44b96a7303b961f10c59bd",
+    "01_Project/Conjoyn/Models/ConversionJob.swift": "e87b9a573a0879ad227ad2dfd243099c9c6fa24f5725def1ec369b541452fab3",
+    "01_Project/Conjoyn/Models/WatchRecordingIdentity.swift": "849916fcfa938773480b408e08347e7eb3fa84769836063f3ceca34cf4ce76e0",
+    "01_Project/Conjoyn/Services/QueueManager.swift": "85e66731957b8c72d63e301c46447f44488e951e67f7012008a5b5694e5e491c",
+    "01_Project/Conjoyn/Views/DesignControls.swift": "e48954b11d9d3929c04117b8751f16339eb2c0fcd466c7f661e42ce264b048b1",
+    "01_Project/Conjoyn/Views/RecordingsList.swift": "d90084f624f0ceb1ac156e527e320df9b344b1d876dc2745525a8149c4df5242",
+    "01_Project/ConjoynTests/ConversionScanTests.swift": "188b9bd333436b9a722a7e19ef30f2e50e32f0e25ebcbf563b8a07096d756985",
+    "01_Project/ConjoynTests/QueueManagerTests.swift": "65b2f6cf3bbe28d12b5a4f6d79d28c787a4d90f9131f0d5e08203af3569a3dd6",
+    "01_Project/ConjoynTests/QueueRecoveryTests.swift": "074456173df957be022edd79f00064fc0d9a0dc1f950caaf1807abf1ee49bd24",
+    "01_Project/ConjoynTests/RecordingSearchTests.swift": "1d3f4cca7c3d0bba25de35b3abee4c5e3171f3336e4b94387a6e7b4a97205e63",
+    "01_Project/ConjoynTests/WatchRecordingIdentityTests.swift": "e5b763c9dcb1dade8fbd2b8289b8a12400ce6b36faa6dd2277362fc71999490e"
+  },
+  "app": "01_Project/build/ReleaseBlockers-App-DD/Build/Products/Debug/Conjoyn.app",
+  "version": "1.0.6",
+  "build": "106",
+  "executableSHA256": "fa3bb9270476ccf9c2b0b9ed05584cdfb00bc90f60d8757df82702fa20594bbf",
+  "verifiedPID": 68008
+}

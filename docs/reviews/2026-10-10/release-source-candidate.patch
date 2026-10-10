@@ -1,0 +1,905 @@
+diff --git a/01_Project/Conjoyn/ConjoynApp.swift b/01_Project/Conjoyn/ConjoynApp.swift
+index 891372c..74a0643 100644
+--- a/01_Project/Conjoyn/ConjoynApp.swift
++++ b/01_Project/Conjoyn/ConjoynApp.swift
+@@ -37,8 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
+ }
+ 
+ /// Becomes the Edit menu's delegate and, every time the menu is about to open, deletes every item
+-/// after "Select All". This catches AppKit's lazily-injected items (Writing Tools especially, which
+-/// has no `UserDefaults` opt-out) that a one-time pass at launch would miss.
++/// after "Select All" — except the app's own Find (⌘F), which SwiftUI places in the same region.
++/// This catches AppKit's lazily-injected items (Writing Tools especially, which has no
++/// `UserDefaults` opt-out) that a one-time pass at launch would miss.
+ @MainActor
+ final class EditMenuTrimmer: NSObject, NSMenuDelegate {
+     func attach(to menu: NSMenu) {
+@@ -51,9 +52,21 @@ final class EditMenuTrimmer: NSObject, NSMenuDelegate {
+     private func trim(_ menu: NSMenu) {
+         guard let selectAll = menu.items.firstIndex(where: { $0.action == #selector(NSText.selectAll(_:)) })
+         else { return }
+-        while menu.items.count > selectAll + 1 {
+-            menu.removeItem(at: selectAll + 1)
++        var i = selectAll + 1
++        while i < menu.items.count {
++            if Self.isPreserved(menu.items[i]) { i += 1 } else { menu.removeItem(at: i) }
+         }
++        // The sweep also removes SwiftUI's separator above the preserved items; re-insert one so
++        // Find doesn't sit flush under Select All. Idempotent — the next sweep removes + re-adds it.
++        if menu.items.count > selectAll + 1, !menu.items[selectAll + 1].isSeparatorItem {
++            menu.insertItem(.separator(), at: selectAll + 1)
++        }
++    }
++
++    /// App-declared Edit items living below "Select All" that must survive the sweep — currently
++    /// only Find (`FindCommands`, ⌘F).
++    private static func isPreserved(_ item: NSMenuItem) -> Bool {
++        item.keyEquivalent == "f" && item.keyEquivalentModifierMask == [.command]
+     }
+ }
+ 
+@@ -136,6 +149,7 @@ struct ConjoynApp: App {
+         .defaultSize(width: 1240, height: 800)
+         .commands {
+             FileCommands(viewModel: viewModel)
++            FindCommands(viewModel: viewModel)
+             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
+             // Separator between "Conjoyn Help" and "Send Feedback…". HelpMenu's items and
+             // AppCitizenshipKit's FeedbackCommands are package types we can't edit, so the divider is
+@@ -264,6 +278,26 @@ struct FileCommands: Commands {
+     }
+ }
+ 
++/// Adds **Edit › Find** (⌘F), which focuses the recordings-list search field via
++/// `.cjFocusRecordingsSearch`. Disabled until a scan has produced recordings — the search field
++/// only exists on screen with the list. SwiftUI lands the item after "Select All", inside the
++/// region `EditMenuTrimmer` sweeps; the trimmer preserves it by its ⌘F key equivalent. A
++/// `Commands` struct bound to the App's view model (same pattern as `FileCommands`) so the
++/// disabled state tracks the live scan.
++struct FindCommands: Commands {
++    @ObservedObject var viewModel: ConversionViewModel
++
++    var body: some Commands {
++        CommandGroup(after: .pasteboard) {
++            Button("Find") {
++                NotificationCenter.default.post(name: .cjFocusRecordingsSearch, object: nil)
++            }
++            .keyboardShortcut("f", modifiers: [.command])
++            .disabled(viewModel.groups.isEmpty)
++        }
++    }
++}
++
+ /// Adds "Check for Updates…" under the app menu (after the About item). A `Commands` struct —
+ /// not an inline `CommandGroup` closure — so the `@ObservedObject` reliably refreshes the item's
+ /// disabled state while a check is in flight (the closure form lets that binding go stale;
+diff --git a/01_Project/Conjoyn/ContentView.swift b/01_Project/Conjoyn/ContentView.swift
+index bad2c9a..a3e2799 100644
+--- a/01_Project/Conjoyn/ContentView.swift
++++ b/01_Project/Conjoyn/ContentView.swift
+@@ -71,7 +71,7 @@ struct ContentView: View {
+             .withoutSharedBackground()
+             ToolbarItemGroup(placement: .primaryAction) {
+                 Button {
+-                    Task { await vm.scan() }
++                    vm.scan()
+                 } label: {
+                     Label(vm.isScanning ? "Scanning…" : "Scan", systemImage: "viewfinder")
+                         // Toolbar items default Label to .iconOnly; force title+icon so the app's
+diff --git a/01_Project/Conjoyn/ConversionViewModel.swift b/01_Project/Conjoyn/ConversionViewModel.swift
+index decdcf7..9971894 100644
+--- a/01_Project/Conjoyn/ConversionViewModel.swift
++++ b/01_Project/Conjoyn/ConversionViewModel.swift
+@@ -19,19 +19,25 @@ final class ConversionViewModel: ObservableObject {
+ 
+     /// The shared engine. Views also observe this directly for queue/console/progress state.
+     let queue: QueueManager
+-    private let ffmpeg: FFmpegWrapper
++    typealias DiscoveryReader = @Sendable (URL) async -> DJIFolderReader.Discovery
++    typealias DateWarmer = @Sendable ([RecordGroup], Date?) async -> [UUID: Date?]
++    private let discover: DiscoveryReader
++    private let warmDates: DateWarmer
++    private var scanTask: Task<Void, Never>?
++    private var scanGeneration: UInt64 = 0
++    private var publishedGeneration: UInt64?
+     /// Row-thumbnail extraction (first frame of a group's first segment), shared across rows.
+     let thumbnails: ThumbnailManager
+ 
+     // MARK: - Pre-enqueue state
+ 
+-    @Published var sourceFolderURL: URL?
++    @Published private(set) var sourceFolderURL: URL?
+     @Published var outputFolderURL: URL?
+     @Published var settings = ConversionSettings()
+ 
+     /// Drives the "Apply new output folder to N pending jobs?" popover. Set true by
+-    /// `chooseOutputFolder()` only when the chosen folder actually differs *and* there are pending
+-    /// jobs to re-point; the popover's Keep/click-away resets it (the safe no-op).
++    /// `chooseOutputFolder()` when pending jobs target a different folder, including restored jobs.
++    /// The popover's Keep/click-away resets it (the safe no-op).
+     @Published var showApplyFolderPrompt = false
+ 
+     /// Output-renaming state. Session-only (not in `ConversionSettings`, which is `Codable` and
+@@ -62,6 +68,11 @@ final class ConversionViewModel: ObservableObject {
+     enum RecordingFilter { case all, splits, singles }
+     @Published private(set) var recordingFilter: RecordingFilter = .all
+ 
++    /// Live search query narrowing the recordings list. Display-only: unlike `setFilter(_:)` it
++    /// never touches selection — a transient text filter silently changing what `addToQueue` will
++    /// enqueue would be a trap. Cleared on rescan.
++    @Published private(set) var searchText = ""
++
+     /// Column the recordings list is ordered by. `.found` keeps the scanner's discovery order — the
+     /// original pre-1.0.1 behaviour and the state every fresh scan resets to.
+     enum SortKey: CaseIterable { case found, name, date, duration, size }
+@@ -72,12 +83,19 @@ final class ConversionViewModel: ObservableObject {
+     /// as the single chokepoint so selection (by id) and the rename cache stay valid regardless of
+     /// display order — only what the list *shows* is reordered, never `groups` itself.
+     var filteredGroups: [RecordGroup] {
+-        let visible: [RecordGroup]
++        var visible: [RecordGroup]
+         switch recordingFilter {
+         case .all:     visible = groups
+         case .splits:  visible = groups.filter { $0.groupType == .split }
+         case .singles: visible = groups.filter { $0.groupType == .single }
+         }
++        if let query = Self.normalizedQuery(searchText) {
++            visible = visible.filter {
++                Self.matchesSearch(query,
++                                   title: $0.displayTitle,
++                                   filenames: $0.clips.map(\.videoURL.lastPathComponent))
++            }
++        }
+         guard sortKey != .found else { return visible }   // discovery order — leave untouched
+         // Decorate-sort-undecorate: resolve each group's sort fields once (the date resolve is the
+         // costly part), let `ordered(_:)` apply the key + direction + undated-last policy, then drop
+@@ -93,12 +111,31 @@ final class ConversionViewModel: ObservableObject {
+     @Published private(set) var isScanning = false
+     @Published private(set) var statusMessage: String?
+ 
+-    init(queue: QueueManager = .shared) {
++    init(queue: QueueManager = .shared,
++         discover: DiscoveryReader? = nil,
++         warmDates: DateWarmer? = nil) {
+         self.queue = queue
+-        self.ffmpeg = queue.ffmpeg
+-        self.thumbnails = ThumbnailManager(ffmpeg: queue.ffmpeg)
++        let ffmpeg = queue.ffmpeg
++        self.discover = discover ?? { source in
++            await DJIFolderReader.read(folder: source, using: ffmpeg)
++        }
++        self.warmDates = warmDates ?? { groups, override in
++            await Task.detached(priority: .utility) {
++                var resolved: [UUID: Date?] = [:]
++                for group in groups {
++                    let date = group.clips.first.flatMap {
++                        RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: override).date
++                    }
++                    resolved.updateValue(date, forKey: group.id)
++                }
++                return resolved
++            }.value
++        }
++        self.thumbnails = ThumbnailManager(ffmpeg: ffmpeg)
+     }
+ 
++    deinit { scanTask?.cancel() }
++
+     // MARK: - Derived
+ 
+     var totalClips: Int { groups.reduce(0) { $0 + $1.clipCount } }
+@@ -107,7 +144,10 @@ final class ConversionViewModel: ObservableObject {
+     var selectedGroups: [RecordGroup] { groups.filter { selectedGroupIDs.contains($0.id) } }
+     var selectedCount: Int { selectedGroupIDs.count }
+ 
+-    var canAddToQueue: Bool { !selectedGroups.isEmpty && outputFolderURL != nil && !isScanning }
++    var canAddToQueue: Bool {
++        publishedGeneration == scanGeneration && !selectedGroups.isEmpty
++            && outputFolderURL != nil && !isScanning
++    }
+ 
+     /// Pending (unstarted) jobs — the only ones `applyOutputFolderToPendingJobs` may re-point.
+     var pendingJobCount: Int { queue.pendingCount }
+@@ -143,6 +183,29 @@ final class ConversionViewModel: ObservableObject {
+     /// Resets the filter to `.all` without changing selection. Called on rescan.
+     func resetFilter() { recordingFilter = .all }
+ 
++    // MARK: - Search
++
++    func setSearch(_ text: String) { searchText = text }
++
++    /// Clears the search query. Called on rescan so a new card starts unfiltered.
++    func resetSearch() { searchText = "" }
++
++    /// The effective search query: trimmed, `nil` when empty — a whitespace-only query must not
++    /// narrow the list.
++    static func normalizedQuery(_ raw: String) -> String? {
++        let query = raw.trimmingCharacters(in: .whitespaces)
++        return query.isEmpty ? nil : query
++    }
++
++    /// Whether one recording matches a search query: case-insensitive substring of either the row
++    /// title (the stem range a split shows) or any segment's filename — so `GX016349` finds its
++    /// recording even when the title reads `GX016349 – GX026349`. Static over plain strings so the
++    /// match rule is unit-testable without a scanned card (mirrors `orders(_:before:by:)`).
++    static func matchesSearch(_ query: String, title: String, filenames: [String]) -> Bool {
++        title.localizedCaseInsensitiveContains(query)
++            || filenames.contains { $0.localizedCaseInsensitiveContains(query) }
++    }
++
+     // MARK: - Sorting
+ 
+     /// Picks the sort column. Clicking the active column flips direction (Finder behaviour);
+@@ -269,10 +332,11 @@ final class ConversionViewModel: ObservableObject {
+ 
+     /// Sets the source folder and kicks off a scan. Also the entry point for drag-and-drop of a
+     /// folder onto the empty state.
+-    func setSourceFolder(_ url: URL) {
++    @discardableResult
++    func setSourceFolder(_ url: URL) -> Task<Void, Never> {
+         sourceFolderURL = url
+         if outputFolderURL == nil { outputFolderURL = url }
+-        Task { await scan() }
++        return requestScan(source: url)
+     }
+ 
+     func chooseOutputFolder() {
+@@ -285,20 +349,31 @@ final class ConversionViewModel: ObservableObject {
+         panel.message = "Choose where to save the joined file(s)"
+         guard panel.runModal() == .OK, let url = panel.url else { return }
+ 
++        Task { await acceptOutputFolder(url) }
++    }
++
++    /// Handles an accepted picker selection without changing already-queued destinations.
++    /// Compare against the jobs, not the session-only selector (nil after restoring a queue).
++    func acceptOutputFolder(_ url: URL) async {
++
+         // Per-job destinations were frozen at enqueue from the *old* folder; changing the folder now
+         // only governs future adds. If the folder actually changed and pending jobs exist, offer to
+         // re-point them so the change isn't a silent miss (the trap hit live 2026-06-10k).
+-        let previous = outputFolderURL
+         outputFolderURL = url
+-        if QueueManager.directoriesDiffer(previous, url) && pendingJobCount > 0 {
++        showApplyFolderPrompt = false
++        if queue.jobs.contains(where: {
++            $0.status == .pending && QueueManager.directoriesDiffer(
++                $0.destinationURL.deletingLastPathComponent(), url
++            )
++        }) {
+             // NSOpenPanel is ViewBridge-hosted (macOS 26+): presenting the popover in the same
+             // runloop turn as panel dismissal races the remote view's async XPC teardown — its
+             // stale notification observer throws and AppKit crash-on-exceptions kills the app
+             // (crash 2026-07-18). Defer past the teardown before flipping the flag.
+-            Task {
+-                try? await Task.sleep(for: .milliseconds(400))
+-                showApplyFolderPrompt = true
+-            }
++            do { try await Task.sleep(for: .milliseconds(400)) }
++            catch { return }
++            guard outputFolderURL == url else { return }
++            showApplyFolderPrompt = true
+         }
+     }
+ 
+@@ -312,8 +387,20 @@ final class ConversionViewModel: ObservableObject {
+ 
+     // MARK: - Scan
+ 
+-    func scan() async {
+-        guard let source = sourceFolderURL else { return }
++    /// Invalidate synchronously at the UI action, before any new task can be scheduled.
++    /// Returning the retained task also lets callers await discovery and its cache prewarm.
++    @discardableResult
++    func scan() -> Task<Void, Never>? {
++        guard let source = sourceFolderURL else { return nil }
++        return requestScan(source: source)
++    }
++
++    private func requestScan(source: URL) -> Task<Void, Never> {
++        scanGeneration &+= 1
++        let generation = scanGeneration
++        scanTask?.cancel()
++        publishedGeneration = nil
++        selectedGroupIDs = []
+         isScanning = true
+         statusMessage = "Scanning \(source.lastPathComponent)…"
+         groups = []
+@@ -322,18 +409,38 @@ final class ConversionViewModel: ObservableObject {
+         resolvedStartCache = [:]
+         resetFilter()
+         resetSort()
++        resetSearch()
++
++        let discover = self.discover
++        let warmDates = self.warmDates
++        let task = Task { [weak self] in
++            let discovery = await discover(source)
++            guard let self, self.scanGeneration == generation else { return }
++            self.publish(discovery, source: source, generation: generation)
++            // Cancellation cannot stop all filesystem/probe implementations. Ownership, not the
++            // cancellation bit or source URL, is authoritative after every suspension.
++            if !discovery.groups.isEmpty {
++                let resolved = await warmDates(discovery.groups, self.settings.dateOverride)
++                guard self.scanGeneration == generation else { return }
++                for (id, date) in resolved where self.resolvedStartCache[id] == nil {
++                    self.resolvedStartCache.updateValue(date, forKey: id)
++                }
++                self.startDateRevision &+= 1
++            }
++            self.scanTask = nil
++        }
++        scanTask = task
++        return task
++    }
+ 
+-        let discovery = await DJIFolderReader.read(folder: source, using: ffmpeg)
+-
++    private func publish(_ discovery: DJIFolderReader.Discovery, source: URL, generation: UInt64) {
++        publishedGeneration = generation
+         groups = discovery.groups
+         parseErrors = discovery.errors
+         skippedFiles = discovery.skippedNonDJI
+         // Pre-select the split recordings only — single lone clips need no join.
+         selectSplitGroupsOnly()
+         isScanning = false
+-        // Warm the recording-start cache off-thread so a later "sort by Date" never blocks on SD-card
+-        // `.SRT` reads. Fire-and-forget; the list re-sorts when it lands.
+-        prewarmStartDates()
+ 
+         if groups.isEmpty {
+             // Say *why* it's empty when we saw plausible media and rejected it on the name. The
+@@ -363,7 +470,7 @@ final class ConversionViewModel: ObservableObject {
+     /// Per the design handoff: groups with a still-unfinished job are skipped (no accidental
+     /// duplicates), and the selection clears once the jobs are added.
+     func addToQueue() {
+-        guard let source = sourceFolderURL, let outDir = outputFolderURL else { return }
++        guard canAddToQueue, let source = sourceFolderURL, let outDir = outputFolderURL else { return }
+ 
+         // A group is "already queued" if some unfinished job starts with the same first segment.
+         let unfinishedFirstClipIDs = Set(
+@@ -445,33 +552,6 @@ final class ConversionViewModel: ObservableObject {
+         return date
+     }
+ 
+-    /// Resolves every group's recording-start date **off the main thread** right after a scan, so the
+-    /// first "sort by Date" is an instant cache hit rather than opening dozens of `.SRT` files from
+-    /// the SD card on the main thread (a visible beachball). Runs at `.utility` priority so it yields
+-    /// to thumbnail extraction; fills only gaps, never clobbering an entry rename already resolved.
+-    /// On completion it bumps `startDateRevision` to re-sort into corrected order.
+-    private func prewarmStartDates() {
+-        let items: [(id: UUID, clip: DJIClip?)] = groups.map { ($0.id, $0.clips.first) }
+-        guard !items.isEmpty else { return }
+-        let override = settings.dateOverride
+-        Task.detached(priority: .utility) { [weak self] in
+-            var resolved: [UUID: Date?] = [:]
+-            for item in items {
+-                let date = item.clip.flatMap {
+-                    RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: override).date
+-                }
+-                resolved.updateValue(date, forKey: item.id)   // stores `.some(nil)`, not a delete
+-            }
+-            await MainActor.run {
+-                guard let self else { return }
+-                for (id, date) in resolved where self.resolvedStartCache[id] == nil {
+-                    self.resolvedStartCache.updateValue(date, forKey: id)
+-                }
+-                self.startDateRevision &+= 1
+-            }
+-        }
+-    }
+-
+     /// Up to `limit` of the currently-selected recordings rendered through the active pattern, for
+     /// the popover's live preview. De-dups within the previewed set so the user sees realistic
+     /// `_2` suffixes; the enqueue path additionally seeds the queue + destination folder.
+diff --git a/01_Project/Conjoyn/Views/DesignControls.swift b/01_Project/Conjoyn/Views/DesignControls.swift
+index b17ca9b..aed3633 100644
+--- a/01_Project/Conjoyn/Views/DesignControls.swift
++++ b/01_Project/Conjoyn/Views/DesignControls.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import AppKit
+ 
+ // MARK: - Shared controls (design handoff atoms)
+ 
+@@ -143,6 +144,120 @@ struct CJSegGroup: View {
+     }
+ }
+ 
++// MARK: Search field
++
++extension Notification.Name {
++    /// Posted by Edit › Find (⌘F); the recordings search field grabs focus when it arrives.
++    static let cjFocusRecordingsSearch = Notification.Name("CJFocusRecordingsSearch")
++}
++
++/// Compact search well for the recordings-list header, sized to sit beside `CJSegGroup` (same
++/// recessed well + corner radius). Hand-styled rather than `NSSearchField` for the same reason
++/// `CJCheckbox` exists — the stock control's chrome can't take the Theme. The field itself is a
++/// borderless `NSTextField` per the no-SwiftUI-`TextField` convention (modeled on
++/// `CaretTextField`); Escape clears + drops focus, ⌘F focuses via `.cjFocusRecordingsSearch`.
++struct CJSearchField: View {
++    @Binding var text: String
++    var placeholder = "Search"
++
++    var body: some View {
++        HStack(spacing: 5) {
++            Image(systemName: "magnifyingglass")
++                .font(.system(size: 10, weight: .semibold))
++                .foregroundStyle(Theme.txt3)
++            SearchTextField(text: $text, placeholder: placeholder)
++            // Clear button — opacity (not `if`) so the field width never jiggles as text
++            // appears/disappears.
++            Button { text = "" } label: {
++                Image(systemName: "xmark.circle.fill")
++                    .font(.system(size: 10))
++                    .foregroundStyle(Theme.txt3)
++            }
++            .buttonStyle(.plain)
++            .opacity(text.isEmpty ? 0 : 1)
++            .disabled(text.isEmpty)
++        }
++        .padding(.horizontal, 7)
++        .frame(width: 170, height: 22)
++        .background(Theme.recessed(0.28), in: RoundedRectangle(cornerRadius: 6))
++    }
++}
++
++/// The borderless field inside `CJSearchField`. Styling follows `CaretTextField`; adds a themed
++/// placeholder, Escape-clears, and a first-responder grab on `.cjFocusRecordingsSearch`.
++private struct SearchTextField: NSViewRepresentable {
++    @Binding var text: String
++    let placeholder: String
++
++    func makeNSView(context: Context) -> NSTextField {
++        let field = NSTextField(string: text)
++        field.delegate = context.coordinator
++        field.font = .systemFont(ofSize: 12)
++        field.isBordered = false
++        field.drawsBackground = false
++        field.focusRingType = .none
++        field.textColor = NSColor(Theme.txt)
++        field.placeholderAttributedString = NSAttributedString(
++            string: placeholder,
++            attributes: [.foregroundColor: NSColor(Theme.txt3),
++                         .font: NSFont.systemFont(ofSize: 12)]
++        )
++        field.lineBreakMode = .byClipping
++        field.usesSingleLineMode = true
++        field.cell?.wraps = false
++        field.cell?.isScrollable = true
++        context.coordinator.listenForFocusRequests(on: field)
++        return field
++    }
++
++    func updateNSView(_ nsView: NSTextField, context: Context) {
++        if nsView.stringValue != text { nsView.stringValue = text }
++    }
++
++    func makeCoordinator() -> Coordinator { Coordinator(self) }
++
++    @MainActor
++    final class Coordinator: NSObject, NSTextFieldDelegate {
++        private let parent: SearchTextField
++        private weak var field: NSTextField?
++
++        init(_ parent: SearchTextField) { self.parent = parent }
++
++        /// Selector-based observation (not block-based) — auto-unregistered on dealloc, so no
++        /// `deinit` bookkeeping. The notification is only ever posted from a menu action, i.e.
++        /// on the main thread, matching the class's `@MainActor` isolation.
++        func listenForFocusRequests(on field: NSTextField) {
++            self.field = field
++            NotificationCenter.default.addObserver(self,
++                                                   selector: #selector(focusRequested),
++                                                   name: .cjFocusRecordingsSearch,
++                                                   object: nil)
++        }
++
++        @objc private func focusRequested() {
++            guard let field else { return }
++            field.window?.makeFirstResponder(field)
++        }
++
++        func controlTextDidChange(_ obj: Notification) {
++            guard let field = obj.object as? NSTextField else { return }
++            parent.text = field.stringValue
++        }
++
++        func control(_ control: NSControl, textView: NSTextView,
++                     doCommandBy commandSelector: Selector) -> Bool {
++            // Escape clears the query and hands focus back to the window.
++            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
++                parent.text = ""
++                control.stringValue = ""
++                control.window?.makeFirstResponder(nil)
++                return true
++            }
++            return false
++        }
++    }
++}
++
+ // MARK: Checkbox
+ 
+ /// 14 pt orange-fill checkbox per `styles.css .mac-check` (the system checkbox can't take the
+diff --git a/01_Project/Conjoyn/Views/RecordingsList.swift b/01_Project/Conjoyn/Views/RecordingsList.swift
+index fd94096..4006aa6 100644
+--- a/01_Project/Conjoyn/Views/RecordingsList.swift
++++ b/01_Project/Conjoyn/Views/RecordingsList.swift
+@@ -56,20 +56,31 @@ struct RecordingsList: View {
+                 title: "Discovered recordings",
+                 count: countText
+             ) {
+-                CJSegGroup(
+-                    actions: [
+-                        ("All",     { vm.setFilter(.all) }),
+-                        ("None",    { vm.selectNoGroups() }),
+-                        ("Splits",  { vm.setFilter(.splits) }),
+-                        ("Singles", { vm.setFilter(.singles) }),
+-                    ],
+-                    activeLabel: activeFilterLabel
+-                )
++                HStack(spacing: 8) {
++                    CJSearchField(text: Binding(get: { vm.searchText },
++                                                set: { vm.setSearch($0) }))
++                    CJSegGroup(
++                        actions: [
++                            ("All",     { vm.setFilter(.all) }),
++                            ("None",    { vm.selectNoGroups() }),
++                            ("Splits",  { vm.setFilter(.splits) }),
++                            ("Singles", { vm.setFilter(.singles) }),
++                        ],
++                        activeLabel: activeFilterLabel
++                    )
++                }
+             }
+ 
+             ColumnHeaderBar()
+ 
+             ScrollView {
++                if vm.filteredGroups.isEmpty, searchIsActive {
++                    Text("No recordings match “\(vm.searchText.trimmingCharacters(in: .whitespaces))”")
++                        .font(.system(size: 12))
++                        .foregroundStyle(Theme.txt3)
++                        .padding(.vertical, 24)
++                        .frame(maxWidth: .infinity)
++                }
+                 LazyVStack(spacing: 0) {
+                     ForEach(vm.filteredGroups) { group in
+                         RecordingRow(
+@@ -89,8 +100,15 @@ struct RecordingsList: View {
+         }
+     }
+ 
++    private var searchIsActive: Bool {
++        ConversionViewModel.normalizedQuery(vm.searchText) != nil
++    }
++
+     private var countText: String {
+         var text = "\(vm.selectedCount) of \(vm.groups.count) selected · \(vm.totalClips) clips on card"
++        if searchIsActive {
++            text = "showing \(vm.filteredGroups.count) of \(vm.groups.count) · " + text
++        }
+         if !vm.skippedFiles.isEmpty { text += " · \(vm.skippedFiles.count) skipped" }
+         if !vm.parseErrors.isEmpty { text += " · \(vm.parseErrors.count) unreadable" }
+         return text
+diff --git a/01_Project/ConjoynTests/QueueManagerTests.swift b/01_Project/ConjoynTests/QueueManagerTests.swift
+index 685ba41..4434026 100644
+--- a/01_Project/ConjoynTests/QueueManagerTests.swift
++++ b/01_Project/ConjoynTests/QueueManagerTests.swift
+@@ -458,6 +458,46 @@ final class QueueManagerTests: XCTestCase {
+             URL(fileURLWithPath: "/tmp/folderA"), URL(fileURLWithPath: "/tmp/folderB")))
+     }
+ 
++    func testRestoredQueueOffersOutputChangeBeforeMovingJobs() async throws {
++        let original = makeManager()
++        original.addJob(makeJob(outputName: "Flight.mp4"))
++        let restored = makeManager()
++        let vm = ConversionViewModel(queue: restored)
++        XCTAssertNil(vm.outputFolderURL)
++        let oldDestination = restored.jobs[0].destinationURL
++        let newFolder = tmpDir.appendingPathComponent("NewOut", isDirectory: true)
++        try FileManager.default.createDirectory(at: newFolder, withIntermediateDirectories: true)
++
++        await vm.acceptOutputFolder(newFolder)
++
++        XCTAssertTrue(vm.showApplyFolderPrompt)
++        XCTAssertEqual(restored.jobs[0].destinationURL, oldDestination,
++                       "Choosing a folder must not move jobs before Apply")
++        vm.applyOutputFolderToPendingJobs()
++        XCTAssertFalse(vm.showApplyFolderPrompt)
++        XCTAssertEqual(makeManager().jobs[0].destinationURL.path,
++                       newFolder.appendingPathComponent("Flight.mp4").path)
++    }
++
++    func testReselectingOutputOffersPreviouslyKeptJobsAgain() async {
++        let manager = makeManager()
++        manager.addJob(makeJob(outputName: "Flight.mp4"))
++        let vm = ConversionViewModel(queue: manager)
++        let newFolder = tmpDir.appendingPathComponent("NewOut", isDirectory: true)
++        vm.outputFolderURL = newFolder
++        await vm.acceptOutputFolder(newFolder)
++        XCTAssertTrue(vm.showApplyFolderPrompt)
++    }
++
++    func testOutputSelectionDoesNotPromptForMatchingOrFinishedJobs() async {
++        let manager = makeManager()
++        manager.addJob(makeJob(outputName: "Flight.mp4"))
++        manager.addJob(makeJob(outputName: "Elsewhere/Done.mp4", status: .completed))
++        let vm = ConversionViewModel(queue: manager)
++        await vm.acceptOutputFolder(tmpDir)
++        XCTAssertFalse(vm.showApplyFolderPrompt)
++    }
++
+     func testReassignMovesPendingJobsPreservingStem() throws {
+         let manager = makeManager()
+         manager.addJob(makeJob(outputName: "FlightA.mp4"))
+diff --git a/01_Project/ConjoynTests/ConversionScanTests.swift b/01_Project/ConjoynTests/ConversionScanTests.swift
+new file mode 100644
+index 0000000..e91edf6
+--- /dev/null
++++ b/01_Project/ConjoynTests/ConversionScanTests.swift
+@@ -0,0 +1,182 @@
++import XCTest
++import CoreMedia
++import Combine
++@testable import Conjoyn
++
++/// Drives the same synchronous entry points as the picker/drop and Rescan button. The reader
++/// deliberately ignores cancellation, so only request ownership can make these tests pass.
++@MainActor
++final class ConversionScanTests: XCTestCase {
++    private var directory: URL!
++
++    override func setUpWithError() throws {
++        directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
++        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++    }
++
++    override func tearDownWithError() throws {
++        try FileManager.default.removeItem(at: directory)
++    }
++
++    private func group(_ name: String) -> RecordGroup {
++        RecordGroup(clips: [DJIClip(videoURL: directory.appendingPathComponent(name + ".MP4"),
++                                    index: 1, stem: name,
++                                    duration: CMTime(seconds: 1, preferredTimescale: 600))],
++                    groupIndex: 1)
++    }
++
++    private func discovery(_ groups: [RecordGroup], skipped: [String] = [],
++                           errors: [ClipParseError] = []) -> DJIFolderReader.Discovery {
++        .init(groups: groups, errors: errors, skippedNonDJI: skipped)
++    }
++
++    private func overlap(latestFinishesFirst: Bool, sameSource: Bool) async {
++        let reader = ScanGate<URL, DJIFolderReader.Discovery>()
++        let vm = ConversionViewModel(queue: QueueManager(storageDirectory: directory),
++                                     discover: { await reader.call($0) },
++                                     warmDates: { _, _ in [:] })
++        let a = vm.setSourceFolder(directory.appendingPathComponent("A"))
++        let first = await reader.next()
++        let b: Task<Void, Never>
++        if sameSource {
++            b = vm.scan()!
++        } else {
++            b = vm.setSourceFolder(directory.appendingPathComponent("B"))
++        }
++        let second = await reader.next()
++        XCTAssertEqual(first.input.lastPathComponent, "A")
++        XCTAssertEqual(second.input.lastPathComponent, sameSource ? "A" : "B")
++        let newest = group("new")
++        let staleError = ClipParseError(file: directory.appendingPathComponent("bad.MP4"), message: "stale")
++        if latestFinishesFirst {
++            await reader.finish(second.id, with: discovery([newest]))
++            await b.value
++            let status = vm.statusMessage
++            await reader.finish(first.id, with: discovery([], skipped: ["stale.mov"], errors: [staleError]))
++            await a.value
++            XCTAssertEqual(vm.statusMessage, status)
++        } else {
++            await reader.finish(first.id, with: discovery([group("old")], skipped: ["stale.mov"], errors: [staleError]))
++            await a.value
++            XCTAssertTrue(vm.isScanning)
++            XCTAssertTrue(vm.groups.isEmpty)
++            XCTAssertTrue(vm.selectedGroupIDs.isEmpty)
++            XCTAssertTrue(vm.skippedFiles.isEmpty)
++            XCTAssertTrue(vm.parseErrors.isEmpty)
++            XCTAssertTrue(vm.statusMessage?.hasPrefix("Scanning") == true)
++            await reader.finish(second.id, with: discovery([newest]))
++            await b.value
++        }
++        XCTAssertEqual(vm.groups.map(\.id), [newest.id])
++        XCTAssertEqual(vm.selectedGroupIDs, [newest.id])
++        XCTAssertTrue(vm.skippedFiles.isEmpty)
++        XCTAssertTrue(vm.parseErrors.isEmpty)
++        XCTAssertFalse(vm.isScanning)
++    }
++
++    func testLatestRequestWinsBothCompletionOrders() async {
++        await overlap(latestFinishesFirst: true, sameSource: false)
++        await overlap(latestFinishesFirst: false, sameSource: false)
++    }
++
++    func testSameURLRescanStillInvalidatesPreviousRequest() async {
++        await overlap(latestFinishesFirst: true, sameSource: true)
++        await overlap(latestFinishesFirst: false, sameSource: true)
++    }
++
++    func testSourceSwitchSynchronouslyPreventsEnqueueAndResetsDisplayState() async {
++        let reader = ScanGate<URL, DJIFolderReader.Discovery>()
++        let queue = QueueManager(storageDirectory: directory)
++        let vm = ConversionViewModel(queue: queue, discover: { await reader.call($0) },
++                                     warmDates: { _, _ in [:] })
++        let old = group("old")
++        let a = vm.setSourceFolder(directory)
++        let first = await reader.next()
++        await reader.finish(first.id, with: discovery([old]))
++        await a.value
++        XCTAssertTrue(vm.canAddToQueue)
++        vm.setSearch("old")
++        vm.setSort(.date)
++        vm.setFilter(.splits)
++        let b = vm.setSourceFolder(directory.appendingPathComponent("B"))
++        // No suspension between source selection and enqueue: this was the original race window.
++        XCTAssertFalse(vm.canAddToQueue)
++        XCTAssertTrue(vm.selectedGroupIDs.isEmpty)
++        XCTAssertTrue(vm.groups.isEmpty)
++        XCTAssertEqual(vm.searchText, "")
++        XCTAssertEqual(vm.sortKey, .found)
++        XCTAssertEqual(vm.recordingFilter, .all)
++        vm.toggleSelection(old) // even a delayed row action cannot revive enqueue eligibility
++        vm.addToQueue()
++        XCTAssertTrue(queue.jobs.isEmpty)
++        let second = await reader.next()
++        await reader.finish(second.id, with: discovery([]))
++        await b.value
++    }
++
++    func testOldDatePrewarmCannotSeedNewRequestCacheWithReusedGroupIDs() async {
++        await prewarmOverlap(latestFinishesFirst: false)
++        await prewarmOverlap(latestFinishesFirst: true)
++    }
++
++    private func prewarmOverlap(latestFinishesFirst: Bool) async {
++        let reader = ScanGate<URL, DJIFolderReader.Discovery>()
++        let warmer = ScanGate<[RecordGroup], [UUID: Date?]>()
++        let vm = ConversionViewModel(queue: QueueManager(storageDirectory: directory),
++                                     discover: { await reader.call($0) },
++                                     warmDates: { groups, _ in await warmer.call(groups) })
++        let reused = group("same")
++        let a = vm.setSourceFolder(directory)
++        let first = await reader.next()
++        await reader.finish(first.id, with: discovery([reused]))
++        let warmA = await warmer.next()
++        let b = vm.scan()!
++        let second = await reader.next()
++        await reader.finish(second.id, with: discovery([reused]))
++        let warmB = await warmer.next()
++        let currentDate = Date(timeIntervalSince1970: 2)
++        if latestFinishesFirst {
++            await warmer.finish(warmB.id, with: [reused.id: currentDate])
++            await b.value
++            var publications = 0
++            let observation = vm.objectWillChange.sink { publications += 1 }
++            await warmer.finish(warmA.id, with: [reused.id: Date(timeIntervalSince1970: 1)])
++            await a.value
++            XCTAssertEqual(publications, 0, "Stale prewarm must not publish a date-cache revision")
++            withExtendedLifetime(observation) {}
++        } else {
++            await warmer.finish(warmA.id, with: [reused.id: Date(timeIntervalSince1970: 1)])
++            await a.value
++            await warmer.finish(warmB.id, with: [reused.id: currentDate])
++            await b.value
++        }
++        XCTAssertEqual(vm.resolvedStartDate(for: reused), currentDate)
++    }
++}
++
++/// Continuation rendezvous: call arrival and completion are both explicit, without timing sleeps.
++private actor ScanGate<Input: Sendable, Output: Sendable> {
++    struct Request: Sendable {
++        let id: UUID
++        let input: Input
++    }
++    private var pending: [UUID: CheckedContinuation<Output, Never>] = [:]
++    private var arrivals: [Request] = []
++    private var waiters: [CheckedContinuation<Request, Never>] = []
++
++    func call(_ input: Input) async -> Output {
++        await withCheckedContinuation { continuation in
++            let request = Request(id: UUID(), input: input)
++            pending[request.id] = continuation
++            if waiters.isEmpty { arrivals.append(request) }
++            else { waiters.removeFirst().resume(returning: request) }
++        }
++    }
++    func next() async -> Request {
++        if !arrivals.isEmpty { return arrivals.removeFirst() }
++        return await withCheckedContinuation { waiters.append($0) }
++    }
++    func finish(_ id: UUID, with value: Output) {
++        pending.removeValue(forKey: id)!.resume(returning: value)
++    }
++}
+diff --git a/01_Project/ConjoynTests/RecordingSearchTests.swift b/01_Project/ConjoynTests/RecordingSearchTests.swift
+new file mode 100644
+index 0000000..079e826
+--- /dev/null
++++ b/01_Project/ConjoynTests/RecordingSearchTests.swift
+@@ -0,0 +1,74 @@
++import XCTest
++@testable import Conjoyn
++
++// MARK: - Recordings-list search tests (header search field)
++
++/// Covers the two halves of the header search field:
++///   1. `setSearch(_:)` / `resetSearch()` state — and that search, unlike `setFilter(_:)`, never
++///      touches selection.
++///   2. The pure matching rule — `normalizedQuery(_:)` (whitespace must not narrow the list) and
++///      `matchesSearch(_:title:filenames:)` (case-insensitive, title *or* segment filename).
++/// Both halves are static over plain strings, so no scanned card is needed (mirrors
++/// `RecordingSortTests`).
++@MainActor
++final class RecordingSearchTests: XCTestCase {
++
++    // MARK: State
++
++    func testSetAndResetSearch() {
++        let vm = ConversionViewModel()
++        vm.setSearch("GX01")
++        XCTAssertEqual(vm.searchText, "GX01")
++        vm.resetSearch()
++        XCTAssertEqual(vm.searchText, "")
++    }
++
++    func testSearchDoesNotTouchSelection() {
++        // `setFilter(_:)` auto-selects matching rows; search must not — a transient text filter
++        // silently changing what `addToQueue` will enqueue would be a trap.
++        let vm = ConversionViewModel()
++        let before = vm.selectedGroupIDs
++        vm.setSearch("DJI_0042")
++        XCTAssertEqual(vm.selectedGroupIDs, before)
++        vm.resetSearch()
++        XCTAssertEqual(vm.selectedGroupIDs, before)
++    }
++
++    // MARK: Query normalization
++
++    func testNormalizedQueryTrimsWhitespace() {
++        XCTAssertEqual(ConversionViewModel.normalizedQuery("  GX01 "), "GX01")
++    }
++
++    func testWhitespaceOnlyQueryIsNil() {
++        // A space in the field must not filter the list down to nothing.
++        XCTAssertNil(ConversionViewModel.normalizedQuery(""))
++        XCTAssertNil(ConversionViewModel.normalizedQuery("   "))
++    }
++
++    // MARK: Matching rule
++
++    func testMatchesTitleCaseInsensitively() {
++        XCTAssertTrue(ConversionViewModel.matchesSearch(
++            "gx0163", title: "GX016349 – GX026349", filenames: []))
++        XCTAssertTrue(ConversionViewModel.matchesSearch(
++            "dji_0042", title: "DJI_0042 – DJI_0047", filenames: []))
++    }
++
++    func testMatchesSegmentFilenameWhenTitleDoesNot() {
++        // A 3-chapter split's title shows only first–last stems; the middle chapter (and the file
++        // extension) live only in the filenames.
++        XCTAssertTrue(ConversionViewModel.matchesSearch(
++            "GX026349", title: "GX016349 – GX036349",
++            filenames: ["GX016349.MP4", "GX026349.MP4", "GX036349.MP4"]))
++        XCTAssertTrue(ConversionViewModel.matchesSearch(
++            "gx016349.mp4", title: "GX016349 – GX036349",
++            filenames: ["GX016349.MP4", "GX026349.MP4", "GX036349.MP4"]))
++    }
++
++    func testNoMatchIsFalse() {
++        XCTAssertFalse(ConversionViewModel.matchesSearch(
++            "DJI_0099", title: "DJI_0042 – DJI_0047",
++            filenames: ["DJI_0042.MP4", "DJI_0043.MP4"]))
++    }
++}

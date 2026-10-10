@@ -1,0 +1,34 @@
+[
+  {
+    "path": "Conjoyn-1.0.6.html",
+    "sha256": "0b9bf9c08151ee1df02acd240950b88428a4863d941f464b8c9248f3b65f0ae2"
+  },
+  {
+    "path": "appcast.xml",
+    "sha256": "9899d8410fa319152d0dc3a620affa52dbd65c354ca424941b3c4c5b8b5220ab"
+  },
+  {
+    "path": "changelog.html",
+    "sha256": "50c3b679619320bbe174b8e7dbef9d170f797eae33123516a0364affe122b607"
+  },
+  {
+    "path": "css/conjoyn.css",
+    "sha256": "b661a093f7b636c89dbcd6b9177f6e79d2022151dfa9489732c07782c41007e5"
+  },
+  {
+    "path": "imprint.html",
+    "sha256": "9a30259c07222eb26c7a2c5f30f3001a77daae0eaf46a952c3305595f99a9214"
+  },
+  {
+    "path": "index.html",
+    "sha256": "0215a1a8243271ad8416049166049bd2d1658c6aba12565591c77483b13f6671"
+  },
+  {
+    "path": "js/conjoyn-gallery.js",
+    "sha256": "db72d6545f3906850185c8f3ac052eb544d1c6f60372c06670ca817ae8f68311"
+  },
+  {
+    "path": "support.html",
+    "sha256": "614f9c46d04bcc0b187e11141289f5a24679b6abf67674620dc3cdaf7096848d"
+  }
+]

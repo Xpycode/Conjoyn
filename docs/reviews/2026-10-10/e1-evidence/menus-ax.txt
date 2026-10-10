@@ -1,0 +1,132 @@
+AXRole=AXMenuBarItem | AXTitle=Conjoyn | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=About Conjoyn | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Check for Updates… | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Services | AXEnabled=1 | AXFocused=0
+   AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=File Activity | AXIdentifier=_processRequest: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Services Settings… | AXIdentifier=_configureServicesMenu: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Hide conjoyn | AXIdentifier=hide: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Hide Others | AXIdentifier=hideOtherApplications: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Show All | AXIdentifier=unhideAllApplications: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Quit conjoyn | AXIdentifier=terminate: | AXEnabled=1 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=File | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Choose Source Folder… | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Choose Destination Folder… | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Close | AXIdentifier=performClose: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Close All | AXIdentifier=closeAll: | AXEnabled=1 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=Edit | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Undo | AXIdentifier=undo: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Redo | AXIdentifier=redo: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Cut | AXIdentifier=cut: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Copy | AXIdentifier=copy: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Paste | AXIdentifier=paste: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Delete | AXIdentifier=delete: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Select All | AXIdentifier=selectAll: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Find | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXIdentifier=_NSMenuItemLegacyWritingToolsSeparatorIdentifier | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Writing Tools | AXIdentifier=__NSTextViewContextSubmenuIdentifierWritingTools | AXEnabled=1 | AXFocused=0
+   AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Show Writing Tools | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Proofread | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Rewrite | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Make Friendly | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Make Professional | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Make Concise | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Summarize | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Create Key Points | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Make List | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Make Table | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Compose… | AXIdentifier=showWritingTools: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=AutoFill | AXIdentifier=_NSMenuItemAutoFillIdentifier | AXEnabled=1 | AXFocused=0
+   AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Contact… | AXIdentifier=_handleInsertFromContactsCommand: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Passwords… | AXIdentifier=_handleInsertFromPasswordsCommand: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Credit Card… | AXIdentifier=_handleInsertFromCreditCardsCommand: | AXEnabled=1 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=View | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Enter Full Screen | AXIdentifier=toggleFullScreen: | AXEnabled=1 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=Watch Folder | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Watch Folders… | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=Appearance | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Match System | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Light | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Dark | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=App Icon | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Match System | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Light | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Dark | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=Window | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Minimize | AXIdentifier=performMiniaturize: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Minimize All | AXIdentifier=miniaturizeAll: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Zoom | AXIdentifier=performZoom: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Zoom All | AXIdentifier=zoomAll: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Fill | AXIdentifier=_zoomFill: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Center | AXIdentifier=_zoomCenter: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Move & Resize | AXEnabled=1 | AXFocused=0
+   AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Halves | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Left | AXIdentifier=_zoomLeft: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Right | AXIdentifier=_zoomRight: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Top | AXIdentifier=_zoomTop: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Bottom | AXIdentifier=_zoomBottom: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Quarters | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Top Left | AXIdentifier=_zoomTopLeft: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Top Right | AXIdentifier=_zoomTopRight: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Bottom Left | AXIdentifier=_zoomBottomLeft: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Bottom Right | AXIdentifier=_zoomBottomRight: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Arrange | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Left & Right | AXIdentifier=_zoomLeftAndRight: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Left & Quarters | AXIdentifier=_zoomLeftThreeUp: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Right & Left | AXIdentifier=_zoomRightAndLeft: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Right & Quarters | AXIdentifier=_zoomRightThreeUp: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Top & Bottom | AXIdentifier=_zoomTopAndBottom: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Top & Quarters | AXIdentifier=_zoomTopThreeUp: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Bottom & Top | AXIdentifier=_zoomBottomAndTop: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Bottom & Quarters | AXIdentifier=_zoomBottomThreeUp: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Quarters | AXIdentifier=_zoomQuarters: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Return to Previous Size | AXIdentifier=_zoomUntile: | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Full Screen Tile | AXEnabled=1 | AXFocused=0
+   AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Left of Screen | AXIdentifier=_tileLeft: | AXEnabled=1 | AXFocused=0
+    AXRole=AXMenuItem | AXTitle=Right of Screen | AXIdentifier=_tileRight: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Conjoyn | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Watch Folders | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Bring All to Front | AXIdentifier=arrangeInFront: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Arrange in Front | AXIdentifier=alternateArrangeInFront: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Remove Window from Set | AXIdentifier=_removeWindowFromStageManagerSet: | AXEnabled=0 | AXFocused=0
+AXRole=AXMenuBarItem | AXTitle=Help | AXEnabled=1 | AXFocused=0
+ AXRole=AXMenu | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Send Conjoyn Feedback to Apple | AXIdentifier=_openFeedbackAssistant: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Conjoyn Help | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Send Feedback… | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle= | AXEnabled=0 | AXFocused=0
+  AXRole=AXMenuItem | AXTitle=Leave a Tip | AXIdentifier=menuAction: | AXEnabled=1 | AXFocused=0

@@ -1,0 +1,55 @@
+{
+  "recorded_at": "2026-10-10T19:30:12.553139+02:00",
+  "source_commit": "6f154ecd1da1c1524c3d2f5a94b75f0fcac9bcaa",
+  "branch": "fix/queued-output-reservations",
+  "owned_source_sha256": {
+    "01_Project/Conjoyn/Services/WatchFolderCoordinator.swift": "eb0b5d443bded240ce7657d9e0ad718e88e8f7a7c3969cc6fb202b7c5e572896",
+    "01_Project/Conjoyn/Services/WatchFolderManager.swift": "32b77791b7b9eb738c2c4fbe1621a6d8143283991350316958535564c9e77271",
+    "01_Project/Conjoyn/Views/WatchFoldersPanel.swift": "ec5b40dbdb67026054215e55ef770e7653989efc69b0123385efd656d0aaab3d",
+    "01_Project/ConjoynTests/WatchFolderCoordinatorTests.swift": "69c132ec8218212e853fd9e0a92fc215554606a064d5cbe7663fc4e78627139d",
+    "01_Project/ConjoynTests/WatchFolderManagerTests.swift": "32bd0978935778b9165c511cc094f0b7a75560d1d2c094db696b88f8411b1a16"
+  },
+  "preexisting_dirty_source_sha256_unchanged": {
+    "01_Project/Conjoyn/ConjoynApp.swift": "5cde1a5266273b96f28cffc50b31d1c0427b2eb3cc2fee4604e8e995112651ce",
+    "01_Project/Conjoyn/ContentView.swift": "3882fa6be59d1075d146f31fbe618857632879fcd0f04f5ada8a8a33ab957c95",
+    "01_Project/Conjoyn/ConversionViewModel.swift": "26a8712ebafab1c40ac570c104ccff61b3e7e7228d44b96a7303b961f10c59bd",
+    "01_Project/Conjoyn/Views/DesignControls.swift": "e48954b11d9d3929c04117b8751f16339eb2c0fcd466c7f661e42ce264b048b1",
+    "01_Project/Conjoyn/Views/RecordingsList.swift": "d90084f624f0ceb1ac156e527e320df9b344b1d876dc2745525a8149c4df5242",
+    "01_Project/ConjoynTests/QueueManagerTests.swift": "65b2f6cf3bbe28d12b5a4f6d79d28c787a4d90f9131f0d5e08203af3569a3dd6",
+    "01_Project/ConjoynTests/ConversionScanTests.swift": "188b9bd333436b9a722a7e19ef30f2e50e32f0e25ebcbf563b8a07096d756985",
+    "01_Project/ConjoynTests/RecordingSearchTests.swift": "1d3f4cca7c3d0bba25de35b3abee4c5e3171f3336e4b94387a6e7b4a97205e63"
+  },
+  "tracked_dirty_patch": "01_Project/build/ReleaseBlockers-Wave4-Source.patch",
+  "tracked_dirty_patch_sha256": "0798a11d4f3e647e70bd17c64f9cf0498349ac78359c13309193103db5d2137e",
+  "note": "Untracked source bytes are represented by hashes above; tested artifact includes preserved S1/UI changes outside HEAD. Not release-frozen.",
+  "artifact": "/Users/sim/ProgrammingProjects/1-macOS/Conjoyn/01_Project/build/ReleaseBlockers-App-DD/Build/Products/Debug/Conjoyn.app",
+  "version": "1.0.6",
+  "build": "106",
+  "executable_sha256": "52cfcf2ee53a6196162eced30cabbc83e72587b3161f6d99f24b2d4ca3a9439e",
+  "executable_mtime": "2026-10-10T19:28:00.317208+02:00",
+  "launch_log": "01_Project/build/ReleaseBlockers-Wave4-Launch.log",
+  "tests": {
+    "expanded": {
+      "result_bundle": "01_Project/build/ReleaseBlockers-Wave4-Third.xcresult",
+      "tests": 132,
+      "failures": 0
+    },
+    "fault_mutation": {
+      "result_bundle": "01_Project/build/ReleaseBlockers-Wave4-Negative.xcresult",
+      "tests": 1,
+      "assertion_failures": 2,
+      "source_restored_byte_for_byte": true
+    },
+    "restored": {
+      "result_bundle": "01_Project/build/ReleaseBlockers-Wave4-Restored.xcresult",
+      "tests": 32,
+      "failures": 0
+    }
+  },
+  "limitations": [
+    "No full suite this wave",
+    "No foreground UI/physical-device/signed-artifact acceptance",
+    "Known pre-existing cached membership follow-up tracked for V1",
+    "Pre-existing index orphan 2026-06-11d-stub retained"
+  ]
+}
