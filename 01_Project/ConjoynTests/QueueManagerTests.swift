@@ -1165,6 +1165,112 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "our data")
     }
 
+    /// Reproduces two cards queued before Start, each reusing the same two camera names.
+    /// Enters the real enqueue + queue-processing lifecycle; GUI card selection is covered separately.
+    func testTwoCardsFourQueuedJobsKeepDistinctVideoAndSidecarIdentities() async throws {
+        let resolver = BundledToolResolver.shared
+        guard let ffmpeg = resolver.path(for: .ffmpeg), resolver.path(for: .ffprobe) != nil else {
+            throw XCTSkip("No ffmpeg/ffprobe available")
+        }
+
+        // All tool inputs and outputs are inside this test's disposable namespace. Hash the copied
+        // compressed video packets, excluding container timestamps/timecode and other mux metadata.
+        func runTool(_ arguments: [String]) throws -> String {
+            let process = Process()
+            let stdout = Pipe()
+            let stderr = Pipe()
+            process.executableURL = ffmpeg
+            process.arguments = ["-v", "error", "-nostdin"] + arguments
+            process.standardOutput = stdout
+            process.standardError = stderr
+            try process.run()
+            let output = stdout.fileHandleForReading.readDataToEndOfFile()
+            let errors = stderr.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else {
+                XCTFail("Fixture ffmpeg failed: \(String(decoding: errors, as: UTF8.self))")
+                throw CocoaError(.fileReadUnknown)
+            }
+            return String(decoding: output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        func videoHash(_ url: URL) throws -> String {
+            let hash = try runTool(["-i", url.path, "-map", "0:v:0", "-c:v", "copy",
+                                    "-f", "hash", "-hash", "sha256", "-"])
+            XCTAssertTrue(hash.hasPrefix("SHA256="), "Expected a real video-payload hash")
+            return hash
+        }
+
+        let destination = tmpDir.appendingPathComponent("Joined", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        let manager = makeManager()
+        let stems = ["DJI_20260521175303_0001_D", "DJI_20260521175403_0002_D"]
+        let colors = ["red", "green", "blue", "yellow"]
+        var expected: [UUID: (video: URL, srt: URL, videoBytes: Data, srtBytes: Data,
+                              hash: String, identity: String)] = [:]
+
+        for cardIndex in 0..<2 {
+            let card = tmpDir.appendingPathComponent("Card-\(cardIndex + 1)", isDirectory: true)
+            try FileManager.default.createDirectory(at: card, withIntermediateDirectories: false)
+            for recordingIndex in 0..<2 {
+                let stem = stems[recordingIndex]
+                let color = colors[cardIndex * 2 + recordingIndex]
+                let identity = "card-\(cardIndex + 1)-recording-\(recordingIndex + 1)-\(color)"
+                let video = card.appendingPathComponent(stem).appendingPathExtension("MP4")
+                let srt = card.appendingPathComponent(stem).appendingPathExtension("SRT")
+                _ = try runTool(["-n", "-f", "lavfi", "-i",
+                                 "color=c=\(color):s=160x120:r=30:d=1",
+                                 "-c:v", "mpeg4", "-pix_fmt", "yuv420p", video.path])
+                try "1\n00:00:00,000 --> 00:00:00,500\n\(identity)\n".write(
+                    to: srt, atomically: true, encoding: .utf8)
+                let clip = DJIClip(videoURL: video, srtURL: srt, index: recordingIndex,
+                                   stem: stem, duration: CMTime(seconds: 1, preferredTimescale: 600),
+                                   streamInfo: try FFmpegWrapper().probeStreamInfo(video))
+                let job = ConversionJob(folderName: card.lastPathComponent, sourceFolderURL: card,
+                                        clips: [clip], settings: ConversionSettings(),
+                                        destinationURL: destination.appendingPathComponent(stem).appendingPathExtension("mp4"))
+                expected[job.id] = (video, srt, try Data(contentsOf: video), try Data(contentsOf: srt),
+                                    try videoHash(video), identity)
+                manager.addJob(job)
+            }
+        }
+
+        XCTAssertEqual(manager.jobs.count, 4)
+        XCTAssertTrue(manager.jobs.allSatisfy { $0.status == .pending })
+        XCTAssertEqual(Set(manager.jobs.map { $0.destinationURL.path.lowercased() }).count, 4,
+                       "All four destinations must be reserved before Start")
+        XCTAssertEqual(Set(expected.values.map(\.hash)).count, 4,
+                       "Distinct source payloads are required to detect cross-association")
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: destination.path).isEmpty)
+
+        await manager.processQueue()
+
+        XCTAssertFalse(manager.isProcessing)
+        XCTAssertEqual(manager.jobs.count, 4)
+        XCTAssertEqual(Set(manager.jobs.flatMap(\.actualOutputURLs)).count, 4)
+        for job in manager.jobs {
+            let fixture = try XCTUnwrap(expected[job.id])
+            XCTAssertEqual(job.status, .completed, "\(fixture.identity): \(job.status)")
+            XCTAssertEqual(job.actualOutputURLs, [job.destinationURL])
+            let output = try XCTUnwrap(job.actualOutputURLs.first)
+            XCTAssertEqual(try videoHash(output), fixture.hash, "Wrong video for \(fixture.identity)")
+            let sidecar = output.deletingPathExtension().appendingPathExtension("SRT")
+            let cues = SRTParser.parse(try String(contentsOf: sidecar, encoding: .utf8)).cues
+            XCTAssertEqual(cues.count, 1)
+            XCTAssertTrue(try String(contentsOf: sidecar, encoding: .utf8).contains(fixture.identity),
+                          "Wrong sidecar for \(fixture.identity)")
+            XCTAssertEqual(try Data(contentsOf: fixture.video), fixture.videoBytes, "Source video was changed")
+            XCTAssertEqual(try Data(contentsOf: fixture.srt), fixture.srtBytes, "Source SRT was changed")
+        }
+        // Completed jobs are saved but intentionally omitted from the next launch's active queue.
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let persisted = try decoder.decode([ConversionJob].self,
+                                           from: Data(contentsOf: tmpDir.appendingPathComponent("queue.json")))
+        XCTAssertEqual(persisted.count, 4)
+        XCTAssertTrue(persisted.allSatisfy { $0.status == .completed })
+        XCTAssertEqual(Set(persisted.flatMap(\.actualOutputURLs)), Set(manager.jobs.flatMap(\.actualOutputURLs)))
+    }
+
     // MARK: - Real-media helpers
 
     /// A job whose clips point at real on-disk files (so ffprobe/concat work end-to-end).
