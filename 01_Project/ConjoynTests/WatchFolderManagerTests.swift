@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Conjoyn
 
 // MARK: - Watch Folder Manager Tests (Wave 5D)
@@ -40,6 +41,221 @@ final class WatchFolderManagerTests: XCTestCase {
         managers = []
         for url in tmpDirs { try? FileManager.default.removeItem(at: url) }
         tmpDirs = []
+    }
+
+    @MainActor
+    private final class FakeCoordinator: WatchFolderManagingCoordinator {
+        let status = CurrentValueSubject<WatchFolderCoordinator.Status, Never>(.idle)
+        var managerStatusPublisher: AnyPublisher<WatchFolderCoordinator.Status, Never> {
+            status.eraseToAnyPublisher()
+        }
+        var resolveOutputDestination: () -> WatchFolderEntry.OutputDestination = { .unconfigured }
+        var starts: [URL] = []
+        var stops = 0
+        func enable(rootURL: URL) { starts.append(rootURL); status.send(.watching(settlingCount: 0)) }
+        func disable() { stops += 1; status.send(.idle) }
+    }
+
+    @MainActor
+    private final class RecoveryHarness {
+        var roots: [UUID: URL] = [:]
+        var available: Set<URL> = []
+        var receive: (@MainActor (WatchFolderManager.RootEvent) -> Void)?
+        var tick: (@MainActor () -> Void)?
+        var observerStarts = 0
+        var observerStops = 0
+        var timerStarts = 0
+        var timerStops = 0
+        var interval: TimeInterval?
+        var made: [UUID: [FakeCoordinator]] = [:]
+
+        var dependencies: WatchFolderManager.RecoveryDependencies {
+            .init(resolveRoot: { [self] in roots[$0.id] },
+                  isAvailable: { [self] in available.contains($0) },
+                  observe: { [self] callback in
+                      observerStarts += 1
+                      receive = callback
+                      return AnyCancellable { [weak self] in
+                          MainActor.assumeIsolated {
+                              self?.observerStops += 1
+                              self?.receive = nil
+                          }
+                      }
+                  },
+                  schedule: { [self] seconds, callback in
+                      interval = seconds
+                      timerStarts += 1
+                      tick = callback
+                      return AnyCancellable { [weak self] in
+                          MainActor.assumeIsolated {
+                              self?.timerStops += 1
+                              self?.tick = nil
+                          }
+                      }
+                  })
+        }
+        func make(_ entry: WatchFolderEntry, _ root: URL) -> any WatchFolderManagingCoordinator {
+            let coordinator = FakeCoordinator()
+            made[entry.id, default: []].append(coordinator)
+            return coordinator
+        }
+    }
+
+    private func recoveryManager(_ entries: [WatchFolderEntry], _ harness: RecoveryHarness,
+                                 retain: Bool = true) throws -> (WatchFolderManager, UserDefaults) {
+        let defaults = UserDefaults(suiteName: "test.recovery.\(UUID().uuidString)")!
+        defaults.set(try JSONEncoder().encode(entries), forKey: "watchFolder.entries.test")
+        let manager = WatchFolderManager(queue: QueueManager(storageDirectory: freshTmpDir()),
+                                        defaults: defaults, storeKey: "watchFolder.entries.test",
+                                        baseStorageDirectory: freshTmpDir(), recovery: harness.dependencies,
+                                        coordinatorFactory: harness.make)
+        if retain { managers.append(manager) }
+        return (manager, defaults)
+    }
+
+    func testAbsentAtLaunchRecoversOnceFromClockAndMountWithoutRestartingHealthyRoot() throws {
+        let offline = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/Volumes/Card/DCIM")
+        let healthy = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/healthy")
+        let harness = RecoveryHarness()
+        let healthyURL = URL(fileURLWithPath: healthy.rootPath)
+        harness.roots[healthy.id] = healthyURL
+        harness.available.insert(healthyURL)
+        let (manager, defaults) = try recoveryManager([offline, healthy], harness)
+        manager.resumeAll()
+        XCTAssertEqual(manager.unavailableEntryIDs, [offline.id])
+        XCTAssertNil(harness.made[offline.id])
+        XCTAssertEqual(harness.made[healthy.id]?.count, 1)
+        XCTAssertEqual(harness.interval, 5)
+        for _ in 0..<20 { harness.tick?() }
+        XCTAssertNil(harness.made[offline.id])
+        let recovered = URL(fileURLWithPath: "/Volumes/Card 1/DCIM")
+        harness.roots[offline.id] = recovered
+        harness.available.insert(recovered)
+        harness.tick?()
+        harness.receive?(.mounted)
+        manager.resumeAll()
+        XCTAssertEqual(harness.made[offline.id]?.count, 1)
+        XCTAssertEqual(harness.made[offline.id]?.first?.starts, [recovered])
+        XCTAssertEqual(harness.made[healthy.id]?.count, 1)
+        XCTAssertEqual(harness.made[healthy.id]?.first?.stops, 0)
+        XCTAssertTrue(manager.unavailableEntryIDs.isEmpty)
+        XCTAssertEqual(manager.entries.first?.rootPath, recovered.path)
+        XCTAssertEqual(WatchFolderManager.loadEntries(from: defaults, key: "watchFolder.entries.test").first?.rootPath,
+                       recovered.path)
+        XCTAssertEqual(harness.observerStarts, 1)
+        XCTAssertEqual(harness.timerStarts, 1)
+    }
+
+    func testUnmountStopsImmediatelyAndChangedBookmarkPathRecoversPreservingOutputIntent() throws {
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/Volumes/Card/DCIM",
+                                    outputBookmark: Data([1]), outputPath: "/Volumes/Output")
+        let healthy = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/healthy")
+        let harness = RecoveryHarness()
+        let oldRoot = URL(fileURLWithPath: entry.rootPath)
+        let healthyRoot = URL(fileURLWithPath: healthy.rootPath)
+        harness.roots = [entry.id: oldRoot, healthy.id: healthyRoot]
+        harness.available = [oldRoot, healthyRoot]
+        let (manager, _) = try recoveryManager([entry, healthy], harness)
+        manager.resumeAll()
+        let old = try XCTUnwrap(harness.made[entry.id]?.first)
+        // Availability deliberately lags behind the unmount notification.
+        harness.receive?(.unmounted(URL(fileURLWithPath: "/Volumes/Card")))
+        XCTAssertEqual(old.stops, 1)
+        XCTAssertEqual(manager.unavailableEntryIDs, [entry.id])
+        XCTAssertEqual(harness.made[healthy.id]?.first?.stops, 0)
+        old.status.send(.queued(count: 8))
+        XCTAssertEqual(manager.statuses[entry.id], .idle, "retired coordinator cannot publish status")
+        // A same-name path exists, but the bookmark cannot resolve the original volume.
+        harness.roots[entry.id] = nil
+        harness.receive?(.mounted)
+        harness.tick?()
+        XCTAssertEqual(harness.made[entry.id]?.count, 1)
+        let moved = URL(fileURLWithPath: "/Volumes/Card 1/DCIM")
+        harness.roots[entry.id] = moved
+        harness.available.insert(moved)
+        harness.receive?(.mounted)
+        harness.tick?()
+        XCTAssertEqual(harness.made[entry.id]?.count, 2)
+        XCTAssertEqual(harness.made[entry.id]?.last?.starts, [moved])
+        XCTAssertEqual(harness.made[entry.id]?.last?.resolveOutputDestination(), .unavailable)
+        XCTAssertEqual(manager.entries.first?.outputBookmark, entry.outputBookmark)
+        XCTAssertEqual(manager.entries.first?.outputPath, entry.outputPath)
+        XCTAssertEqual(harness.made[healthy.id]?.count, 1)
+    }
+
+    func testPollingReplacesActiveRootWhenBookmarkMovesWithoutUnmount() throws {
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/Volumes/Card/DCIM")
+        let harness = RecoveryHarness()
+        let original = URL(fileURLWithPath: entry.rootPath)
+        let moved = URL(fileURLWithPath: "/Volumes/Card 1/DCIM")
+        harness.roots[entry.id] = original
+        harness.available = [original, moved]
+        let (manager, _) = try recoveryManager([entry], harness)
+        manager.resumeAll()
+        let retired = try XCTUnwrap(harness.made[entry.id]?.first)
+
+        // The old path remains reachable; bookmark identity, not path availability, owns recovery.
+        harness.roots[entry.id] = moved
+        harness.tick?()
+        XCTAssertEqual(retired.stops, 1)
+        XCTAssertEqual(harness.made[entry.id]?.count, 2)
+        XCTAssertEqual(harness.made[entry.id]?.last?.starts, [moved])
+        XCTAssertEqual(manager.entries.first?.rootPath, moved.path)
+        XCTAssertTrue(manager.unavailableEntryIDs.isEmpty)
+        retired.status.send(.queued(count: 7))
+        XCTAssertEqual(manager.statuses[entry.id], .watching(settlingCount: 0))
+        harness.tick?()
+        harness.receive?(.mounted)
+        XCTAssertEqual(harness.made[entry.id]?.count, 2)
+        XCTAssertEqual(harness.made[entry.id]?.last?.stops, 0)
+    }
+
+    func testPollingDetectsLostAvailabilityAndDisabledRemovedEntriesNeverRecover() throws {
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/watched")
+        let harness = RecoveryHarness()
+        let root = URL(fileURLWithPath: entry.rootPath)
+        harness.roots[entry.id] = root
+        harness.available = [root]
+        let (manager, _) = try recoveryManager([entry], harness)
+        manager.resumeAll()
+        harness.available = []
+        harness.tick?()
+        XCTAssertEqual(harness.made[entry.id]?.first?.stops, 1)
+        XCTAssertEqual(manager.unavailableEntryIDs, [entry.id])
+        let staleEvent = harness.receive
+        let staleTick = harness.tick
+        manager.setEnabled(entry.id, false)
+        harness.available = [root]
+        staleEvent?(.mounted)
+        staleTick?()
+        XCTAssertEqual(harness.made[entry.id]?.count, 1)
+        XCTAssertEqual(harness.observerStops, 1)
+        XCTAssertEqual(harness.timerStops, 1)
+        manager.setEnabled(entry.id, true)
+        XCTAssertEqual(harness.made[entry.id]?.count, 2)
+        manager.remove(entry.id)
+        staleEvent?(.mounted)
+        staleTick?()
+        XCTAssertEqual(harness.made[entry.id]?.count, 2)
+        XCTAssertEqual(harness.observerStops, 2)
+        XCTAssertEqual(harness.timerStops, 2)
+        XCTAssertNil(manager.statuses[entry.id])
+        XCTAssertTrue(manager.unavailableEntryIDs.isEmpty)
+    }
+
+    func testRecoveryObserverAndTimerReleaseWhenManagerDeallocates() throws {
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/offline")
+        let harness = RecoveryHarness()
+        var manager: WatchFolderManager? = try recoveryManager([entry], harness, retain: false).0
+        weak var released = manager
+        manager?.resumeAll()
+        XCTAssertEqual(harness.observerStarts, 1)
+        manager = nil
+        XCTAssertNil(released)
+        XCTAssertEqual(harness.observerStops, 1)
+        XCTAssertEqual(harness.timerStops, 1)
+        XCTAssertNil(harness.receive)
+        XCTAssertNil(harness.tick)
     }
 
     // MARK: - pathsOverlap (the mechanical helper behind the policy)

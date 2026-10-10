@@ -1,5 +1,18 @@
 import Foundation
 import Combine
+import AppKit
+
+@MainActor
+protocol WatchFolderManagingCoordinator: AnyObject {
+    var managerStatusPublisher: AnyPublisher<WatchFolderCoordinator.Status, Never> { get }
+    var resolveOutputDestination: () -> WatchFolderEntry.OutputDestination { get set }
+    func enable(rootURL: URL)
+    func disable()
+}
+
+extension WatchFolderCoordinator: WatchFolderManagingCoordinator {
+    var managerStatusPublisher: AnyPublisher<Status, Never> { $status.eraseToAnyPublisher() }
+}
 
 // MARK: - Watch Folder Manager (Wave 5D)
 
@@ -34,7 +47,50 @@ final class WatchFolderManager: ObservableObject {
 
     // MARK: - Running coordinators
 
-    private var coordinators: [UUID: WatchFolderCoordinator] = [:]
+    private var coordinators: [UUID: any WatchFolderManagingCoordinator] = [:]
+    private var activeRoots: [UUID: URL] = [:]
+    @Published private(set) var unavailableEntryIDs: Set<UUID> = []
+
+    enum RootEvent {
+        case mounted
+        case unmounted(URL)
+    }
+
+    struct RecoveryDependencies {
+        var resolveRoot: (WatchFolderEntry) -> URL? = { $0.resolvedRootURL }
+        var isAvailable: (URL) -> Bool = { url in
+            var directory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory)
+                && directory.boolValue && FileManager.default.isReadableFile(atPath: url.path)
+                && FileManager.default.isExecutableFile(atPath: url.path)
+        }
+        var observe: (@escaping @MainActor (RootEvent) -> Void) -> AnyCancellable = { receive in
+            let center = NSWorkspace.shared.notificationCenter
+            let mount = center.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { receive(.mounted) }
+            }
+            let unmount = center.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { note in
+                guard let url = note.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+                MainActor.assumeIsolated { receive(.unmounted(url)) }
+            }
+            return AnyCancellable {
+                center.removeObserver(mount)
+                center.removeObserver(unmount)
+            }
+        }
+        // One fixed cadence, never one retry timer per event or per unavailable root.
+        var schedule: (TimeInterval, @escaping @MainActor () -> Void) -> AnyCancellable = { interval, tick in
+            let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+                MainActor.assumeIsolated { tick() }
+            }
+            return AnyCancellable { timer.invalidate() }
+        }
+    }
+
+    private let recovery: RecoveryDependencies
+    private let coordinatorFactory: ((WatchFolderEntry, URL) -> any WatchFolderManagingCoordinator)?
+    private var recoveryObservation: AnyCancellable?
+    private var recoveryTimer: AnyCancellable?
     private var statusSinks: [UUID: AnyCancellable] = [:]
 
     // MARK: - Dependencies / persistence
@@ -53,8 +109,12 @@ final class WatchFolderManager: ObservableObject {
         queue: QueueManager = .shared,
         defaults: UserDefaults = .standard,
         storeKey: String = "watchFolder.entries",
-        baseStorageDirectory: URL? = nil
+        baseStorageDirectory: URL? = nil,
+        recovery: RecoveryDependencies = RecoveryDependencies(),
+        coordinatorFactory: ((WatchFolderEntry, URL) -> any WatchFolderManagingCoordinator)? = nil
     ) {
+        self.recovery = recovery
+        self.coordinatorFactory = coordinatorFactory
         self.queue = queue
         self.defaults = defaults
         self.storeKey = storeKey
@@ -70,9 +130,47 @@ final class WatchFolderManager: ObservableObject {
     /// currently reachable. Idempotency on relaunch is handled by each entry's persisted ledger
     /// (a previously-joined group is never re-enqueued) — see `WatchFolderCoordinator`.
     func resumeAll() {
-        for entry in entries where entry.enabled {
-            activate(entry)
+        updateRecoveryObservation()
+        reconcileRoots()
+    }
+
+    private func updateRecoveryObservation() {
+        guard entries.contains(where: { $0.enabled }) else {
+            recoveryObservation = nil
+            recoveryTimer = nil
+            return
         }
+        guard recoveryObservation == nil else { return }
+        recoveryObservation = recovery.observe { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .mounted: self.reconcileRoots()
+            case .unmounted(let volume):
+                // Invalidate immediately, even if filesystem availability still reports the old
+                // path during notification delivery. Recovery waits for mount or the next tick.
+                for (id, root) in self.activeRoots where Self.pathsOverlap(volume, root) {
+                    self.markUnavailable(id)
+                }
+            }
+        }
+        recoveryTimer = recovery.schedule(5) { [weak self] in self?.reconcileRoots() }
+    }
+
+    private func reconcileRoots() {
+        for entry in entries where entry.enabled {
+            guard let root = recovery.resolveRoot(entry), recovery.isAvailable(root) else {
+                markUnavailable(entry.id)
+                continue
+            }
+            if activeRoots[entry.id] == root, coordinators[entry.id] != nil { continue }
+            deactivate(entry.id)
+            activate(entry, resolvedRoot: root)
+        }
+    }
+
+    private func markUnavailable(_ id: UUID) {
+        unavailableEntryIDs.insert(id)
+        deactivate(id)
     }
 
     // MARK: - Add / remove
@@ -97,6 +195,7 @@ final class WatchFolderManager: ObservableObject {
         entries.append(entry)
         statuses[entry.id] = .idle
         save()
+        updateRecoveryObservation()
         activate(entry)
         return .added(entry)
     }
@@ -107,6 +206,8 @@ final class WatchFolderManager: ObservableObject {
         deactivate(id)
         entries.removeAll { $0.id == id }
         statuses[id] = nil
+        unavailableEntryIDs.remove(id)
+        updateRecoveryObservation()
         WatchFolderBookmark(defaults: defaults, key: Self.bookmarkKey(id)).clear()
         if let dir = entryStorageDirectory(id) {
             try? FileManager.default.removeItem(at: dir)
@@ -121,7 +222,11 @@ final class WatchFolderManager: ObservableObject {
         guard let idx = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[idx].enabled = on
         save()
-        if on { activate(entries[idx]) } else { deactivate(id) }
+        updateRecoveryObservation()
+        if on { activate(entries[idx]) } else {
+            deactivate(id)
+            unavailableEntryIDs.remove(id)
+        }
     }
 
     /// Sets (or clears, with `nil`) the dedicated output folder. Live-updates a running coordinator
@@ -154,31 +259,38 @@ final class WatchFolderManager: ObservableObject {
 
     // MARK: - Coordinator orchestration
 
-    /// Builds + starts a coordinator for `entry` (if enabled and its volume is reachable) and wires
-    /// its status into `statuses[id]`. No-op when the root can't resolve (e.g. SD card not inserted)
-    /// — the entry stays enabled and will start on the next `resumeAll()` once the volume is back.
-    private func activate(_ entry: WatchFolderEntry) {
-        guard entry.enabled else { return }
-        deactivate(entry.id) // idempotent: drop any prior coordinator first
-        guard let rootURL = entry.resolvedRootURL else {
-            statuses[entry.id] = .idle
+    /// Resolve the saved bookmark, never the last-known display path, before starting.
+    private func activate(_ entry: WatchFolderEntry, resolvedRoot: URL? = nil) {
+        guard entry.enabled, coordinators[entry.id] == nil else { return }
+        guard let rootURL = resolvedRoot ?? recovery.resolveRoot(entry), recovery.isAvailable(rootURL) else {
+            markUnavailable(entry.id)
             return
         }
-        let coordinator = makeCoordinator(for: entry, rootURL: rootURL)
+        if let index = entries.firstIndex(where: { $0.id == entry.id }), entries[index].rootPath != rootURL.path {
+            entries[index].rootPath = rootURL.path
+            save()
+        }
+        unavailableEntryIDs.remove(entry.id)
+        let coordinator = coordinatorFactory?(entry, rootURL) ?? makeCoordinator(for: entry, rootURL: rootURL)
+        coordinator.resolveOutputDestination = { entry.outputDestination }
         // Mirror the coordinator's @Published status into our per-id map. The publisher emits on
         // the main actor (status is only mutated there), so assumeIsolated is sound.
-        statusSinks[entry.id] = coordinator.$status.sink { [weak self] status in
+        statusSinks[entry.id] = coordinator.managerStatusPublisher.sink { [weak self] status in
             MainActor.assumeIsolated { self?.statuses[entry.id] = status }
         }
+        activeRoots[entry.id] = rootURL
         coordinators[entry.id] = coordinator
         coordinator.enable(rootURL: rootURL)
     }
 
     /// Stops + releases the coordinator for `id` (if any) and resets its status to idle.
     private func deactivate(_ id: UUID) {
+        // Drop publication ownership before stopping the old coordinator. W4 additionally
+        // fences all asynchronous discovery/admission writes inside that coordinator.
+        statusSinks[id] = nil
+        activeRoots[id] = nil
         coordinators[id]?.disable()
         coordinators[id] = nil
-        statusSinks[id] = nil
         if entries.contains(where: { $0.id == id }) { statuses[id] = .idle }
     }
 
