@@ -20,6 +20,27 @@ import CoreMedia
 /// `CMTime` duration and embedded `creation_time`, plus a best-effort ffprobe pass for the
 /// copy-relevant stream parameters (codec/res/fps/…). A failed stream probe is non-fatal — the
 /// clip still joins and the pre-join parameter guard (task 2.6) runs at join time regardless.
+/// Session-only freshness evidence; never encoded into durable recording identity.
+struct WatchFileGeneration: Equatable, Sendable {
+    let sample: FileStabilityGate.Sample
+    let identifier: String?
+    static func read(_ url: URL) -> WatchFileGeneration? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (attrs[.size] as? NSNumber)?.int64Value,
+              let modified = attrs[.modificationDate] as? Date else { return nil }
+        let device = (attrs[.systemNumber] as? NSNumber)?.stringValue
+        let inode = (attrs[.systemFileNumber] as? NSNumber)?.stringValue
+        return WatchFileGeneration(sample: .init(size: size, modified: modified),
+            identifier: device.flatMap { d in inode.map { d + ":" + $0 } })
+    }
+}
+
+struct WatchDiscovery: Sendable {
+    var groups: [RecordGroup]
+    var generations: [String: WatchFileGeneration]
+    var retryPaths: [URL] = []
+}
+
 enum DJIFolderReader {
 
     /// The outcome of scanning one folder.
@@ -30,6 +51,8 @@ enum DJIFolderReader {
         var errors: [ClipParseError]
         /// Plausible-media filenames (`.mp4`/`.mov`/`.srt`/`.lrf`) that didn't match a DJI scheme.
         var skippedNonDJI: [String]
+        var metadataGenerations: [String: WatchFileGeneration] = [:]
+        var retryPaths: [URL] = []
 
         /// Total segments across all groups.
         var clipCount: Int { groups.reduce(0) { $0 + $1.clipCount } }
@@ -47,7 +70,14 @@ enum DJIFolderReader {
     ///   - folder: The dropped/chosen folder — a media folder (`…/DCIM/100MEDIA`), a `DCIM`, or a
     ///     card root.
     ///   - ffmpeg: Wrapper used for the ffprobe stream-parameter pass.
-    static func read(folder: URL, using ffmpeg: FFmpegWrapper) async -> Discovery {
+    struct ProbedMetadata: Sendable {
+        let duration: CMTime
+        let creationDate: Date?
+        let streamInfo: StreamParameterGuard.SegmentStreamInfo?
+    }
+
+    static func read(folder: URL, using ffmpeg: FFmpegWrapper,
+                     metadataProbe: (@Sendable (URL) async throws -> ProbedMetadata)? = nil) async -> Discovery {
         let fm = FileManager.default
         // Pool contents across every media folder the descent resolves (usually just `folder`).
         let contents = resolveMediaFolders(startingAt: folder).flatMap { dir in
@@ -83,47 +113,47 @@ enum DJIFolderReader {
         }
 
         var clips: [DJIClip] = []
+        var generations: [String: WatchFileGeneration] = [:]
+        var retryPaths: [URL] = []
         var errors: [ClipParseError] = []
 
         for (url, parsed) in videoFiles {
             let key = parsed.stem.lowercased()
-            let asset = AVURLAsset(url: url)
-
-            // Duration is mandatory — without it the clip can't be ordered, estimated, or joined.
-            let duration: CMTime
+            let before = WatchFileGeneration.read(url)
+            let metadata: ProbedMetadata
             do {
-                duration = try await asset.load(.duration)
+                if let metadataProbe { metadata = try await metadataProbe(url) }
+                else { metadata = try await probeMetadata(url, using: ffmpeg) }
             } catch {
                 errors.append(ClipParseError(file: url, error: error))
+                if before != WatchFileGeneration.read(url) { retryPaths.append(url) }
                 continue
             }
-            guard duration.isNumeric, CMTimeGetSeconds(duration) > 0 else {
+            guard metadata.duration.isNumeric, CMTimeGetSeconds(metadata.duration) > 0 else {
                 errors.append(ClipParseError(file: url, message: "Could not read a valid duration"))
+                if before != WatchFileGeneration.read(url) { retryPaths.append(url) }
                 continue
             }
 
-            // Embedded creation_time — best effort (a continuity signal, not required for the join).
-            var creationDate: Date?
-            if let item = try? await asset.load(.creationDate) {
-                creationDate = try? await item.load(.dateValue)
+            guard let before, before == WatchFileGeneration.read(url) else {
+                errors.append(ClipParseError(file: url, message: "File changed while reading metadata"))
+                retryPaths.append(url)
+                continue
             }
-
-            // Copy-relevant stream parameters — best effort; the param guard re-probes at join time.
-            let streamInfo = try? await probeStream(url, using: ffmpeg)
-
+            generations[url.path] = before
             clips.append(DJIClip.from(
                 parsed: parsed,
                 videoURL: url,
                 srtURL: srtByStem[key],
                 lrfURL: lrfByStem[key],
-                duration: duration,
-                creationDate: creationDate,
+                duration: metadata.duration,
+                creationDate: metadata.creationDate,
                 cameraModel: nil,
-                streamInfo: streamInfo
+                streamInfo: metadata.streamInfo
             ))
         }
 
-        return Discovery(groups: group(clips), errors: errors, skippedNonDJI: skipped)
+        return Discovery(groups: group(clips, observedSizes: generations.mapValues { $0.sample.size }), errors: errors, skippedNonDJI: skipped, metadataGenerations: generations, retryPaths: retryPaths)
     }
 
     // MARK: - Grouping (metadata-continuity, task 2.4)
@@ -361,9 +391,9 @@ enum DJIFolderReader {
     }
 
     /// Groups `clips` into continuous recordings (one `RecordGroup` per recording). Adapter over
-    /// `groupMetas`: reads each clip's on-disk size for the split-cap signal, then maps runs back to
+    /// `groupMetas`: uses captured probe sizes when supplied (otherwise reads current file sizes), then maps runs back to
     /// `RecordGroup`s in chronological order.
-    static func group(_ clips: [DJIClip]) -> [RecordGroup] {
+    static func group(_ clips: [DJIClip], observedSizes: [String: Int64]? = nil) -> [RecordGroup] {
         guard !clips.isEmpty else { return [] }
 
         let byId = Dictionary(uniqueKeysWithValues: clips.map { ($0.id, $0) })
@@ -373,7 +403,7 @@ enum DJIFolderReader {
                 variantSuffix: c.variantSuffix,
                 creationDate: c.creationDate,
                 containerSeconds: c.durationInSeconds,
-                sizeBytes: c.totalFileSize,
+                sizeBytes: observedSizes.map { $0[c.videoURL.path] ?? 0 } ?? c.totalFileSize,
                 streamInfo: c.streamInfo,
                 index: c.index,
                 stem: c.stem,
@@ -493,6 +523,17 @@ enum DJIFolderReader {
 
     private static func isDirectory(_ url: URL) -> Bool {
         (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    }
+
+    private static func probeMetadata(_ url: URL, using ffmpeg: FFmpegWrapper) async throws -> ProbedMetadata {
+        let asset = AVURLAsset(url: url)
+        let duration = try await asset.load(.duration)
+        var creationDate: Date?
+        if let item = try? await asset.load(.creationDate) {
+            creationDate = try? await item.load(.dateValue)
+        }
+        let streamInfo = try? await probeStream(url, using: ffmpeg)
+        return ProbedMetadata(duration: duration, creationDate: creationDate, streamInfo: streamInfo)
     }
 
     // MARK: - Helpers

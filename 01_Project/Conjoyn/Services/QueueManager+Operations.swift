@@ -13,7 +13,8 @@ extension QueueManager {
     /// - Parameters:
     ///   - job: The conversion job to add.
     ///   - autoStart: If true, immediately starts processing (for a "Join Now" button).
-    func addJob(_ job: ConversionJob, autoStart: Bool = false) {
+    @discardableResult
+    func addJob(_ job: ConversionJob, autoStart: Bool = false) -> Bool {
         var finalJob = job
 
         // Pending jobs reserve names even before their files exist. This synchronous MainActor
@@ -34,13 +35,14 @@ extension QueueManager {
 
         jobs.append(finalJob)
         log("Added job: \(finalJob.displayName)")
-        saveQueue()
+        let persisted = saveQueue()
 
         if autoStart && !isProcessing {
             Task {
                 await processQueue()
             }
         }
+        return persisted
     }
 
     /// Creates and adds a job from parameters with security-scoped bookmarks for queue persistence.
@@ -106,6 +108,9 @@ extension QueueManager {
 
         switch jobs[index].status {
         case .failed, .cancelled: break
+        case .pending where jobs[index].watchAdmissionRequiresStart == true:
+            releaseWatchHolds(jobID: jobId)
+            return
         default: return
         }
 
@@ -116,6 +121,7 @@ extension QueueManager {
             includingSidecar: jobs[index].clips.contains { $0.srtURL != nil },
             excludingPlannedJobID: jobId)
         jobs[index].status = .pending
+        if jobs[index].watchAdmissionPending != true { jobs[index].watchAdmissionRequiresStart = nil }
         jobs[index].progress = 0
         log("Retrying job: \(jobs[index].displayName)")
         saveQueue()
@@ -168,7 +174,8 @@ extension QueueManager {
     }
 
     /// Starts processing the queue (manual trigger).
-    func startQueue() {
+    func startQueue(automatic: Bool = false) {
+        if !automatic { releaseWatchHolds() }
         guard !isProcessing, hasPendingJobs else { return }
         Task {
             await processQueue()
@@ -181,5 +188,58 @@ extension QueueManager {
     func updateTimecodeOverride(for jobID: UUID, timecode: String?) {
         guard let idx = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         jobs[idx].timecodeStringOverride = timecode
+    }
+}
+
+// All admission writes are synchronous on MainActor. There is no suspended retry that can
+// survive Cancel/Remove/Clear: recovery obtains and rechecks the current job on every attempt.
+extension QueueManager {
+    func holdWatchAdmissions(entryID: UUID) {
+        var changed = false
+        for index in jobs.indices where jobs[index].watchIdentitySnapshot?.watchEntryID == entryID
+            && jobs[index].watchAdmissionPending == true && jobs[index].status != .cancelled {
+            jobs[index].watchAdmissionRequiresStart = true
+            changed = true
+        }
+        if changed { saveQueue() }
+    }
+
+    func releaseWatchHolds(jobID: UUID? = nil) {
+        let held = jobs.filter { (jobID == nil || $0.id == jobID)
+            && $0.status == .pending && $0.watchAdmissionPending != true
+            && $0.watchAdmissionRequiresStart == true }.map(\.id)
+        for id in held { updateJob(id) { $0.watchAdmissionRequiresStart = nil } }
+        if !held.isEmpty && !saveQueue() {
+            for id in held { updateJob(id) { $0.watchAdmissionRequiresStart = true } }
+        }
+    }
+
+    /// Queue first, ledger second, runnable marker last. A failed final save restores the
+    /// in-memory gate; restart retries the idempotent ledger commit from its saved pending marker.
+    @discardableResult
+    func recoverWatchAdmission(_ id: UUID,
+        commit: (WatchIdentitySnapshot) throws -> Void) -> Bool {
+        guard let job = jobs.first(where: { $0.id == id }), job.watchAdmissionPending == true,
+              job.status == .pending, let snapshot = job.watchIdentitySnapshot else { return false }
+        guard saveQueue() else {
+            updateJob(id) { $0.watchAdmissionError = "Queue save failed. Admission is waiting for storage recovery." }
+            return false
+        }
+        guard jobs.contains(where: { $0.id == id && $0.status == .pending && $0.watchAdmissionPending == true }) else { return false }
+        do { try commit(snapshot) }
+        catch {
+            updateJob(id) { $0.watchAdmissionError = "History save failed. Admission is waiting for storage recovery: \(error.localizedDescription)" }
+            return false
+        }
+        guard let index = jobs.firstIndex(where: { $0.id == id && $0.status == .pending
+            && $0.watchAdmissionPending == true }) else { return false }
+        jobs[index].watchAdmissionPending = nil
+        jobs[index].watchAdmissionError = nil
+        guard saveQueue() else {
+            jobs[index].watchAdmissionPending = true
+            jobs[index].watchAdmissionError = "History saved; queue confirmation is waiting for storage recovery."
+            return false
+        }
+        return true
     }
 }

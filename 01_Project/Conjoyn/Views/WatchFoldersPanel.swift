@@ -99,6 +99,7 @@ private struct WatchFolderRow: View {
     let entry: WatchFolderEntry
     @EnvironmentObject private var manager: WatchFolderManager
     @State private var showingSettings = false
+    @State private var showingReview = false
 
     private var status: WatchFolderCoordinator.Status {
         manager.statuses[entry.id] ?? .idle
@@ -162,6 +163,13 @@ private struct WatchFolderRow: View {
                 guard let url = WatchFoldersPanel.chooseDirectory(prompt: "Output") else { return }
                 manager.setOutputFolder(entry.id, url: url)
             }
+            if let records = manager.reviews[entry.id], !records.isEmpty {
+                HStack {
+                    Text("\(records.count) recording(s) need history review")
+                        .font(.system(size: 11)).foregroundStyle(Theme.acc1)
+                    WatchReviewButton(title: "Review…") { showingReview = true }
+                }
+            }
             if status == .historyUnavailable {
                 Text("Processing history could not be read or saved. Automatic additions are paused. Check access to app storage; any jobs already added remain in the queue.")
                     .font(.system(size: 11))
@@ -177,6 +185,32 @@ private struct WatchFolderRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .opacity(entry.enabled ? 1 : 0.6)
+        .sheet(isPresented: $showingReview) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Review recording history").font(.headline)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(manager.reviews[entry.id] ?? []) { record in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(record.group.clips.first?.displayName ?? "Recording").font(.headline)
+                                Text("\(record.group.clips.count) clips · " + (record.group.clips.first?.creationDate?.formatted() ?? "Capture date unavailable"))
+                                Text(record.reason).font(.caption).foregroundStyle(Theme.txt2)
+                                HStack {
+                                    WatchReviewButton(title: "Already processed") {
+                                        manager.resolveReview(entryID: entry.id, recordingID: record.id, as: .alreadyProcessed)
+                                    }
+                                    WatchReviewButton(title: "Process once") {
+                                        manager.resolveReview(entryID: entry.id, recordingID: record.id, as: .processOnce)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                WatchReviewButton(title: "Cancel") { showingReview = false }
+            }
+            .padding(20).frame(width: 490, height: 360)
+        }
     }
 }
 
@@ -284,5 +318,31 @@ private struct WatchFolderSettingsForm: View {
                 .monospacedDigit()
                 .foregroundStyle(Theme.txt2)
         }
+    }
+}
+
+/// New review actions use native AppKit controls, matching the macOS project convention.
+private struct WatchReviewButton: NSViewRepresentable {
+    let title: String
+    let action: () -> Void
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: title, target: context.coordinator, action: #selector(Coordinator.clicked))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        return button
+    }
+    func updateNSView(_ button: NSButton, context: Context) {
+        button.title = title
+        context.coordinator.action = action
+    }
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {
+        nsView.intrinsicContentSize
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(action) }
+    @MainActor
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(_ action: @escaping () -> Void) { self.action = action }
+        @objc func clicked() { action() }
     }
 }

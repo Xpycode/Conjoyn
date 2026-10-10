@@ -33,6 +33,65 @@ final class WatchFolderCoordinator: ObservableObject {
     }
 
     @Published private(set) var status: Status = .idle
+    struct ReviewRecord: Identifiable {
+        let descriptor: WatchRecordingDescriptor
+        let group: RecordGroup
+        let generations: [String: WatchFileGeneration]
+        let reason: String
+        var id: String { descriptor.identity.ledgerKey }
+    }
+    @Published private(set) var reviewRecords: [ReviewRecord] = []
+    private let persistSettings: (WatchFolderSettings) -> Void
+    private let watchEntryID: UUID
+    private let ledgerNamespace: String
+    private let discoverBound: (@Sendable (URL) async -> WatchDiscovery)?
+    private let fileIdentifier: @Sendable (URL) -> String?
+    private var metadataGenerations: [String: WatchFileGeneration] = [:]
+    private var rejectedProbePaths: [URL] = []
+    private var rejectedProbeSamples: [String: [FileStabilityGate.Sample]] = [:]
+    private var lifecycleGeneration = 0
+    private var disabled = false
+    private var currentRoot: URL?
+    private var invalidatedApprovals: Set<String> = []
+    private var approvedGenerations: [String: [String: WatchFileGeneration]] = [:]
+
+    var reloadHistory: (() -> ProcessedGroupLedger)?
+    func commitAdmission(_ snapshot: WatchIdentitySnapshot) throws {
+        guard snapshot.ledgerNamespace == ledgerNamespace else {
+            throw ProcessedGroupLedger.LedgerError.unavailable("Admission belongs to another history namespace.")
+        }
+        if ledger.persistenceError != nil, let reloadHistory { ledger = reloadHistory() }
+        try ledger.commitAdmission(snapshot.identity)
+    }
+
+    /// A review result only authorizes this exact observed generation. Admission runs through
+    /// the next normal readiness pass; dismissing the sheet never creates a decision.
+    func resolveReview(_ id: String, as resolution: ProcessedGroupLedger.Resolution) {
+        guard !disabled, resolution != .admitted,
+              let record = reviewRecords.first(where: { $0.id == id }),
+              record.generations.allSatisfy({ generation(at: URL(fileURLWithPath: $0.key)) == $0.value }) else {
+            reviewRecords.removeAll { $0.id == id }
+            return
+        }
+        do {
+            try ledger.resolve(record.descriptor.identity, as: resolution)
+            invalidatedApprovals.remove(id)
+            approvedGenerations[id] = record.generations
+            reviewRecords.removeAll { $0.id == id }
+        } catch { status = .historyUnavailable }
+    }
+
+    private func invalidateChangedApprovals() {
+        for (id, stamps) in approvedGenerations where !stamps.allSatisfy({
+            generation(at: URL(fileURLWithPath: $0.key)) == $0.value
+        }) {
+            invalidatedApprovals.insert(id)
+        }
+    }
+
+    private func generation(at url: URL) -> WatchFileGeneration? {
+        sample(url).map { WatchFileGeneration(sample: $0, identifier: fileIdentifier(url)) }
+    }
 
     // MARK: - Output folder (Wave 5D)
 
@@ -59,6 +118,11 @@ final class WatchFolderCoordinator: ObservableObject {
     }
 
     private func historyIsAvailable() -> Bool {
+        if ledger.persistenceError != nil, let reloadHistory {
+            ledger = reloadHistory()
+            // Reopening readable bytes alone cannot prove a previously failed write recovered.
+            _ = ledger.save()
+        }
         guard ledger.persistenceError == nil else {
             status = .historyUnavailable
             return false
@@ -160,7 +224,12 @@ final class WatchFolderCoordinator: ObservableObject {
             ledger: ProcessedGroupLedger(storageDirectory: storageDirectory),
             bookmark: WatchFolderBookmark(),
             settings: WatchFolderSettings.load(),
-            storageDirectory: storageDirectory
+            storageDirectory: storageDirectory,
+            discoverBound: { url in
+                let result = await DJIFolderReader.read(folder: url, using: ffmpeg)
+                return WatchDiscovery(groups: result.groups, generations: result.metadataGenerations, retryPaths: result.retryPaths)
+            },
+            persistSettings: { $0.save() }
         )
     }
 
@@ -173,8 +242,18 @@ final class WatchFolderCoordinator: ObservableObject {
         ledger: ProcessedGroupLedger,
         bookmark: WatchFolderBookmark,
         settings: WatchFolderSettings,
-        storageDirectory: URL? = nil
+        storageDirectory: URL? = nil,
+        watchEntryID: UUID = UUID(),
+        ledgerNamespace: String? = nil,
+        discoverBound: (@Sendable (URL) async -> WatchDiscovery)? = nil,
+        fileIdentifier: @escaping @Sendable (URL) -> String? = { WatchFileGeneration.read($0)?.identifier },
+        persistSettings: @escaping (WatchFolderSettings) -> Void = { _ in }
     ) {
+        self.persistSettings = persistSettings
+        self.watchEntryID = watchEntryID
+        self.ledgerNamespace = ledgerNamespace ?? watchEntryID.uuidString
+        self.discoverBound = discoverBound
+        self.fileIdentifier = fileIdentifier
         self.discover = discover
         self.sample = sample
         self.now = now
@@ -207,6 +286,8 @@ final class WatchFolderCoordinator: ObservableObject {
     /// Activates the watch-folder for `rootURL`: persists the bookmark, marks settings enabled,
     /// starts FSEvents monitoring, and kicks an immediate rescan.
     func enable(rootURL: URL) {
+        disabled = false
+        currentRoot = rootURL
         do {
             try bookmark.save(url: rootURL)
         } catch {
@@ -216,7 +297,7 @@ final class WatchFolderCoordinator: ObservableObject {
         }
 
         settings.enabled = true
-        settings.save()
+        persistSettings(settings)
 
         startMonitor(rootURL: rootURL)
         Task { @MainActor [weak self] in
@@ -227,8 +308,16 @@ final class WatchFolderCoordinator: ObservableObject {
     /// Deactivates the watch-folder: stops FSEvents monitoring, cancels the poll timer, and
     /// persists the disabled state. No in-flight job is touched — the queue runs to completion.
     func disable() {
+        disabled = true
+        lifecycleGeneration += 1
+        metadataGenerations.removeAll()
+        reviewRecords.removeAll()
+        lastGroups.removeAll()
+        sampleHistory.removeAll()
+        rejectedProbePaths.removeAll()
+        rejectedProbeSamples.removeAll()
         settings.enabled = false
-        settings.save()
+        persistSettings(settings)
         stopMonitor()
         status = .idle
     }
@@ -245,36 +334,9 @@ final class WatchFolderCoordinator: ObservableObject {
     func resume() {
         guard settings.enabled, let rootURL = bookmark.resolve() else { return }
 
-        // Build the set of fingerprints already represented by live (unfinished) queue jobs.
-        let liveQueueFingerprints = liveJobFingerprints()
-
-        // Restore persisted group states that are still in-flight (not terminal) and check
-        // whether they need re-enqueueing. A group in the ledger is done; a group in the live
-        // queue is already being handled; only "neither" groups need action.
-        var fingerprintsToReenqueue: [String] = []
-        for (fp, state) in groupStates where !state.isTerminal {
-            if WatchFolderReconciler.shouldReenqueue(
-                fingerprint: fp,
-                processedFingerprints: processedFingerprints(),
-                liveQueueFingerprints: liveQueueFingerprints
-            ) {
-                fingerprintsToReenqueue.append(fp)
-            }
-        }
-
-        // Re-enqueue is handled implicitly by the next `rescan()` pass: the reconciler will
-        // see the groups are settled/complete/fresh and enqueue them. We just need to ensure
-        // monitoring is running so that pass happens.
+        disabled = false
         startMonitor(rootURL: rootURL)
-        Task { @MainActor [weak self] in
-            await self?.rescan(rediscover: true)
-        }
-
-        #if DEBUG
-        if !fingerprintsToReenqueue.isEmpty {
-            print("[WatchFolderCoordinator] resume: \(fingerprintsToReenqueue.count) group(s) may need re-enqueue after rescan")
-        }
-        #endif
+        Task { @MainActor [weak self] in await self?.rescan(rediscover: true) }
     }
 
     // MARK: - Private: Monitor lifecycle
@@ -326,7 +388,20 @@ final class WatchFolderCoordinator: ObservableObject {
     ///   plateau without spawning ffprobe every `pollInterval`).
     private func rescan(rediscover: Bool) async {
         guard let rootURL = bookmark.resolve() else { return }
-        await reconcile(rootURL: rootURL, rediscover: rediscover)
+        if rediscover { await sourceDidChange(rootURL: rootURL) }
+        else { await reconcile(rootURL: rootURL, rediscover: false) }
+    }
+
+    /// Same entry point for the real FSEvent callback and deterministic event tests. Resampling
+    /// identifies affected cached clips; unchanged generations remain available during a stall.
+    func sourceDidChange(rootURL: URL) async {
+        guard !disabled else { return }
+        invalidatedApprovals.formUnion(approvedGenerations.keys)
+        metadataGenerations = metadataGenerations.filter { generation(at: URL(fileURLWithPath: $0.key)) == $0.value }
+        reviewRecords.removeAll { record in !record.generations.allSatisfy {
+            generation(at: URL(fileURLWithPath: $0.key)) == $0.value
+        } }
+        await reconcile(rootURL: rootURL, rediscover: true)
     }
 
     /// One reconciliation pass against an explicit root. `rescan` resolves the bookmark and calls
@@ -335,7 +410,10 @@ final class WatchFolderCoordinator: ObservableObject {
     /// bookmark) and assert enqueue behaviour — notably that a ledger-recorded group is not
     /// re-enqueued after relaunch.
     func reconcile(rootURL: URL, rediscover: Bool) async {
-        guard historyIsAvailable() else { return }
+        guard !disabled, historyIsAvailable() else { return }
+        currentRoot = rootURL
+        invalidateChangedApprovals()
+        let lifecycle = lifecycleGeneration
         // Two independent latches (see `isDiscovering` / `isResampling`): the heavy discovery path and
         // the cheap re-sample cadence each guard their own flag, so a wedged discovery can't freeze the
         // cadence. The `defer` clears whichever latch this pass took — including after a discovery
@@ -351,40 +429,77 @@ final class WatchFolderCoordinator: ObservableObject {
             if rediscover { isDiscovering = false } else { isResampling = false }
         }
 
-        // Step 1: obtain current groups — fresh discovery on change, else reuse the last set.
+        // Metadata and its file-generation stamp travel together. Production stamps each
+        // probe before and after I/O; the legacy injected discover closure is an atomic test seam.
         let groups: [RecordGroup]
         if rediscover {
-            // Bound the scan: a hung ffprobe / stalled mount must not latch discovery forever. On
-            // timeout we reuse the last known groups and let the next FSEvents/poll tick retry — the
-            // `defer` above clears `isDiscovering`, so recovery needs no intervention. The wedged
-            // discovery task is abandoned (not awaited), so it can't drag the coordinator down with it.
-            if let discovered = await withDiscoverTimeout(seconds: settings.discoverTimeout, { [discover] in
-                await discover(rootURL)
-            }) {
-                groups = discovered
-                lastGroups = discovered
-            } else {
-                #if DEBUG
-                print("[WatchFolderCoordinator] discovery timed out after \(settings.discoverTimeout)s — reusing last groups, retrying next tick")
-                #endif
-                groups = lastGroups
+            let previous = Dictionary(uniqueKeysWithValues: lastGroups.flatMap(\.clips).map {
+                ($0.videoURL.path, generation(at: $0.videoURL))
+            })
+            metadataGenerations = metadataGenerations.filter { generation(at: URL(fileURLWithPath: $0.key)) == $0.value }
+            reviewRecords.removeAll { record in !record.generations.allSatisfy { generation(at: URL(fileURLWithPath: $0.key)) == $0.value } }
+            let result = await withDiscoverTimeout(seconds: settings.discoverTimeout) { [discover, discoverBound, sample, fileIdentifier] in
+                if let discoverBound { return await discoverBound(rootURL) }
+                let groups = await discover(rootURL)
+                var stamps: [String: WatchFileGeneration] = [:]
+                for clip in groups.flatMap(\.clips) {
+                    guard let value = sample(clip.videoURL) else { continue }
+                    let stamp = WatchFileGeneration(sample: value, identifier: fileIdentifier(clip.videoURL))
+                    if let old = previous[clip.videoURL.path], old != stamp { continue }
+                    stamps[clip.videoURL.path] = stamp
+                }
+                return WatchDiscovery(groups: groups, generations: stamps)
             }
+            guard lifecycle == lifecycleGeneration, !disabled else { return }
+            invalidateChangedApprovals()
+            if let result {
+                lastGroups = result.groups
+                rejectedProbePaths = result.retryPaths
+                rejectedProbeSamples = rejectedProbeSamples.filter { key, _ in result.retryPaths.contains { $0.path == key } }
+                metadataGenerations = result.generations.filter {
+                    generation(at: URL(fileURLWithPath: $0.key)) == $0.value
+                }
+            }
+            groups = lastGroups
         } else {
             groups = lastGroups
         }
         // Discovery suspends: the destination may have vanished or been reselected meanwhile.
         refreshOutputAvailability()
-        guard !groups.isEmpty else { return }
+        for path in rejectedProbePaths {
+            if let current = sample(path) {
+                var samples = rejectedProbeSamples[path.path] ?? []
+                samples.append(current)
+                rejectedProbeSamples[path.path] = Array(samples.suffix(sampleHistoryCap))
+            } else { rejectedProbeSamples[path.path] = [] }
+        }
+        let rejectedReady = rejectedProbeSamples.values.contains {
+            FileStabilityGate.isSettled(samples: $0, requiredStablePolls: settings.requiredStablePolls)
+        }
+        guard !groups.isEmpty else {
+            if !rediscover && !isDiscovering && rejectedReady {
+                await reconcile(rootURL: rootURL, rediscover: true)
+            }
+            return
+        }
 
         // Step 2: update sample history and last-change timestamps.
         let currentNow = now()
         for group in groups {
-            let fp = ProcessedGroupLedger.fingerprint(for: group)
+            let fp = ephemeralKey(group)
             var groupChanged = false
 
             for clip in group.clips {
                 let key = clip.videoURL.path
-                let newSample = sample(clip.videoURL)
+                let observed = generation(at: clip.videoURL)
+                let newSample = observed?.sample
+                if metadataGenerations[key] != observed || observed == nil {
+                    for (id, stamps) in approvedGenerations where stamps[key] != nil && stamps[key] != observed {
+                        invalidatedApprovals.insert(id)
+                    }
+                    metadataGenerations[key] = nil
+                    reviewRecords.removeAll { $0.generations[key] != nil }
+                }
 
                 var history = sampleHistory[key] ?? []
                 let lastSample = history.last
@@ -402,7 +517,8 @@ final class WatchFolderCoordinator: ObservableObject {
                         groupChanged = true
                     }
                 } else {
-                    // File inaccessible this poll — mark the group changed to reset quiet window.
+                    // Missing samples invalidate the old stability streak too.
+                    sampleHistory[key] = []
                     groupChanged = true
                 }
             }
@@ -419,7 +535,7 @@ final class WatchFolderCoordinator: ObservableObject {
         // *discovery* confirms a group is gone (on a poll pass `groups == lastGroups`, so nothing is
         // dropped on a transient read blip).
         let liveClipKeys = Set(groups.flatMap { group in group.clips.map { $0.videoURL.path } })
-        let liveGroupKeys = Set(groups.map { ProcessedGroupLedger.fingerprint(for: $0) })
+        let liveGroupKeys = Set(groups.map { ephemeralKey($0) })
         sampleHistory = sampleHistory.filter { liveClipKeys.contains($0.key) }
         groupLastChanged = groupLastChanged.filter { liveGroupKeys.contains($0.key) }
 
@@ -440,7 +556,7 @@ final class WatchFolderCoordinator: ObservableObject {
                 lastSegmentBytes = 0
             }
 
-            let fp = ProcessedGroupLedger.fingerprint(for: group)
+            let fp = ephemeralKey(group)
             let lastChanged = groupLastChanged[fp] ?? currentNow
             let quietElapsed = currentNow.timeIntervalSince(lastChanged)
 
@@ -463,50 +579,70 @@ final class WatchFolderCoordinator: ObservableObject {
         let ready = WatchFolderReconciler.groupsToEnqueue(
             observations: observations,
             settings: settings,
-            processedFingerprints: processedFingerprints()
+            processedFingerprints: []
         )
 
-        // Step 5: enqueue ready groups. Discovery may have suspended while another pass failed
-        // persistence. Never admit against unreadable or non-durable history.
-        guard historyIsAvailable() else { return }
+        // Old group-state hashes describe progress only; they cannot authorize or suppress v2.
+        guard historyIsAvailable(), lifecycle == lifecycleGeneration, !disabled else { return }
+        var currentReviews: [ReviewRecord] = []
         for group in ready {
             guard historyIsAvailable() else { return }
+            guard group.clips.allSatisfy({ clip in
+                guard let stamp = metadataGenerations[clip.videoURL.path] else { return false }
+                return generation(at: clip.videoURL) == stamp
+                    && sampleHistory[clip.videoURL.path]?.last == stamp.sample
+            }) else { continue }
+            let descriptor = descriptor(for: group, rootURL: rootURL)
+            let identity = descriptor.identity
+            guard !hasLiveJob(group, identity: identity, rootURL: rootURL) else { continue }
+            let decision = ledger.resolution(for: identity)
+            if decision == .admitted || decision == .alreadyProcessed { continue }
+            let classification = ledger.classify(identity, legacyFingerprint: ProcessedGroupLedger.fingerprint(for: group))
+            let reason: String?
+            switch classification {
+            case .knownV2: continue
+            case .newRecording: reason = invalidatedApprovals.contains(identity.ledgerKey) ? "Files changed since the review decision." : nil
+            case .legacyAmbiguous: reason = "Earlier history cannot identify this recording."
+            case .weak(let reasons): reason = "Weak identity: " + reasons.map(\.rawValue).joined(separator: ", ")
+            case .storageUnavailable: status = .historyUnavailable; return
+            }
+            if let reason, decision != .processOnce || invalidatedApprovals.contains(identity.ledgerKey) {
+                let stamps = metadataGenerations.filter { key, _ in group.clips.contains { $0.videoURL.path == key } }
+                currentReviews.append(ReviewRecord(descriptor: descriptor, group: group, generations: stamps, reason: reason))
+                continue
+            }
             guard let destURL = destinationURL(for: group, rootURL: rootURL) else {
                 status = .outputUnavailable
-                return // Do not seal these groups; the poll timer will retry after recovery.
+                continue
             }
-            queue.addJob(
-                folderName: rootURL.lastPathComponent,
-                sourceFolderURL: rootURL,
-                clips: group.clips,
-                settings: ConversionSettings(),
-                destinationURL: destURL
-            )
-            queue.startQueue()
-
-            // Seal the group in the ledger (persisted) so it's never re-enqueued — this session
-            // or after relaunch.
-            guard ledger.insert(group) else {
-                // The first job was already handed to the queue under the existing admission
-                // order. Stop now: no later group/poll may repeat unsealed admissions. W3 owns
-                // the durable pending-job gate and recovery across the queue/ledger boundary.
-                saveGroupStates()
+            var job = ConversionJob.withBookmarks(folderName: rootURL.lastPathComponent,
+                sourceFolderURL: rootURL, clips: group.clips, settings: ConversionSettings(), destinationURL: destURL)
+            job.watchIdentitySnapshot = WatchIdentitySnapshot(watchEntryID: watchEntryID,
+                ledgerNamespace: ledgerNamespace, descriptor: descriptor)
+            job.watchAdmissionPending = true
+            // addJob saves the pending marker before recovery is permitted to commit history.
+            queue.addJob(job)
+            if queue.recoverWatchAdmission(job.id, commit: { try commitAdmission($0) }) {
+                queue.startQueue(automatic: true)
+            } else {
                 status = .historyUnavailable
-                return
             }
-
-            // Advance the group's state machine toward .joining.
-            let fp = ProcessedGroupLedger.fingerprint(for: group)
-            let current = groupStates[fp] ?? .discovered
-            groupStates[fp] = current.transition(to: .joining) ?? current
             sessionEnqueuedCount += 1
         }
-
-        // Persist group states after any mutation.
-        if !ready.isEmpty {
-            saveGroupStates()
+        reviewRecords = currentReviews
+        if queue.jobs.contains(where: { $0.watchIdentitySnapshot?.watchEntryID == watchEntryID
+            && $0.watchAdmissionPending == true && $0.status == .pending }) {
+            status = .historyUnavailable
+            return
         }
 
+        if !rediscover && !isDiscovering && (rejectedReady || groups.flatMap(\.clips).contains(where: {
+            metadataGenerations[$0.videoURL.path] == nil && FileStabilityGate.isSettled(
+                samples: sampleHistory[$0.videoURL.path] ?? [], requiredStablePolls: settings.requiredStablePolls)
+        })) {
+            await reconcile(rootURL: rootURL, rediscover: true)
+            return
+        }
         // Step 6: update published status.
         let settlingCount = observations.filter { obs in
             let fp = ProcessedGroupLedger.fingerprint(for: obs.group)
@@ -527,14 +663,37 @@ final class WatchFolderCoordinator: ObservableObject {
 
     // MARK: - Private: Helpers
 
-    /// Returns the set of SHA-256 fingerprints for groups already durably processed.
-    ///
-    /// Reads straight from the ledger, which loads the persisted set at `init` and keeps it in
-    /// memory — so this is O(1) AND correct across relaunch. (An earlier draft mirrored insertions
-    /// in a separate set that started empty at launch; that re-introduced the re-join-forever bug
-    /// because a previously-joined group whose source clips still sit on the card read as "fresh".)
-    private func processedFingerprints() -> Set<String> {
-        ledger.allFingerprints
+    private func ephemeralKey(_ group: RecordGroup) -> String {
+        // Length-prefixed paths make grouping/sampling independent of legacy and durable hashes.
+        group.clips.map { "\($0.videoURL.path.utf8.count):\($0.videoURL.path)" }.joined()
+    }
+
+    private func descriptor(for group: RecordGroup, rootURL: URL) -> WatchRecordingDescriptor {
+        let prefix = rootURL.standardizedFileURL.path + "/"
+        return WatchRecordingDescriptor(clips: group.clips.map { clip in
+            let path = clip.videoURL.standardizedFileURL.path
+            return .init(cameraFamily: clip.family.rawValue, stem: clip.stem, index: clip.index,
+                variant: clip.variantSuffix, recordingNumber: clip.recordingNumber,
+                captureDate: clip.creationDate, duration: clip.duration,
+                relativePath: path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : "../" + path,
+                settledVideoBytes: sampleHistory[clip.videoURL.path]?.last?.size)
+        })
+    }
+
+    private func hasLiveJob(_ group: RecordGroup, identity: WatchRecordingIdentity, rootURL: URL) -> Bool {
+        queue.jobs.contains { job in
+            guard job.status != .completed, job.status != .cancelled || job.watchAdmissionPending == true else { return false }
+            if let snapshot = job.watchIdentitySnapshot {
+                // Identity is root-relative, so the source root must match for another namespace.
+                return snapshot.identity == identity && (snapshot.watchEntryID == watchEntryID
+                    || job.sourceFolderURL.standardizedFileURL == rootURL.standardizedFileURL)
+            }
+            // Old/manual jobs lack an observed descriptor: never stat replacement media to
+            // reconstruct one. Conservative source/clip overlap protects their captured footage.
+            return job.clips.contains { old in group.clips.contains {
+                old.videoURL.standardizedFileURL == $0.videoURL.standardizedFileURL
+            } }
+        }
     }
 
     // MARK: - Private: Destination URL
@@ -556,21 +715,6 @@ final class WatchFolderCoordinator: ObservableObject {
         case .unavailable: return nil
         }
         return directory.appendingPathComponent(filename)
-    }
-
-    // MARK: - Private: Live queue fingerprints
-
-    /// Computes the set of stable fingerprints for queue jobs that have NOT yet finished.
-    /// A transient `RecordGroup` is built from each job's clips so `ProcessedGroupLedger.fingerprint`
-    /// can produce the same hash the reconciler uses. Only unfinished jobs are included — a
-    /// completed job's fingerprint is already in the ledger.
-    private func liveJobFingerprints() -> Set<String> {
-        var fps = Set<String>()
-        for job in queue.jobs where !job.status.isFinished {
-            let transientGroup = RecordGroup(clips: job.clips, groupIndex: 0)
-            fps.insert(ProcessedGroupLedger.fingerprint(for: transientGroup))
-        }
-        return fps
     }
 
     // MARK: - Private: Group state persistence

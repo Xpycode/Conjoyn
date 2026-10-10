@@ -288,6 +288,7 @@ private struct QueueRow: View {
                 }
 
                 Text(statusText)
+                    .help(job.watchAdmissionError ?? (job.watchAdmissionRequiresStart == true ? "Watch disabled or removed. Choose Start after storage recovery." : ""))
                     .font(.system(size: 11, weight: statusBold ? .semibold : .regular))
                     .foregroundStyle(statusColor)
                     .frame(width: 84, alignment: .leading)
@@ -393,6 +394,8 @@ private struct QueueRow: View {
     }
 
     private var statusText: String {
+        if job.watchAdmissionPending == true { return "Waiting for history storage" }
+        if job.watchAdmissionRequiresStart == true { return "Held — choose Start" }
         switch job.status {
         case .pending:   return "Queued"
         case .preparing: return "Preparing…"

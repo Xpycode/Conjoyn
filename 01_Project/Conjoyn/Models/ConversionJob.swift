@@ -105,6 +105,14 @@ struct ConversionJob: Identifiable, Codable, Sendable {
 
     /// Settled watch identity and durable ledger ownership; absent on manual/pre-existing jobs.
     var watchIdentitySnapshot: WatchIdentitySnapshot? = nil
+    /// Optional for old/manual jobs. A persisted pending admission is never runnable.
+    var watchAdmissionPending: Bool? = nil
+    var watchAdmissionRequiresStart: Bool? = nil
+    var watchAdmissionError: String? = nil
+
+    var watchAdmissionBlocked: Bool {
+        watchAdmissionPending == true || watchAdmissionRequiresStart == true
+    }
 
     // Manual timecode override — session-only, intentionally excluded from CodingKeys.
     var timecodeStringOverride: String? = nil
@@ -393,7 +401,7 @@ struct ConversionJob: Identifiable, Codable, Sendable {
         case id, folderName, sourceFolderPathString, clips, settings
         case destinationPathString, createdAt, status, progress, startedAt
         case sourceBookmarkData, outputBookmarkData
-        case watchIdentitySnapshot
+        case watchIdentitySnapshot, watchAdmissionPending, watchAdmissionRequiresStart, watchAdmissionError
         case verificationStatus, verificationResult, sourceTargetResult, verificationProgress
         case actualOutputPathStrings, appliedTimecode
     }

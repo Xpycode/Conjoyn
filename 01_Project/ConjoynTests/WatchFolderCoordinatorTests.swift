@@ -39,6 +39,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     }
 
     private var tmpDirs: [URL] = []
+    private lazy var sourceRoot = freshTmpDir()
 
     private func freshTmpDir() -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -65,10 +66,11 @@ final class WatchFolderCoordinatorTests: XCTestCase {
 
     private func makeGroup() -> RecordGroup {
         let clip = DJIClip(
-            videoURL: URL(fileURLWithPath: "/tmp/DJI_0001.MP4"),
+            videoURL: sourceRoot.appendingPathComponent("DJI_0001.MP4"),
             index: 1,
             variantSuffix: nil,
             stem: "DJI_0001",
+            creationDate: Date(timeIntervalSince1970: 1000),
             duration: .zero
         )
         return RecordGroup(clips: [clip], groupIndex: 1)
@@ -79,6 +81,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     private func makeCoordinator(ledger: ProcessedGroupLedger,
                                  queue: QueueManager,
                                  groups: [RecordGroup]? = nil) -> WatchFolderCoordinator {
+        queue.isProcessing = true // Admission tests never launch a media subprocess.
         let discoveredGroups = groups ?? [makeGroup()]
         let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
         let clock = FakeClock([t0, t0.addingTimeInterval(31)])   // 31s > quietWindow(30)
@@ -105,8 +108,9 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         try original.write(to: ledgerDir.appendingPathComponent("processed_groups.json"))
         try corrupt.write(to: ledgerDir.appendingPathComponent("processed_groups_v2.json"))
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: ledgerDir), queue: queue)
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         await coord.reconcile(rootURL: root, rediscover: false)
         await coord.reconcile(rootURL: root, rediscover: true)
@@ -122,19 +126,20 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         })
         let first = makeGroup()
         let second = RecordGroup(clips: [DJIClip(
-            videoURL: URL(fileURLWithPath: "/tmp/DJI_0002.MP4"), index: 2,
-            variantSuffix: nil, stem: "DJI_0002", duration: .zero
+            videoURL: sourceRoot.appendingPathComponent("DJI_0002.MP4"), index: 2,
+            variantSuffix: nil, stem: "DJI_0002", creationDate: Date(timeIntervalSince1970: 2000), duration: .zero
         )], groupIndex: 2)
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ledger, queue: queue, groups: [first, second])
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         XCTAssertTrue(queue.jobs.isEmpty)
         await coord.reconcile(rootURL: root, rediscover: false)
-        // Transitional enqueue-before-ledger behavior remains until W3. The failed first write
-        // must stop this batch and future polls rather than repeatedly adding unsealed jobs.
+        // The first job persists as pending admission, with processing gated until history repairs.
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(coord.status, .historyUnavailable)
+        XCTAssertEqual(queue.jobs.first?.watchAdmissionPending, true)
         await coord.reconcile(rootURL: root, rediscover: false)
         await coord.reconcile(rootURL: root, rediscover: true)
         XCTAssertEqual(queue.jobs.count, 1)
@@ -159,13 +164,15 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         XCTAssertTrue(reloaded.contains(group), "fingerprint must survive relaunch")
 
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: reloaded, queue: queue)
 
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)   // pass 1
         await coord.reconcile(rootURL: root, rediscover: false)  // pass 2 (quiet elapsed)
 
-        // Group is settled + complete + quiet — but already in the ledger → must NOT enqueue.
+        // Legacy history holds for explicit review; it never silently seals v2.
+        XCTAssertEqual(coord.reviewRecords.count, 1)
         XCTAssertEqual(queue.jobs.count, 0,
                        "a previously-joined group whose clips remain on the card must not re-enqueue")
     }
@@ -176,9 +183,10 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         let group = makeGroup()
         let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ledger, queue: queue)
 
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)   // pass 1: settled but not yet quiet
         XCTAssertEqual(queue.jobs.count, 0, "not enqueued before the quiet window elapses")
 
@@ -196,11 +204,12 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     func testOutputFolderRedirectsJoinDestination() async {
         let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ledger, queue: queue)
         let output = freshTmpDir()
         coord.resolveOutputDestination = { .resolved(output) }
 
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         await coord.reconcile(rootURL: root, rediscover: false)
 
@@ -213,10 +222,11 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     func testDisappearingOutputPausesWithoutSealingAndRestoresAutomatically() async throws {
         let ledgerDir = freshTmpDir()
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: ledgerDir), queue: queue)
         let output = freshTmpDir()
         coord.resolveOutputDestination = { .resolved(output) }
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         try FileManager.default.removeItem(at: output)
         await coord.reconcile(rootURL: root, rediscover: false)
@@ -233,12 +243,13 @@ final class WatchFolderCoordinatorTests: XCTestCase {
 
     func testFailedBookmarkNeverFallsBackAndReselectionRecovers() async throws {
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()), queue: queue)
         let output = freshTmpDir()
         let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/unused",
                                     outputBookmark: Data([0, 1, 2]), outputPath: output.path)
         coord.resolveOutputDestination = { entry.outputDestination }
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         await coord.reconcile(rootURL: root, rediscover: false)
         XCTAssertTrue(queue.jobs.isEmpty)
@@ -252,12 +263,13 @@ final class WatchFolderCoordinatorTests: XCTestCase {
 
     func testOutputRemovedDuringAsyncDiscoveryIsRevalidatedBeforeEnqueue() async throws {
         let output = freshTmpDir()
-        let root = freshTmpDir()
+        let root = sourceRoot
         let group = makeGroup()
         let counter = CallCounter()
         let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
         let clock = FakeClock([t0, t0.addingTimeInterval(31)])
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let suite = "test.coord.discovery.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -285,9 +297,10 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     func testNilOutputFolderKeepsJoinNextToSource() async {
         let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ledger, queue: queue)   // destination stays unconfigured
 
-        let root = freshTmpDir()
+        let root = sourceRoot
         await coord.reconcile(rootURL: root, rediscover: true)
         await coord.reconcile(rootURL: root, rediscover: false)
 
@@ -313,6 +326,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         s.discoverTimeout = 0.05
 
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = WatchFolderCoordinator(
             discover: { _ in
                 // First discovery wedges (a stalled mount / hung ffprobe); later ones recover.
@@ -334,7 +348,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
             storageDirectory: freshTmpDir()
         )
 
-        let root = freshTmpDir()
+        let root = sourceRoot
 
         // Pass 1: discovery hangs → times out (~50 ms) → no enqueue, and crucially the discovery
         // latch is cleared by the `defer`, not stuck `true` forever (the old deadlock).
@@ -359,6 +373,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     func testDisablePersistsDisabledState() {
         let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
         let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
         let coord = makeCoordinator(ledger: ledger, queue: queue)
         coord.disable()
         XCTAssertEqual(coord.status, .idle)

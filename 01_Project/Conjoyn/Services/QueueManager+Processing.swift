@@ -23,7 +23,7 @@ extension QueueManager {
 
         log("=== Queue processing started ===")
 
-        while let nextJob = jobs.first(where: { $0.status == .pending }) {
+        while let nextJob = jobs.first(where: { $0.status == .pending && !$0.watchAdmissionBlocked }) {
             await processJob(nextJob)
             saveQueue()
         }
@@ -36,7 +36,8 @@ extension QueueManager {
 
     /// Processes a single job: preflight, join, record speed.
     func processJob(_ job: ConversionJob, beforeSidecarPublication: (() throws -> Void)? = nil) async {
-        guard jobIndex(for: job.id) != nil else { return }
+        guard let current = jobs.first(where: { $0.id == job.id }),
+              current.status == .pending, !current.watchAdmissionBlocked else { return }
         let jobId = job.id
 
         currentJobId = jobId
@@ -594,7 +595,7 @@ extension QueueManager {
                 ? Double(sessionBytesDone) / sessionSecondsDone
                 : nil
             let format = jobs.first(where: { $0.id == currentJobId })?.settings.outputContainer
-                ?? jobs.first(where: { $0.status == .pending })?.settings.outputContainer
+                ?? jobs.first(where: { $0.status == .pending && !$0.watchAdmissionBlocked })?.settings.outputContainer
             let throughput = sessionThroughput
                 ?? format.map { speedTracker.throughputBytesPerSec(outputFormat: $0) }
                 ?? SpeedTracker.defaultThroughputBytesPerSec

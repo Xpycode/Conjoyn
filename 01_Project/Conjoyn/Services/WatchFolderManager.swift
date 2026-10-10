@@ -43,6 +43,9 @@ final class WatchFolderManager: ObservableObject {
 
     /// Live coarse status per entry id, mirrored from each running coordinator. Disabled or
     /// offline entries read `.idle`.
+    @Published private(set) var reviews: [UUID: [WatchFolderCoordinator.ReviewRecord]] = [:]
+    private var reviewSinks: [UUID: AnyCancellable] = [:]
+
     @Published private(set) var statuses: [UUID: WatchFolderCoordinator.Status] = [:]
 
     // MARK: - Running coordinators
@@ -87,9 +90,11 @@ final class WatchFolderManager: ObservableObject {
         }
     }
 
+    private let admissionLedger: (String) -> ProcessedGroupLedger
     private let recovery: RecoveryDependencies
     private let coordinatorFactory: ((WatchFolderEntry, URL) -> any WatchFolderManagingCoordinator)?
     private var recoveryObservation: AnyCancellable?
+    private var queueObservation: AnyCancellable?
     private var recoveryTimer: AnyCancellable?
     private var statusSinks: [UUID: AnyCancellable] = [:]
 
@@ -111,8 +116,15 @@ final class WatchFolderManager: ObservableObject {
         storeKey: String = "watchFolder.entries",
         baseStorageDirectory: URL? = nil,
         recovery: RecoveryDependencies = RecoveryDependencies(),
-        coordinatorFactory: ((WatchFolderEntry, URL) -> any WatchFolderManagingCoordinator)? = nil
+        coordinatorFactory: ((WatchFolderEntry, URL) -> any WatchFolderManagingCoordinator)? = nil,
+        admissionLedger: ((String) -> ProcessedGroupLedger)? = nil
     ) {
+        self.admissionLedger = admissionLedger ?? { namespace in
+            let base = baseStorageDirectory ?? FileManager.default
+                .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("Conjoyn", isDirectory: true)
+            return ProcessedGroupLedger(storageDirectory: base.appendingPathComponent("WatchFolders/" + namespace))
+        }
         self.recovery = recovery
         self.coordinatorFactory = coordinatorFactory
         self.queue = queue
@@ -122,6 +134,12 @@ final class WatchFolderManager: ObservableObject {
         self.entries = Self.loadEntries(from: defaults, key: storeKey)
         // Seed every entry's status to idle so rows render before any coordinator starts.
         for entry in entries { statuses[entry.id] = .idle }
+        queueObservation = queue.$jobs.map { jobs in
+            jobs.contains { $0.watchAdmissionPending == true && $0.status != .cancelled }
+        }.removeDuplicates().sink { [weak self] _ in
+            // @Published sends before mutation. Defer the lifetime check until jobs is current.
+            Task { @MainActor [weak self] in self?.updateRecoveryObservation() }
+        }
     }
 
     // MARK: - Lifecycle
@@ -130,12 +148,21 @@ final class WatchFolderManager: ObservableObject {
     /// currently reachable. Idempotency on relaunch is handled by each entry's persisted ledger
     /// (a previously-joined group is never re-enqueued) — see `WatchFolderCoordinator`.
     func resumeAll() {
+        for job in queue.jobs where job.watchAdmissionPending == true {
+            if let id = job.watchIdentitySnapshot?.watchEntryID,
+               !entries.contains(where: { $0.id == id && $0.enabled }) {
+                queue.holdWatchAdmissions(entryID: id)
+            }
+        }
+        recoverAdmissions()
         updateRecoveryObservation()
         reconcileRoots()
     }
 
     private func updateRecoveryObservation() {
-        guard entries.contains(where: { $0.enabled }) else {
+        guard entries.contains(where: { $0.enabled }) || queue.jobs.contains(where: {
+            $0.watchAdmissionPending == true && $0.status != .cancelled
+        }) else {
             recoveryObservation = nil
             recoveryTimer = nil
             return
@@ -153,7 +180,7 @@ final class WatchFolderManager: ObservableObject {
                 }
             }
         }
-        recoveryTimer = recovery.schedule(5) { [weak self] in self?.reconcileRoots() }
+        recoveryTimer = recovery.schedule(5) { [weak self] in self?.reconcileRoots(); self?.recoverAdmissions() }
     }
 
     private func reconcileRoots() {
@@ -203,15 +230,15 @@ final class WatchFolderManager: ObservableObject {
     /// Stops monitoring, forgets the entry, and deletes its per-entry persistence (bookmark key +
     /// ledger/state subdirectory). The conversion queue is untouched — any in-flight join finishes.
     func remove(_ id: UUID) {
+        queue.holdWatchAdmissions(entryID: id)
         deactivate(id)
         entries.removeAll { $0.id == id }
         statuses[id] = nil
         unavailableEntryIDs.remove(id)
         updateRecoveryObservation()
         WatchFolderBookmark(defaults: defaults, key: Self.bookmarkKey(id)).clear()
-        if let dir = entryStorageDirectory(id) {
-            try? FileManager.default.removeItem(at: dir)
-        }
+        // Retain admission/history storage: pending queue snapshots own its recovery path.
+        // Orphan cleanup is deliberately outside this repair.
         save()
     }
 
@@ -224,6 +251,7 @@ final class WatchFolderManager: ObservableObject {
         save()
         updateRecoveryObservation()
         if on { activate(entries[idx]) } else {
+            queue.holdWatchAdmissions(entryID: id)
             deactivate(id)
             unavailableEntryIDs.remove(id)
         }
@@ -278,6 +306,11 @@ final class WatchFolderManager: ObservableObject {
         statusSinks[entry.id] = coordinator.managerStatusPublisher.sink { [weak self] status in
             MainActor.assumeIsolated { self?.statuses[entry.id] = status }
         }
+        if let concrete = coordinator as? WatchFolderCoordinator {
+            reviewSinks[entry.id] = concrete.$reviewRecords.sink { [weak self] records in
+                MainActor.assumeIsolated { self?.reviews[entry.id] = records }
+            }
+        }
         activeRoots[entry.id] = rootURL
         coordinators[entry.id] = coordinator
         coordinator.enable(rootURL: rootURL)
@@ -287,6 +320,8 @@ final class WatchFolderManager: ObservableObject {
     private func deactivate(_ id: UUID) {
         // Drop publication ownership before stopping the old coordinator. W4 additionally
         // fences all asynchronous discovery/admission writes inside that coordinator.
+        reviewSinks[id] = nil
+        reviews[id] = nil
         statusSinks[id] = nil
         activeRoots[id] = nil
         coordinators[id]?.disable()
@@ -318,10 +353,43 @@ final class WatchFolderManager: ObservableObject {
             ledger: ProcessedGroupLedger(storageDirectory: storage),
             bookmark: WatchFolderBookmark(defaults: defaults, key: Self.bookmarkKey(entry.id)),
             settings: entry.settings,
-            storageDirectory: storage
+            storageDirectory: storage,
+            watchEntryID: entry.id,
+            ledgerNamespace: entry.id.uuidString,
+            discoverBound: { url in
+                let result = await DJIFolderReader.read(folder: url, using: ffmpeg)
+                return WatchDiscovery(groups: result.groups, generations: result.metadataGenerations, retryPaths: result.retryPaths)
+            }
         )
         coordinator.resolveOutputDestination = { entry.outputDestination }
+        coordinator.reloadHistory = { [admissionLedger] in admissionLedger(entry.id.uuidString) }
         return coordinator
+    }
+
+    func resolveReview(entryID: UUID, recordingID: String, as resolution: ProcessedGroupLedger.Resolution) {
+        (coordinators[entryID] as? WatchFolderCoordinator)?.resolveReview(recordingID, as: resolution)
+    }
+
+    /// Recovery belongs to the manager, not a monitor. MainActor plus synchronous persistence
+    /// serializes this with every live coordinator's ledger writes; removed entries use their
+    /// saved namespace. Never derive storage ownership from a remounted source path.
+    func recoverAdmissions() {
+        var released = false
+        for job in queue.jobs where job.watchAdmissionPending == true && job.status == .pending {
+            guard let snapshot = job.watchIdentitySnapshot,
+                  UUID(uuidString: snapshot.ledgerNamespace) != nil else { continue }
+            let live = snapshot.ledgerNamespace == snapshot.watchEntryID.uuidString
+                ? coordinators[snapshot.watchEntryID] as? WatchFolderCoordinator : nil
+            if queue.recoverWatchAdmission(job.id, commit: { snapshot in
+                if let live { try live.commitAdmission(snapshot) }
+                else {
+                    var ledger = admissionLedger(snapshot.ledgerNamespace)
+                    try ledger.commitAdmission(snapshot.identity)
+                }
+            }) { released = true }
+        }
+        if released { queue.startQueue(automatic: true) }
+        updateRecoveryObservation()
     }
 
     // MARK: - Per-entry persistence namespacing

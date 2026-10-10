@@ -95,6 +95,7 @@ final class QueueManager: ObservableObject {
     // MARK: - Persistence
     private static let queueFileName = "queue.json"
     /// The production operation must never replace a recovery file or remove the original on failure.
+    private let writeQueue: (Data, URL) throws -> Void
     private let preserveUnreadableQueue: (URL, URL) throws -> Void
 
     /// URL for the queue persistence file (nil if persistence is unavailable). Gracefully degrades
@@ -107,9 +108,11 @@ final class QueueManager: ObservableObject {
     ///   by `shared`) resolves to `~/Library/Application Support/Conjoyn`. Tests pass a temp dir so
     ///   the enqueue→persist→reload round-trip never touches the real app-support file.
     init(storageDirectory: URL? = nil,
+         writeQueue: @escaping (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) },
          preserveUnreadableQueue: @escaping (URL, URL) throws -> Void = { original, recovery in
              try FileManager.default.copyItem(at: original, to: recovery)
          }) {
+        self.writeQueue = writeQueue
         self.preserveUnreadableQueue = preserveUnreadableQueue
         setupPersistence(storageDirectory: storageDirectory)
         loadQueue()
@@ -238,10 +241,14 @@ final class QueueManager: ObservableObject {
     /// job boundaries, so a blocking atomic write costs nothing and — unlike P2toMXF's detached
     /// background write — can't outlive its caller and race app exit (or, in tests, temp-dir
     /// cleanup). No-op if persistence is unavailable.
-    func saveQueue() {
+    @discardableResult
+    func saveQueue() -> Bool {
         // Never replace the only retained original, even if callers clear a transient save error.
-        guard recoveryState?.writesAllowed != false else { return }
-        guard let fileURL = queueFileURL else { return }
+        guard recoveryState?.writesAllowed != false else { return false }
+        guard let fileURL = queueFileURL else {
+            persistenceError = "Queue storage unavailable; changes are temporary."
+            return false
+        }
 
         do {
             let encoder = JSONEncoder()
@@ -249,14 +256,16 @@ final class QueueManager: ObservableObject {
             encoder.dateEncodingStrategy = .iso8601
 
             let data = try encoder.encode(jobs)
-            try data.write(to: fileURL, options: .atomic)
+            try writeQueue(data, fileURL)
             persistenceError = nil
+            return true
         } catch {
             // Surface the error to the UI (only the first occurrence, to avoid spam).
             if persistenceError == nil {
                 persistenceError = "Queue may not persist: \(error.localizedDescription)"
                 log("Warning: Failed to save queue - \(error.localizedDescription)")
             }
+            return false
         }
     }
 
@@ -294,7 +303,8 @@ final class QueueManager: ObservableObject {
             loadedJobs = loadedJobs.filter { job in
                 switch job.status {
                 case .pending, .active, .preparing, .failed: return true
-                case .completed, .cancelled: return false
+                case .cancelled: return job.watchAdmissionPending == true
+                case .completed: return false
                 }
             }
 
