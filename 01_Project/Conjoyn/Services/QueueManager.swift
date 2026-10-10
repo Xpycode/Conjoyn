@@ -3,6 +3,14 @@ import SwiftUI
 import IOKit
 import IOKit.pwr_mgt
 
+/// A load failure remains visible for this manager's lifetime, independently of later save errors.
+struct QueueRecoveryState: Equatable {
+    let originalURL: URL
+    let preservedURL: URL?
+    let reason: String
+    let writesAllowed: Bool
+}
+
 // MARK: - Queue Manager (Wave 1, task 1.7)
 
 /// Manages a queue of DJI join jobs, executing them sequentially. Ported from P2toMXF
@@ -82,9 +90,12 @@ final class QueueManager: ObservableObject {
     /// Error message when queue persistence fails (nil if no error). Displayed in the UI to warn
     /// users their queue may not survive app restarts.
     @Published var persistenceError: String?
+    @Published private(set) var recoveryState: QueueRecoveryState?
 
     // MARK: - Persistence
     private static let queueFileName = "queue.json"
+    /// The production operation must never replace a recovery file or remove the original on failure.
+    private let preserveUnreadableQueue: (URL, URL) throws -> Void
 
     /// URL for the queue persistence file (nil if persistence is unavailable). Gracefully degrades
     /// to an in-memory queue if the storage directory is inaccessible.
@@ -95,7 +106,11 @@ final class QueueManager: ObservableObject {
     /// - Parameter storageDirectory: Directory to persist `queue.json` in. `nil` (the default, used
     ///   by `shared`) resolves to `~/Library/Application Support/Conjoyn`. Tests pass a temp dir so
     ///   the enqueue→persist→reload round-trip never touches the real app-support file.
-    init(storageDirectory: URL? = nil) {
+    init(storageDirectory: URL? = nil,
+         preserveUnreadableQueue: @escaping (URL, URL) throws -> Void = { original, recovery in
+             try FileManager.default.copyItem(at: original, to: recovery)
+         }) {
+        self.preserveUnreadableQueue = preserveUnreadableQueue
         setupPersistence(storageDirectory: storageDirectory)
         loadQueue()
     }
@@ -224,6 +239,8 @@ final class QueueManager: ObservableObject {
     /// background write — can't outlive its caller and race app exit (or, in tests, temp-dir
     /// cleanup). No-op if persistence is unavailable.
     func saveQueue() {
+        // Never replace the only retained original, even if callers clear a transient save error.
+        guard recoveryState?.writesAllowed != false else { return }
         guard let fileURL = queueFileURL else { return }
 
         do {
@@ -245,11 +262,24 @@ final class QueueManager: ObservableObject {
 
     /// Loads the queue from disk (only pending and failed jobs). No-op if persistence is unavailable.
     private func loadQueue() {
-        guard let fileURL = queueFileURL,
-              FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        guard let fileURL = queueFileURL else { return }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            // fileExists cannot distinguish an absent file from an inaccessible one. Only a
+            // genuine missing-file read is normal first launch; all other failures need recovery.
+            let readError = error as NSError
+            if readError.domain == NSCocoaErrorDomain,
+               readError.code == NSFileReadNoSuchFileError || readError.code == NSFileNoSuchFileError {
+                return
+            }
+            recoverUnreadableQueue(at: fileURL, error: error)
+            return
+        }
 
         do {
-            let data = try Data(contentsOf: fileURL)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
 
@@ -303,9 +333,26 @@ final class QueueManager: ObservableObject {
                 }
             }
         } catch {
-            #if DEBUG
-            print("Failed to load queue: \(error)")
-            #endif
+            recoverUnreadableQueue(at: fileURL, error: error)
+        }
+    }
+
+    private func recoverUnreadableQueue(at original: URL, error: Error) {
+        let recovery = original.deletingLastPathComponent()
+            .appendingPathComponent("queue-recovery-\(UUID().uuidString).json")
+        let reason = error.localizedDescription
+        do {
+            // copyItem refuses an existing destination. A collision or failed copy blocks saves;
+            // no prior recovery file is replaced, and the original stays untouched until a save.
+            try preserveUnreadableQueue(original, recovery)
+            recoveryState = QueueRecoveryState(originalURL: original, preservedURL: recovery,
+                                               reason: reason, writesAllowed: true)
+            log("Warning: Could not load queue (\(reason)). Original preserved at \(recovery.path). New queue work will persist.")
+        } catch {
+            recoveryState = QueueRecoveryState(originalURL: original, preservedURL: nil,
+                                               reason: "\(reason) Preservation failed: \(error.localizedDescription)",
+                                               writesAllowed: false)
+            log("Warning: Could not load queue (\(reason)) or preserve it (\(error.localizedDescription)). Original retained at \(original.path). Queue persistence is blocked; new work is temporary.")
         }
     }
 
