@@ -306,7 +306,7 @@ private struct QueueRow: View {
                         .buttonStyle(.cjIcon)
                         .help("Retry")
                     }
-                    if job.status == .completed {
+                    if !job.actualOutputURLs.isEmpty {
                         Button {
                             if let url = job.actualOutputURLs.first {
                                 NSWorkspace.shared.activateFileViewerSelecting([url])

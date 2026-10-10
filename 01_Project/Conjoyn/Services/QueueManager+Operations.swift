@@ -104,17 +104,17 @@ extension QueueManager {
     func retryJob(_ jobId: UUID) {
         guard let index = jobs.firstIndex(where: { $0.id == jobId }) else { return }
 
-        let status = jobs[index].status
-        guard case .failed = status else {
-            guard status == .cancelled else { return }
-            // Allow retry for cancelled jobs too.
-            jobs[index].status = .pending
-            jobs[index].progress = 0
-            log("Retrying job: \(jobs[index].displayName)")
-            saveQueue()
-            return
+        switch jobs[index].status {
+        case .failed, .cancelled: break
+        default: return
         }
 
+        // A prior attempt may have published its video before a late sidecar conflict. Keep that
+        // complete file and its recorded URL; reserve another pair for this explicit retry.
+        jobs[index].destinationURL = resolveFilenameConflict(
+            for: jobs[index].destinationURL,
+            includingSidecar: jobs[index].clips.contains { $0.srtURL != nil },
+            excludingPlannedJobID: jobId)
         jobs[index].status = .pending
         jobs[index].progress = 0
         log("Retrying job: \(jobs[index].displayName)")

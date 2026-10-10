@@ -392,7 +392,7 @@ final class QueueManager: ObservableObject {
     // MARK: - Filename Conflict Resolution
 
     /// Checks whether a filename conflicts with any existing or queued outputs.
-    private func isFilenameConflicting(_ url: URL) -> Bool {
+    private func isFilenameConflicting(_ url: URL, excludingPlannedJobID: UUID? = nil) -> Bool {
         let path = url.resolvingSymlinksInPath().standardizedFileURL.path
         // Match the app's conservative case-insensitive naming policy, including paths through
         // directory symlinks. Absent queued outputs cannot rely on a filesystem existence check.
@@ -403,7 +403,7 @@ final class QueueManager: ObservableObject {
 
         // Check all job destinations (any state).
         for job in jobs {
-            if matches(job.destinationURL) {
+            if job.id != excludingPlannedJobID, matches(job.destinationURL) {
                 return true
             }
             // Also check actual output files (may have been renamed during conversion).
@@ -413,11 +413,14 @@ final class QueueManager: ObservableObject {
         }
 
         // Check the filesystem.
-        return FileManager.default.fileExists(atPath: path)
+        do { try OutputPublication.requireAbsent(url); return false }
+        catch is OutputPublication.Conflict { return true }
+        catch { return false } // Access errors are reported by processing, not an endless name search.
     }
 
     /// Resolves filename conflicts by appending a counter (`Output.mp4` → `Output (1).mp4`).
-    func resolveFilenameConflict(for url: URL) -> URL {
+    func resolveFilenameConflict(for url: URL, includingSidecar: Bool = false,
+                                 excludingPlannedJobID: UUID? = nil) -> URL {
         let directory = url.deletingLastPathComponent()
         let filename = url.deletingPathExtension().lastPathComponent
         let ext = url.pathExtension
@@ -425,7 +428,9 @@ final class QueueManager: ObservableObject {
         var finalURL = url
         var counter = 1
 
-        while isFilenameConflicting(finalURL) {
+        while isFilenameConflicting(finalURL, excludingPlannedJobID: excludingPlannedJobID)
+            || (includingSidecar && isFilenameConflicting(finalURL.deletingPathExtension().appendingPathExtension("SRT"),
+                                                        excludingPlannedJobID: excludingPlannedJobID)) {
             let newFilename = "\(filename) (\(counter)).\(ext)"
             finalURL = directory.appendingPathComponent(newFilename)
             counter += 1

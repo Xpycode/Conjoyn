@@ -861,16 +861,18 @@ final class QueueManagerTests: XCTestCase {
         XCTAssertFalse(QueueManager.isRetriableJoinError(StreamParameterGuard.GuardError.noVideoStream("DJI_0001.MP4")))
     }
 
-    func testMoveIntoPlaceReplacesExistingDestination() async throws {
+    func testMoveIntoPlacePreservesExistingDestination() async throws {
         let src = tmpDir.appendingPathComponent("staged.mp4")
         let dest = tmpDir.appendingPathComponent("final.mp4")
         try Data("joined".utf8).write(to: src)
-        try Data("stale".utf8).write(to: dest)   // a pre-existing file must be replaced
+        try Data("stale".utf8).write(to: dest)   // an unrelated file must survive
 
-        try await QueueManager.moveIntoPlace(from: src, to: dest)
-
-        XCTAssertFalse(FileManager.default.fileExists(atPath: src.path), "source consumed by the move")
-        XCTAssertEqual(try String(contentsOf: dest, encoding: .utf8), "joined", "destination holds the moved file")
+        do {
+            try await QueueManager.moveIntoPlace(from: src, to: dest)
+            XCTFail("Publication must refuse an existing destination")
+        } catch { }
+        XCTAssertEqual(try String(contentsOf: src, encoding: .utf8), "joined")
+        XCTAssertEqual(try String(contentsOf: dest, encoding: .utf8), "stale")
     }
 
     func testMoveIntoPlaceStreamsProgressAndCopiesBytesIntact() async throws {
@@ -1001,6 +1003,166 @@ final class QueueManagerTests: XCTestCase {
         let sidecar = tmpDir.appendingPathComponent("NoTelemetry.SRT")
         XCTAssertFalse(FileManager.default.fileExists(atPath: sidecar.path),
                        "no sidecars in → no .SRT out")
+    }
+
+    func testLateVideoAndSidecarConflictsPreserveSentinels() async throws {
+        guard let ffmpeg = BundledToolResolver.shared.path(for: .ffmpeg) else {
+            throw XCTSkip("No ffmpeg")
+        }
+        let source = tmpDir.appendingPathComponent("source.mp4")
+        try generateClip(ffmpeg: ffmpeg, seconds: 1, to: source)
+        let srt = tmpDir.appendingPathComponent("source.SRT")
+        try "1\n00:00:00,000 --> 00:00:00,500\ntelemetry\n".write(to: srt, atomically: true, encoding: .utf8)
+        for staged in [false, true] {
+        for sidecarConflict in [false, true] {
+            let manager = makeManager()
+            let job = makeRealJob(outputName: "conflict-\(staged)-\(sidecarConflict).mp4", segments: [(source, srt)])
+            manager.addJob(job)
+            let queued = try XCTUnwrap(manager.jobs.first(where: { $0.id == job.id }))
+            let conflict = sidecarConflict
+                ? queued.destinationURL.deletingPathExtension().appendingPathExtension("SRT")
+                : queued.destinationURL
+            let sentinel = Data("unrelated late file".utf8)
+            try sentinel.write(to: conflict)
+            do {
+                _ = try await manager.processConcatenateJob(queued, jobId: queued.id,
+                                                             stagingDirectory: staged ? tmpDir : nil)
+                XCTFail("Late conflict must be reported")
+            } catch { }
+            XCTAssertEqual(try Data(contentsOf: conflict), sentinel)
+        }
+        }
+    }
+
+    /// Inject a competing file after the streaming copy has begun, bypassing any preflight check.
+    func testStagedCopyLateConflictRetainsBothPayloads() async throws {
+        guard let ffmpeg = BundledToolResolver.shared.path(for: .ffmpeg) else { throw XCTSkip("No ffmpeg") }
+        let src = tmpDir.appendingPathComponent("staged-source.mp4")
+        let competing = tmpDir.appendingPathComponent("competing.mp4")
+        let dest = tmpDir.appendingPathComponent("late-copy.mp4")
+        try generateClip(ffmpeg: ffmpeg, seconds: 1, to: src)
+        try generateClip(ffmpeg: ffmpeg, seconds: 2, to: competing)
+        let sourceBytes = try Data(contentsOf: src)
+        let sentinel = try Data(contentsOf: competing)
+        XCTAssertNotEqual(sourceBytes, sentinel)
+        do {
+            try await QueueManager.moveIntoPlace(from: src, to: dest) { fraction in
+                if fraction == 0 { try? sentinel.write(to: dest, options: .withoutOverwriting) }
+            }
+            XCTFail("Late copy conflict must fail")
+        } catch {
+            XCTAssertTrue(error is OutputPublication.Conflict)
+            XCTAssertFalse(QueueManager.isRetriableJoinError(error))
+        }
+        XCTAssertEqual(try Data(contentsOf: dest), sentinel)
+        XCTAssertEqual(try Data(contentsOf: src), sourceBytes)
+    }
+
+    /// This drives the standalone production wrapper: conflict arrives after preparation but before
+    /// FFmpeg launches. FFmpeg must never receive the public pathname, even with its -y flag.
+    func testFFmpegLateConflictPreservesUnrelatedVideo() async throws {
+        guard let ffmpeg = BundledToolResolver.shared.path(for: .ffmpeg) else { throw XCTSkip("No ffmpeg") }
+        let src = tmpDir.appendingPathComponent("direct-source.mp4")
+        let competing = tmpDir.appendingPathComponent("direct-competing.mp4")
+        let dest = tmpDir.appendingPathComponent("late-direct.mp4")
+        try generateClip(ffmpeg: ffmpeg, seconds: 1, to: src)
+        try generateClip(ffmpeg: ffmpeg, seconds: 2, to: competing)
+        let sentinel = try Data(contentsOf: competing)
+        do {
+            try await FFmpegWrapper().mergeClips([src], to: dest, progress: { fraction, _ in
+                if fraction == 0.1 { try? sentinel.write(to: dest, options: .withoutOverwriting) }
+            })
+            XCTFail("Late wrapper conflict must fail")
+        } catch { XCTAssertTrue(error is OutputPublication.Conflict) }
+        XCTAssertEqual(try Data(contentsOf: dest), sentinel)
+    }
+
+    func testStagedJoinWritesVideoAndMatchingSidecar() async throws {
+        guard let ffmpeg = BundledToolResolver.shared.path(for: .ffmpeg) else { throw XCTSkip("No ffmpeg") }
+        let src = tmpDir.appendingPathComponent("staged-with-srt.mp4")
+        let srt = tmpDir.appendingPathComponent("staged-with-srt.SRT")
+        try generateClip(ffmpeg: ffmpeg, seconds: 1, to: src)
+        try "1\n00:00:00,000 --> 00:00:00,500\nstaged telemetry\n".write(to: srt, atomically: true, encoding: .utf8)
+        let manager = makeManager()
+        let job = makeRealJob(outputName: "staged-result.mp4", segments: [(src, srt)])
+        manager.addJob(job)
+        let outputs = try await manager.processConcatenateJob(job, jobId: job.id, stagingDirectory: tmpDir)
+        XCTAssertEqual(outputs, [job.destinationURL])
+        XCTAssertEqual(manager.jobs.last?.actualOutputURLs, outputs)
+        XCTAssertNotNil(try FFmpegWrapper().probeStreamInfo(outputs[0]).video)
+        let sidecar = outputs[0].deletingPathExtension().appendingPathExtension("SRT")
+        XCTAssertTrue(try String(contentsOf: sidecar, encoding: .utf8).contains("staged telemetry"))
+    }
+
+    func testLateSidecarRacePersistsVideoAndManualRetryRecovers() async throws {
+        guard let ffmpeg = BundledToolResolver.shared.path(for: .ffmpeg) else { throw XCTSkip("No ffmpeg") }
+        let source = tmpDir.appendingPathComponent("race-source.mp4")
+        let srt = tmpDir.appendingPathComponent("race-source.SRT")
+        try generateClip(ffmpeg: ffmpeg, seconds: 1, to: source)
+        try "1\n00:00:00,000 --> 00:00:00,500\nour telemetry\n".write(to: srt, atomically: true, encoding: .utf8)
+        let manager = makeManager()
+        let job = makeRealJob(outputName: "race-result.mp4", segments: [(source, srt)])
+        manager.addJob(job)
+        let queued = try XCTUnwrap(manager.jobs.first(where: { $0.id == job.id }))
+        let sidecar = queued.destinationURL.deletingPathExtension().appendingPathExtension("SRT")
+        let sentinel = Data("unrelated sidecar arriving after video publication".utf8)
+        var publicationCount = 0
+        await manager.processJob(queued, beforeSidecarPublication: {
+            publicationCount += 1
+            try sentinel.write(to: sidecar, options: .withoutOverwriting)
+        })
+        // processQueue persists immediately after processJob; mirror that outer loop here.
+        manager.saveQueue()
+        let failed = try XCTUnwrap(manager.jobs.first(where: { $0.id == job.id }))
+        guard case .failed = failed.status else { return XCTFail("Sidecar conflict must fail clearly") }
+        XCTAssertEqual(publicationCount, 1, "No automatic retry after publication")
+        XCTAssertEqual(failed.actualOutputURLs, [queued.destinationURL])
+        let retainedVideo = try Data(contentsOf: queued.destinationURL)
+        XCTAssertEqual(try Data(contentsOf: sidecar), sentinel)
+        let restored = QueueManager(storageDirectory: tmpDir)
+        XCTAssertEqual(restored.jobs.first(where: { $0.id == job.id })?.actualOutputURLs, [queued.destinationURL])
+        let nextSidecar = tmpDir.appendingPathComponent("race-result (1).SRT")
+        try sentinel.write(to: nextSidecar)
+        restored.retryJob(job.id)
+        let retry = try XCTUnwrap(restored.jobs.first(where: { $0.id == job.id }))
+        XCTAssertEqual(retry.destinationURL.lastPathComponent, "race-result (2).mp4",
+                       "Retry reserves a stem whose video and sidecar are both free")
+        XCTAssertEqual(retry.actualOutputURLs, [queued.destinationURL], "Retained output remains available while pending")
+        await restored.processJob(retry)
+        let completed = try XCTUnwrap(restored.jobs.first(where: { $0.id == job.id }))
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.actualOutputURLs, [retry.destinationURL])
+        XCTAssertEqual(try Data(contentsOf: queued.destinationURL), retainedVideo)
+        XCTAssertEqual(try Data(contentsOf: sidecar), sentinel)
+        XCTAssertEqual(try Data(contentsOf: nextSidecar), sentinel)
+        let retrySidecar = retry.destinationURL.deletingPathExtension().appendingPathExtension("SRT")
+        XCTAssertTrue(try String(contentsOf: retrySidecar, encoding: .utf8).contains("our telemetry"))
+    }
+
+    func testPublicationPreservesCaseEquivalentFileAndDanglingSymlink() async throws {
+        let source = tmpDir.appendingPathComponent("case-source.mp4")
+        let destination = tmpDir.appendingPathComponent("CASE-OUTPUT.mp4")
+        let lowercase = tmpDir.appendingPathComponent("case-output.mp4")
+        try Data("our data".utf8).write(to: source)
+        try Data("other data".utf8).write(to: lowercase)
+        guard FileManager.default.fileExists(atPath: destination.path) else {
+            throw XCTSkip("Case-equivalent collision requires a case-insensitive filesystem")
+        }
+        do {
+            try await QueueManager.moveIntoPlace(from: source, to: destination)
+            XCTFail("Case-equivalent destination must survive")
+        } catch { XCTAssertTrue(error is OutputPublication.Conflict) }
+        XCTAssertEqual(try String(contentsOf: lowercase, encoding: .utf8), "other data")
+        let link = tmpDir.appendingPathComponent("dangling.mp4")
+        let missing = tmpDir.appendingPathComponent("missing-target.mp4")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: missing)
+        do {
+            try await QueueManager.moveIntoPlace(from: source, to: link)
+            XCTFail("Dangling link must survive")
+        } catch { XCTAssertTrue(error is OutputPublication.Conflict) }
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), missing.path)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missing.path))
+        XCTAssertEqual(try String(contentsOf: source, encoding: .utf8), "our data")
     }
 
     // MARK: - Real-media helpers

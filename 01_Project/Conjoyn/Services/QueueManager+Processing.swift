@@ -35,7 +35,7 @@ extension QueueManager {
     }
 
     /// Processes a single job: preflight, join, record speed.
-    func processJob(_ job: ConversionJob) async {
+    func processJob(_ job: ConversionJob, beforeSidecarPublication: (() throws -> Void)? = nil) async {
         guard jobIndex(for: job.id) != nil else { return }
         let jobId = job.id
 
@@ -142,7 +142,7 @@ extension QueueManager {
                     if attempt > 1 { j.progress = 0 }
                 }
 
-                let outputFiles = try await processConcatenateJob(job, jobId: jobId)
+                let outputFiles = try await processConcatenateJob(job, jobId: jobId, beforeSidecarPublication: beforeSidecarPublication)
 
                 // Store actual output URLs for verification (may differ due to conflict resolution).
                 updateJob(jobId) { j in
@@ -188,7 +188,9 @@ extension QueueManager {
                     break
                 }
 
-                if attempt < maxAttempts, Self.isRetriableJoinError(error) {
+                if attempt < maxAttempts,
+                   !(jobs.first(where: { $0.id == jobId })?.actualOutputURLs.contains(job.destinationURL) ?? false),
+                   Self.isRetriableJoinError(error) {
                     log("Transient error on \(job.displayName) (attempt \(attempt)/\(maxAttempts)) — retrying: \(error.localizedDescription)")
                     attempt += 1
                     continue
@@ -212,7 +214,8 @@ extension QueueManager {
 
     /// Runs the concat join for a job (multiple segments → one file).
     /// - Returns: An array containing the single output file URL.
-    func processConcatenateJob(_ job: ConversionJob, jobId: UUID) async throws -> [URL] {
+    func processConcatenateJob(_ job: ConversionJob, jobId: UUID, stagingDirectory: URL? = nil,
+                               beforeSidecarPublication: (() throws -> Void)? = nil) async throws -> [URL] {
         let totalBytes = job.clips.reduce(Int64(0)) { $0 + $1.totalFileSize }
         let totalDuration = job.totalContentDurationSeconds
         let segments = job.clips.map(\.videoURL)
@@ -236,22 +239,23 @@ extension QueueManager {
         // drive that flakes under a long batch (the observed faststart "re-open / I/O error"). When
         // temp and destination share a volume, staging buys nothing and would double the write, so we
         // write straight to the destination.
-        let tempDir = TempDirectoryManager.shared.effectiveTempDirectory
-        let staged = !DiskSpace.sameVolume(tempDir, finalURL.deletingLastPathComponent())
-        let writeURL = staged
-            ? tempDir.appendingPathComponent("conjoyn-join-\(jobId.uuidString).\(finalURL.pathExtension)")
-            : finalURL
+        let tempDir = stagingDirectory ?? TempDirectoryManager.shared.effectiveTempDirectory
+        let staged = stagingDirectory != nil || !DiskSpace.sameVolume(tempDir, finalURL.deletingLastPathComponent())
+        let workspace = try OutputPublication.makeWorkspace(
+            in: staged ? tempDir : finalURL.deletingLastPathComponent())
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let writeURL = workspace.appendingPathComponent(finalURL.lastPathComponent)
+        let srtOutputURL = finalURL.deletingPathExtension().appendingPathExtension("SRT")
+        try OutputPublication.requireAbsent(finalURL)
+        if job.clips.contains(where: { $0.srtURL != nil }) {
+            try OutputPublication.requireAbsent(srtOutputURL)
+        }
 
         // When staged, the row's progress bar is split: the ffmpeg join fills the first half and the
         // cross-volume move the second. Both shuttle ~the same byte count across the slow external
         // link (join writes the joined file; the move copies it to the destination), so a 50/50 split
         // is the honest byte-for-byte share. Unstaged jobs have no move, so the join fills the bar.
         let joinPortion = staged ? 0.5 : 1.0
-
-        // Track whether we've written to the *destination* this attempt, so the failure path deletes
-        // only our own partial — never a pre-existing good file we haven't touched yet (staging keeps
-        // the destination untouched until the move).
-        var destinationTouched = !staged
 
         // Cookbook #127: re-verify each source segment's filesystem identity now, immediately before
         // the join. The clips were captured when the job was enqueued; the queue may have drained for
@@ -271,8 +275,6 @@ extension QueueManager {
             job.clips.first?.family == .goPro ? .preserveTelemetry : .drop
 
         do {
-            defer { if staged { try? FileManager.default.removeItem(at: writeURL) } }
-
             try await ffmpeg.mergeClips(
                 segments,
                 to: writeURL,
@@ -311,38 +313,30 @@ extension QueueManager {
 
             if staged {
                 log("Moving joined file to destination → \(finalURL.lastPathComponent)")
-                destinationTouched = true
                 try await Self.moveIntoPlace(from: writeURL, to: finalURL) { [weak self] fraction in
                     Task { @MainActor in
                         self?.updateJob(jobId) { $0.progress = joinPortion + fraction * (1 - joinPortion) }
                     }
                 }
+            } else {
+                try OutputPublication.publish(writeURL, to: finalURL)
             }
         } catch {
-            // Delete our own partial output so a truncated file never masquerades as a finished join.
-            if destinationTouched { try? FileManager.default.removeItem(at: finalURL) }
+            // Only private workspaces are cleaned. A public path might now belong to someone else.
             throw error
         }
 
-        // Task 3.3: stitch the per-segment `.SRT` sidecars into one continuous, re-timed sidecar
-        // next to the joined video. **Non-fatal:** the lossless video join has already succeeded, so
-        // a telemetry-stitch failure is logged but never fails the job. The stitch probes each
-        // segment's duration via ffprobe (synchronous + blocking), so it runs off the main actor.
-        await stitchSRTSidecar(for: job)
+        // A sidecar race can still refuse publication after the video lands. Retain and expose the
+        // complete video, fail clearly, and never retry this attempt or delete the public path.
+        updateJob(jobId) { $0.actualOutputURLs = [finalURL] }
+        try beforeSidecarPublication?()
+        try await stitchSRTSidecar(for: job)
 
         return [finalURL]
     }
 
-    /// Replaces `dest` with `src` by **streaming** the bytes across (reporting `progress` 0…1), then
-    /// deleting `src` — a progress-reporting move. This is how a job staged on the temp volume lands at
-    /// its (cross-volume) destination in one sequential write; the byte-level progress drives the queue
-    /// row's "Finishing…" bar so a multi-GB move climbs instead of sitting at a frozen full bar.
-    ///
-    /// Safety: `src` is removed only **after** every byte is written and `fsync`'d to `dest`. A failure
-    /// mid-copy therefore throws with `src` intact and only a partial `dest` on disk — which the caller
-    /// (`processConcatenateJob`) deletes via its `destinationTouched` cleanup. The original source
-    /// segments are never touched (this copies the staged join, not the inputs). Runs off the main
-    /// actor because the copy is large and blocking.
+    /// Streams into a private destination-volume workspace, fsyncs, then atomically publishes
+    /// without replacement. A failed copy or late conflict retains src and removes only workspace.
     nonisolated static func moveIntoPlace(
         from src: URL,
         to dest: URL,
@@ -350,24 +344,27 @@ extension QueueManager {
     ) async throws {
         try await Task.detached(priority: .utility) {
             let fm = FileManager.default
-            if fm.fileExists(atPath: dest.path) {
-                try fm.removeItem(at: dest)
-            }
+            try OutputPublication.requireAbsent(dest)
+            let workspace = try OutputPublication.makeWorkspace(in: dest.deletingLastPathComponent())
+            defer { try? fm.removeItem(at: workspace) }
+            let privateOutput = workspace.appendingPathComponent(dest.lastPathComponent)
 
             // Size the source for the progress denominator. If it's unknown or zero, there's nothing
             // meaningful to stream — fall back to a plain (atomic) move and report completion.
             let totalBytes = ((try? fm.attributesOfItem(atPath: src.path))?[.size] as? NSNumber)?.int64Value ?? 0
             guard totalBytes > 0 else {
-                try fm.moveItem(at: src, to: dest)
+                try fm.copyItem(at: src, to: privateOutput)
+                try OutputPublication.publish(privateOutput, to: dest)
+                try? fm.removeItem(at: src)
                 progress?(1.0)
                 return
             }
 
-            guard fm.createFile(atPath: dest.path, contents: nil) else {
+            guard fm.createFile(atPath: privateOutput.path, contents: nil) else {
                 throw CocoaError(.fileWriteUnknown)
             }
             let input = try FileHandle(forReadingFrom: src)
-            let output = try FileHandle(forWritingTo: dest)
+            let output = try FileHandle(forWritingTo: privateOutput)
             defer { try? input.close(); try? output.close() }
 
             let chunkSize = 8 * 1024 * 1024   // 8 MB — ~25 UI updates/sec at typical drive speeds
@@ -381,7 +378,8 @@ extension QueueManager {
             try output.synchronize()   // flush to disk before we trust the copy enough to delete src
 
             // Move semantics: drop the staged source only once the destination is safely on disk.
-            try fm.removeItem(at: src)
+            try OutputPublication.publish(privateOutput, to: dest)
+            try? fm.removeItem(at: src)
             progress?(1.0)
         }.value
     }
@@ -393,6 +391,7 @@ extension QueueManager {
     /// only wastes a full attempt. Unknown errors (e.g. a Foundation file-I/O error during the move)
     /// are treated as transient.
     static func isRetriableJoinError(_ error: Error) -> Bool {
+        if error is OutputPublication.Conflict { return false }
         if let e = error as? FFmpegWrapper.FFmpegError {
             switch e {
             case .conversionFailed: return true
@@ -488,9 +487,9 @@ extension QueueManager {
     }
 
     /// Stitches the job's per-segment `.SRT` sidecars into a single sidecar alongside the joined
-    /// output (`<output-stem>.SRT`). No-op when no segment carries a sidecar. Never throws — any
-    /// failure is logged and swallowed so a telemetry hiccup can't fail an otherwise-good join.
-    private func stitchSRTSidecar(for job: ConversionJob) async {
+    /// output (`<output-stem>.SRT`). Parse/stitch failures remain nonfatal. A publication conflict
+    /// throws so an unrelated existing sidecar is never silently associated with the joined video.
+    private func stitchSRTSidecar(for job: ConversionJob) async throws {
         let srtPairs: [(video: URL, srt: URL?)] = job.clips.map { ($0.videoURL, $0.srtURL) }
         guard srtPairs.contains(where: { $0.srt != nil }) else { return }
 
@@ -507,8 +506,14 @@ extension QueueManager {
 
             guard let stitched else { return }   // no sidecars survived parsing → nothing to write
             let srtOutputURL = job.destinationURL.deletingPathExtension().appendingPathExtension("SRT")
-            try stitched.write(to: srtOutputURL, atomically: true, encoding: .utf8)
+            let workspace = try OutputPublication.makeWorkspace(in: srtOutputURL.deletingLastPathComponent())
+            defer { try? FileManager.default.removeItem(at: workspace) }
+            let privateSidecar = workspace.appendingPathComponent(srtOutputURL.lastPathComponent)
+            try stitched.write(to: privateSidecar, atomically: true, encoding: .utf8)
+            try OutputPublication.publish(privateSidecar, to: srtOutputURL)
             log("SRT sidecar written: \(srtOutputURL.lastPathComponent)")
+        } catch let conflict as OutputPublication.Conflict {
+            throw conflict
         } catch {
             log("SRT stitch skipped (telemetry only, video unaffected): \(error.localizedDescription)")
         }

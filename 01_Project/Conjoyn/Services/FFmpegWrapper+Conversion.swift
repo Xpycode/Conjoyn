@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 // MARK: - Lossless Concat Join (Wave 2, task 2.5)
 
@@ -234,9 +235,14 @@ extension FFmpegWrapper {
         try listBody.write(to: listFileURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: listFileURL) }
 
+        // FFmpeg may truncate with -y and reopen during faststart. Keep every such write in
+        // an exclusively created workspace; only publish the complete result without replacement.
+        let workspace = try OutputPublication.makeWorkspace(in: outputURL.deletingLastPathComponent())
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let privateOutput = workspace.appendingPathComponent(outputURL.lastPathComponent)
         let args = Self.buildMergeArguments(
             listFileURL: listFileURL,
-            outputURL: outputURL,
+            outputURL: privateOutput,
             metadata: metadata,
             gpmdStreamIndex: gpmdStreamIndex
         )
@@ -254,6 +260,41 @@ extension FFmpegWrapper {
             logHandler: logHandler,
             metricsHandler: metricsHandler
         )
+        try OutputPublication.publish(privateOutput, to: outputURL)
         progress(1.0, isSingle ? "Export complete" : "Join complete")
+    }
+}
+
+/// Narrow filesystem operations shared by the join and its staged copy. Public paths are never
+/// opened for writing or removed during failure cleanup. RENAME_EXCL performs the absence check
+/// and rename atomically, including dangling symlinks (which fileExists alone misses).
+enum OutputPublication {
+    struct Conflict: LocalizedError {
+        let url: URL
+        var errorDescription: String? {
+            "Output already exists: \(url.lastPathComponent). Nothing was replaced. Retry to use an available output name."
+        }
+    }
+
+    static func makeWorkspace(in directory: URL) throws -> URL {
+        let url = directory.appendingPathComponent(".conjoyn-\(UUID().uuidString)", isDirectory: true)
+        guard mkdir(url.path, 0o700) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        return url
+    }
+
+    static func requireAbsent(_ url: URL) throws {
+        var info = stat()
+        if lstat(url.path, &info) == 0 { throw Conflict(url: url) }
+        if errno != ENOENT { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+    }
+
+    static func publish(_ source: URL, to destination: URL) throws {
+        guard renamex_np(source.path, destination.path, UInt32(RENAME_EXCL)) == 0 else {
+            let code = errno
+            if code == EEXIST { throw Conflict(url: destination) }
+            throw POSIXError(POSIXErrorCode(rawValue: code) ?? .EIO)
+        }
     }
 }
