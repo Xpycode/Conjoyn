@@ -68,6 +68,7 @@ struct ContentView: View {
                     choose: vm.chooseSourceFolder
                 )
             }
+            .withoutSharedBackground()
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     Task { await vm.scan() }
@@ -87,7 +88,21 @@ struct ContentView: View {
                 }
                 .help("Open Conjoyn Help")
             }
+            .withoutSharedBackground()
         }
         .toolbarRole(.editor)
+    }
+}
+
+// SDK 27 adds a shared capsule even with UIDesignRequiresCompatibility. Keep the existing
+// controls and hide only that system group background (same fix as Penumbra, 2026-09-22).
+private extension ToolbarContent {
+    @ToolbarContentBuilder
+    func withoutSharedBackground() -> some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
     }
 }
