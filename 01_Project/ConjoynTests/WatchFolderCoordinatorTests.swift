@@ -312,62 +312,6 @@ final class WatchFolderCoordinatorTests: XCTestCase {
 
     // MARK: - Hung-discovery recovery (#1): a wedged scan must not permanently latch the watcher
 
-    func testHungDiscoveryTimesOutThenWatcherRecoversAndEnqueues() async {
-        let group = makeGroup()
-        let counter = CallCounter()
-        let t0 = Date(timeIntervalSinceReferenceDate: 2_000_000)
-        // One clock tick is consumed per pass that gets past the empty-groups guard. Pass 1 (hung →
-        // timeout → empty) consumes none; pass 2 (discovers) consumes t0; pass 3 (poll, quiet) t0+31.
-        let clock = FakeClock([t0, t0.addingTimeInterval(31)])
-        let frozen = FileStabilityGate.Sample(size: 800_000_000, modified: t0) // < splitThreshold
-
-        // Short discover timeout so the hung first pass abandons quickly.
-        var s = settings
-        s.discoverTimeout = 0.05
-
-        let queue = QueueManager(storageDirectory: freshTmpDir())
-        queue.isProcessing = true
-        let coord = WatchFolderCoordinator(
-            discover: { _ in
-                // First discovery wedges (a stalled mount / hung ffprobe); later ones recover.
-                if counter.bump() == 0 {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5s — abandoned by the timeout
-                    return []
-                }
-                return [group]
-            },
-            sample: { _ in frozen },
-            now: { clock.next() },
-            queue: queue,
-            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
-            bookmark: WatchFolderBookmark(
-                defaults: UserDefaults(suiteName: "test.coord.\(UUID().uuidString)")!,
-                key: "watchFolder.rootBookmark"
-            ),
-            settings: s,
-            storageDirectory: freshTmpDir()
-        )
-
-        let root = sourceRoot
-
-        // Pass 1: discovery hangs → times out (~50 ms) → no enqueue, and crucially the discovery
-        // latch is cleared by the `defer`, not stuck `true` forever (the old deadlock).
-        await coord.reconcile(rootURL: root, rediscover: true)
-        XCTAssertEqual(queue.jobs.count, 0)
-
-        // Pass 2: a *fresh* discovery actually runs — proof the latch was cleared (a permanent latch
-        // would drop this pass at the guard before ever calling discover) — and finds the group.
-        await coord.reconcile(rootURL: root, rediscover: true)
-
-        // Pass 3: quiet window elapsed → the recovered group settles and enqueues.
-        await coord.reconcile(rootURL: root, rediscover: false)
-
-        XCTAssertEqual(queue.jobs.count, 1,
-                       "after a hung discovery times out, the watcher recovers and enqueues")
-        XCTAssertGreaterThanOrEqual(counter.value, 2,
-                                    "a second discovery must have run — the hang did not latch the watcher shut")
-    }
-
     // MARK: - Disable stops cleanly
 
     func testDisablePersistsDisabledState() {
@@ -378,4 +322,211 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         coord.disable()
         XCTAssertEqual(coord.status, .idle)
     }
+    // Continuations control both the reader and timeout clock; no timing sleeps or media I/O.
+    private actor ControlledWork<Value: Sendable> {
+        private var calls: [CheckedContinuation<Value, Never>?] = []
+        private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+        func run() async -> Value {
+            await withCheckedContinuation { continuation in
+                calls.append(continuation)
+                let ready = waiters.filter { calls.count >= $0.0 }
+                waiters.removeAll { calls.count >= $0.0 }
+                ready.forEach { $0.1.resume() }
+            }
+        }
+        func waitForCalls(_ count: Int) async {
+            if calls.count >= count { return }
+            await withCheckedContinuation { waiters.append((count, $0)) }
+        }
+        func finish(_ index: Int, _ value: Value) {
+            let continuation = calls[index]
+            calls[index] = nil
+            continuation?.resume(returning: value)
+        }
+        var count: Int { calls.count }
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<10_000 {
+            if condition() { return }
+            await Task.yield()
+        }
+        XCTFail("Controlled work did not reach the expected state", file: file, line: line)
+    }
+
+    private final class ManualClock: @unchecked Sendable {
+        var date = Date(timeIntervalSince1970: 1_000)
+    }
+
+    private func controlledCoordinator(reader: ControlledWork<[RecordGroup]>,
+                                       delays: ControlledWork<Void>, clock: ManualClock,
+                                       queue: QueueManager, budget: WatchDiscoveryBudget? = nil) -> WatchFolderCoordinator {
+        queue.isProcessing = true
+        let suite = "test.coord.controlled.\(UUID().uuidString)"
+        var tunables = settings
+        tunables.quietWindow = 0
+        let coordinator = WatchFolderCoordinator(discover: { _ in await reader.run() },
+            sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: suite)!, key: "root"),
+            settings: tunables, storageDirectory: freshTmpDir(),
+            timeoutSleep: { _ in await delays.run() })
+        if let budget { coordinator.discoveryBudget = budget }
+        return coordinator
+    }
+
+    func testEventBurstDuringDiscoveryRunsOneTrailingPassAndRejectsOldResult() async {
+        let reader = ControlledWork<[RecordGroup]>()
+        let delays = ControlledWork<Void>()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = controlledCoordinator(reader: reader, delays: delays, clock: ManualClock(), queue: queue)
+        let root = sourceRoot
+        let first = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(1)
+        await delays.waitForCalls(1)
+        for _ in 0..<8 { await coord.sourceDidChange(rootURL: root) }
+        await reader.finish(0, [makeGroup()])
+        await first.value
+        await reader.waitForCalls(2)
+        await delays.waitForCalls(2)
+        XCTAssertTrue(queue.jobs.isEmpty, "A result spanning a change event cannot admit its old metadata")
+        await reader.finish(1, [])
+        // A subsequent poll drains publication without requiring another event.
+        await coord.refreshTask?.value
+        await coord.reconcile(rootURL: root, rediscover: false)
+        let calls = await reader.count
+        XCTAssertEqual(calls, 2)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        await delays.finish(0, ())
+        await delays.finish(1, ())
+    }
+
+    func testQuietRootTimeoutRetriesFromPollAndCapsUnderlyingWorkers() async {
+        let reader = ControlledWork<[RecordGroup]>()
+        let delays = ControlledWork<Void>()
+        let clock = ManualClock()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = controlledCoordinator(reader: reader, delays: delays, clock: clock, queue: queue)
+        let root = sourceRoot
+        let first = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(1)
+        await delays.waitForCalls(1)
+        await delays.finish(0, ())
+        await first.value
+        XCTAssertEqual(coord.status, .discoveryStalled)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 1)
+        clock.date.addTimeInterval(1)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        await reader.waitForCalls(2)
+        await delays.waitForCalls(2)
+        await delays.finish(1, ())
+        await coord.refreshTask?.value
+        clock.date.addTimeInterval(1)
+        for _ in 0..<8 { await coord.reconcile(rootURL: root, rediscover: false) }
+        let calls = await reader.count
+        XCTAssertEqual(calls, 2)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 2, "Timeout must not release underlying work")
+        XCTAssertEqual(coord.status, .discoveryStalled)
+        // Late abandoned results free a slot but never publish or enqueue.
+        await reader.finish(0, [makeGroup()])
+        await waitUntil { coord.discoveryBudget.workerCount == 1 }
+        XCTAssertTrue(queue.jobs.isEmpty)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        await reader.waitForCalls(3)
+        await delays.waitForCalls(3)
+        await reader.finish(2, [makeGroup()])
+        await reader.finish(1, [makeGroup()])
+        await coord.refreshTask?.value
+        await waitUntil { coord.discoveryBudget.workerCount == 0 }
+        XCTAssertEqual(queue.jobs.count, 1, "The quiet-root retry admits recovered footage")
+        XCTAssertNotEqual(coord.status, .discoveryStalled)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 0)
+        await delays.finish(2, ())
+    }
+
+    func testDisableFencesSuspendedDiscoveryAndRetainsSlotForReplacement() async {
+        let reader = ControlledWork<[RecordGroup]>()
+        let delays = ControlledWork<Void>()
+        let clock = ManualClock()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let budget = WatchDiscoveryBudget()
+        let old = controlledCoordinator(reader: reader, delays: delays, clock: clock, queue: queue, budget: budget)
+        let root = sourceRoot
+        let oldPass = Task { await old.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(1)
+        await delays.waitForCalls(1)
+        old.disable()
+        let replacement = controlledCoordinator(reader: reader, delays: delays, clock: clock, queue: queue, budget: budget)
+        let newPass = Task { await replacement.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(2)
+        await delays.waitForCalls(2)
+        replacement.disable()
+        let third = controlledCoordinator(reader: reader, delays: delays, clock: clock, queue: queue, budget: budget)
+        await third.reconcile(rootURL: root, rediscover: true)
+        XCTAssertEqual(third.status, .discoveryStalled)
+        XCTAssertEqual(budget.workerCount, 2)
+        await reader.finish(0, [makeGroup()])
+        await reader.finish(1, [makeGroup()])
+        await oldPass.value
+        await newPass.value
+        XCTAssertTrue(queue.jobs.isEmpty)
+        XCTAssertEqual(old.status, .idle)
+        XCTAssertEqual(replacement.status, .idle)
+        XCTAssertEqual(budget.workerCount, 0)
+        third.disable()
+        await third.reconcile(rootURL: root, rediscover: false)
+        let calls = await reader.count
+        XCTAssertEqual(calls, 2, "Completion after disable cannot restart discovery")
+        await delays.finish(0, ())
+        await delays.finish(1, ())
+    }
+
+    func testPollInitiatedReprobeDoesNotHoldHealthyResamplingLatch() async {
+        final class Samples: @unchecked Sendable {
+            var changed = false
+        }
+        let samples = Samples()
+        let reader = ControlledWork<[RecordGroup]>()
+        let delays = ControlledWork<Void>()
+        let clock = ManualClock()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        let stale = makeGroup()
+        let healthy = RecordGroup(clips: [DJIClip(videoURL: sourceRoot.appendingPathComponent("DJI_0002.MP4"),
+            index: 1, variantSuffix: nil, stem: "DJI_0002", creationDate: Date(timeIntervalSince1970: 2000), duration: .zero)], groupIndex: 2)
+        let coord = WatchFolderCoordinator(discover: { _ in await reader.run() },
+            sample: { url in .init(size: samples.changed && url.lastPathComponent == "DJI_0001.MP4" ? 200 : 100,
+                                  modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.reprobe.\(UUID().uuidString)")!, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir(), timeoutSleep: { _ in await delays.run() })
+        let root = sourceRoot
+        let initial = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(1)
+        await delays.waitForCalls(1)
+        await reader.finish(0, [stale, healthy])
+        await initial.value
+        samples.changed = true
+        let refresh = Task { await coord.reconcile(rootURL: root, rediscover: false) }
+        await reader.waitForCalls(2)
+        await delays.waitForCalls(2)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 1, "Generation re-probes share the worker budget")
+        clock.date.addTimeInterval(31)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1, "Healthy cached footage must settle while a poll-started re-probe is suspended")
+        XCTAssertEqual(queue.jobs.first?.clips.first?.stem, "DJI_0002")
+        await delays.finish(1, ())
+        await refresh.value
+        XCTAssertEqual(coord.status, .discoveryStalled)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 1)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1, "Changed footage cannot use the old cached metadata during timeout")
+        coord.disable()
+        await reader.finish(1, [stale, healthy])
+        await waitUntil { coord.discoveryBudget.workerCount == 0 }
+        await delays.finish(0, ())
+    }
+
 }

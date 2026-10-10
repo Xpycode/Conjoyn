@@ -446,4 +446,180 @@ final class WatchFolderManagerTests: XCTestCase {
         XCTAssertEqual(m.entries.count, 0)
         XCTAssertNil(m.statuses[entry.id])
     }
+    func testWorkerBudgetSurvivesSettingsToggleRemovalAndChangedMountPath() throws {
+        let harness = RecoveryHarness()
+        let suite = "test.budget.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let originalRoot = freshTmpDir()
+        let movedRoot = freshTmpDir()
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: originalRoot.path, enabled: true)
+        harness.roots[entry.id] = originalRoot
+        harness.available = [originalRoot, movedRoot]
+        defaults.set(try JSONEncoder().encode([entry]), forKey: "entries")
+        let manager = WatchFolderManager(queue: QueueManager(storageDirectory: freshTmpDir()), defaults: defaults,
+            storeKey: "entries", baseStorageDirectory: freshTmpDir(), recovery: harness.dependencies,
+            coordinatorFactory: harness.make)
+        managers.append(manager)
+        manager.resumeAll()
+        let budget = manager.discoveryBudget(for: entry, rootURL: originalRoot)
+        let first = try XCTUnwrap(budget.acquire())
+        let second = try XCTUnwrap(budget.acquire())
+        manager.updateSettings(entry.id, .defaults)
+        manager.setEnabled(entry.id, false)
+        manager.setEnabled(entry.id, true)
+        XCTAssertTrue(manager.discoveryBudget(for: entry, rootURL: originalRoot) === budget)
+        harness.receive?(.unmounted(originalRoot))
+        harness.roots[entry.id] = movedRoot
+        harness.receive?(.mounted)
+        XCTAssertTrue(manager.discoveryBudget(for: entry, rootURL: movedRoot) === budget)
+        XCTAssertNil(budget.acquire())
+        manager.remove(entry.id)
+        let readded = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: movedRoot.path, enabled: true)
+        XCTAssertTrue(manager.discoveryBudget(for: readded, rootURL: movedRoot) === budget)
+        // The old canonical alias remains protected too.
+        let oldAlias = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: originalRoot.path, enabled: true)
+        XCTAssertTrue(manager.discoveryBudget(for: oldAlias, rootURL: originalRoot) === budget)
+        XCTAssertEqual(budget.workerCount, 2)
+        budget.complete(first)
+        let replacement = try XCTUnwrap(budget.acquire())
+        XCTAssertNil(budget.acquire())
+        budget.complete(second)
+        budget.complete(replacement)
+        XCTAssertEqual(budget.workerCount, 0)
+    }
+
+    func testRemovedEntryBookmarkCarriesWorkerBudgetToNewMountPath() throws {
+        let harness = RecoveryHarness()
+        let manager = WatchFolderManager(queue: QueueManager(storageDirectory: freshTmpDir()),
+            defaults: UserDefaults(suiteName: "test.budget.removed.\(UUID().uuidString)")!,
+            baseStorageDirectory: freshTmpDir(), recovery: harness.dependencies, coordinatorFactory: harness.make)
+        managers.append(manager)
+        let root = freshTmpDir()
+        let moved = freshTmpDir()
+        let old = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: root.path, enabled: true)
+        harness.roots[old.id] = root
+        let budget = manager.discoveryBudget(for: old, rootURL: root)
+        let slot = try XCTUnwrap(budget.acquire())
+        manager.remove(old.id)
+        harness.roots[old.id] = moved
+        let readded = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: moved.path, enabled: true)
+        XCTAssertTrue(manager.discoveryBudget(for: readded, rootURL: moved) === budget)
+        XCTAssertEqual(budget.workerCount, 1)
+        budget.complete(slot)
+    }
+
+    private actor SuspendedReads {
+        private var continuations: [CheckedContinuation<[RecordGroup], Never>?] = []
+        private var waiters: [(Int, CheckedContinuation<Void, Never>)] = []
+        func read() async -> [RecordGroup] {
+            await withCheckedContinuation { continuation in
+                continuations.append(continuation)
+                let ready = waiters.filter { continuations.count >= $0.0 }
+                waiters.removeAll { continuations.count >= $0.0 }
+                ready.forEach { $0.1.resume() }
+            }
+        }
+        func waitForCalls(_ count: Int) async {
+            if continuations.count >= count { return }
+            await withCheckedContinuation { waiters.append((count, $0)) }
+        }
+        func finish(_ index: Int, groups: [RecordGroup]) {
+            let continuation = continuations[index]
+            continuations[index] = nil
+            continuation?.resume(returning: groups)
+        }
+        var count: Int { continuations.count }
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool, file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<10_000 {
+            if condition() { return }
+            await Task.yield()
+        }
+        XCTFail("Controlled coordinator did not reach expected state", file: file, line: line)
+    }
+
+    func testSuspendedWorkersCannotAdmitAfterUnmountSettingsToggleOrRemoveReadd() async throws {
+        let reader = SuspendedReads()
+        let harness = RecoveryHarness()
+        let suite = "test.actual.lifecycle.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = freshTmpDir()
+        let moved = freshTmpDir()
+        var settings = WatchFolderSettings.defaults
+        settings.requiredStablePolls = 1
+        settings.quietWindow = 0
+        settings.pollInterval = 10_000 // Real timer cannot drive these deterministic tests.
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: try WatchFolderEntry.makeBookmark(for: root),
+                                    rootPath: root.path, enabled: true, settings: settings)
+        harness.roots[entry.id] = root
+        harness.available = [root, moved]
+        defaults.set(try JSONEncoder().encode([entry]), forKey: "entries")
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        var made: [WatchFolderCoordinator] = []
+        var dependencies = harness.dependencies
+        dependencies.resolveRoot = { harness.roots[$0.id] ?? $0.resolvedRootURL }
+        dependencies.isAvailable = { url in
+            harness.available.contains { $0.resolvingSymlinksInPath() == url.resolvingSymlinksInPath() }
+        }
+        let manager = WatchFolderManager(queue: queue, defaults: defaults, storeKey: "entries",
+            baseStorageDirectory: freshTmpDir(), recovery: dependencies, coordinatorFactory: { [self] entry, _ in
+                let coordinator = WatchFolderCoordinator(discover: { _ in await reader.read() },
+                    sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+                    now: { Date(timeIntervalSince1970: 1000) }, queue: queue,
+                    ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+                    bookmark: WatchFolderBookmark(defaults: defaults, key: UUID().uuidString),
+                    settings: settings, storageDirectory: freshTmpDir(), watchEntryID: entry.id)
+                made.append(coordinator)
+                return coordinator
+            })
+        managers.append(manager)
+        manager.resumeAll()
+        await reader.waitForCalls(1)
+        let first = try XCTUnwrap(made.first)
+        let budget = first.discoveryBudget
+        harness.receive?(.unmounted(root))
+        XCTAssertEqual(first.status, .idle)
+        XCTAssertEqual(budget.workerCount, 1)
+        harness.roots[entry.id] = moved
+        harness.receive?(.mounted)
+        await reader.waitForCalls(2)
+        XCTAssertTrue(made.last?.discoveryBudget === budget)
+        manager.updateSettings(entry.id, settings)
+        manager.setEnabled(entry.id, false)
+        manager.setEnabled(entry.id, true)
+        manager.remove(entry.id)
+        guard case .added(let readded) = manager.addFolder(rootURL: moved) else { return XCTFail("Re-add failed") }
+        let current = try XCTUnwrap(made.last)
+        let activeRoot = try XCTUnwrap(readded.resolvedRootURL)
+        await waitUntil { current.status == .discoveryStalled }
+        XCTAssertTrue(current.discoveryBudget === budget)
+        XCTAssertEqual(budget.workerCount, 2)
+        let callsBeforeCompletion = await reader.count
+        XCTAssertEqual(callsBeforeCompletion, 2)
+        let stale = RecordGroup(clips: [DJIClip(videoURL: root.appendingPathComponent("DJI_0001.MP4"),
+            index: 1, variantSuffix: nil, stem: "DJI_0001", creationDate: Date(timeIntervalSince1970: 1000), duration: .zero)], groupIndex: 1)
+        await reader.finish(0, groups: [stale])
+        await reader.finish(1, groups: [stale])
+        await waitUntil { budget.workerCount == 0 }
+        XCTAssertTrue(queue.jobs.isEmpty, "Retired work cannot admit across unmount/removal")
+        XCTAssertEqual(first.status, .idle)
+        XCTAssertNil(manager.statuses[entry.id])
+        guard current.status == .discoveryStalled else {
+            manager.setEnabled(readded.id, false)
+            return XCTFail("Re-added coordinator must have retained a pending refresh")
+        }
+        await current.reconcile(rootURL: activeRoot, rediscover: false)
+        await reader.waitForCalls(3)
+        await reader.finish(2, groups: [])
+        await current.refreshTask?.value
+        XCTAssertNotEqual(manager.statuses[readded.id], .discoveryStalled,
+                          "A successful empty retry clears stalled status")
+        XCTAssertTrue(queue.jobs.isEmpty)
+        manager.setEnabled(readded.id, false)
+    }
+
 }

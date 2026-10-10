@@ -175,6 +175,10 @@ private struct WatchFolderRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.acc1)
                     .fixedSize(horizontal: false, vertical: true)
+            } else if status == .discoveryStalled {
+                Text("Discovery stalled. Retrying when capacity returns; relaunch Conjoyn if it remains stalled.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.acc1)
             } else if status == .outputUnavailable {
                 Text("Output unavailable. Restore access to the folder or choose an output folder to resume.")
                     .font(.system(size: 11))
@@ -239,6 +243,7 @@ private struct WatchStatusPill: View {
         switch status {
         case .idle:                         return "WAITING"
         case .outputUnavailable:            return "OUTPUT UNAVAILABLE"
+        case .discoveryStalled:             return "DISCOVERY STALLED"
         case .historyUnavailable:           return "HISTORY UNAVAILABLE"
         case .watching(let n) where n > 0:  return "SETTLING \(n)"
         case .watching:                     return "WATCHING"
@@ -251,6 +256,7 @@ private struct WatchStatusPill: View {
         switch status {
         case .idle:                         return Theme.txt3
         case .outputUnavailable:            return Theme.acc1
+        case .discoveryStalled:             return Theme.acc1
         case .historyUnavailable:           return Theme.acc1
         case .watching(let n) where n > 0:  return Theme.acc1
         case .watching:                     return Theme.ok

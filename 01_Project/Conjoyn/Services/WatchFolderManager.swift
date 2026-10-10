@@ -52,6 +52,26 @@ final class WatchFolderManager: ObservableObject {
 
     private var coordinators: [UUID: any WatchFolderManagingCoordinator] = [:]
     private var activeRoots: [UUID: URL] = [:]
+    // Session lifetime tombstones: remove/re-add and remounts must not reset worker capacity.
+    private var discoveryBudgetsByEntry: [UUID: WatchDiscoveryBudget] = [:]
+    private var discoveryBudgetsByRoot: [String: WatchDiscoveryBudget] = [:]
+    private var budgetEntries: [UUID: WatchFolderEntry] = [:]
+
+    func discoveryBudget(for entry: WatchFolderEntry, rootURL: URL) -> WatchDiscoveryBudget {
+        let key = rootURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let oldKey = URL(fileURLWithPath: entry.rootPath).standardizedFileURL.resolvingSymlinksInPath().path
+        let returning = budgetEntries.values.first { saved in
+            guard let resolved = recovery.resolveRoot(saved) else { return false }
+            return resolved.standardizedFileURL.resolvingSymlinksInPath().path == key
+        }.flatMap { discoveryBudgetsByEntry[$0.id] }
+        let budget = discoveryBudgetsByEntry[entry.id] ?? discoveryBudgetsByRoot[key] ?? returning
+            ?? discoveryBudgetsByRoot[oldKey] ?? WatchDiscoveryBudget()
+        budgetEntries[entry.id] = entry
+        discoveryBudgetsByEntry[entry.id] = budget
+        discoveryBudgetsByRoot[key] = budget
+        discoveryBudgetsByRoot[oldKey] = budget
+        return budget
+    }
     @Published private(set) var unavailableEntryIDs: Set<UUID> = []
 
     enum RootEvent {
@@ -196,8 +216,8 @@ final class WatchFolderManager: ObservableObject {
     }
 
     private func markUnavailable(_ id: UUID) {
-        unavailableEntryIDs.insert(id)
         deactivate(id)
+        unavailableEntryIDs.insert(id)
     }
 
     // MARK: - Add / remove
@@ -300,6 +320,9 @@ final class WatchFolderManager: ObservableObject {
         }
         unavailableEntryIDs.remove(entry.id)
         let coordinator = coordinatorFactory?(entry, rootURL) ?? makeCoordinator(for: entry, rootURL: rootURL)
+        if let concrete = coordinator as? WatchFolderCoordinator {
+            concrete.discoveryBudget = discoveryBudget(for: entry, rootURL: rootURL)
+        }
         coordinator.resolveOutputDestination = { entry.outputDestination }
         // Mirror the coordinator's @Published status into our per-id map. The publisher emits on
         // the main actor (status is only mutated there), so assumeIsolated is sound.

@@ -26,6 +26,7 @@ final class WatchFolderCoordinator: ObservableObject {
         case outputUnavailable
         /// History could not be read or saved; further automatic admission is paused.
         case historyUnavailable
+        case discoveryStalled
         /// Monitor is active; N groups have been observed but have not yet settled / completed.
         case watching(settlingCount: Int)
         /// Groups have been enqueued into `QueueManager`.
@@ -168,10 +169,36 @@ final class WatchFolderCoordinator: ObservableObject {
     private var pollTimer: Timer?
 
     /// Guards the heavy **discovery** path (FSEvents-driven: per-clip ffprobe scan of the whole root).
-    /// A second discovery that arrives while one is in flight is dropped — the trailing FSEvents event
-    /// will trigger another. Bounded by `settings.discoverTimeout` (`withDiscoverTimeout` below) so a
+    /// Events received in flight retain one coalesced trailing discovery. Bounded by `settings.discoverTimeout` (`withDiscoverTimeout` below) so a
     /// wedged ffprobe / stalled mount can't latch this `true` forever and silently kill the watcher.
     private var isDiscovering = false
+    private var activeDiscovery: UUID?
+    private(set) var refreshTask: Task<Void, Never>?
+    private var scheduledRefreshID: UUID?
+    private var discoverySequence = 0
+    private var pendingRefresh = false
+    private var retryDeadline: Date?
+    private var eventGeneration = 0
+    // Assigned by the manager before enable; retained across coordinator replacement.
+    var discoveryBudget = WatchDiscoveryBudget()
+    private let timeoutSleep: @Sendable (TimeInterval) async -> Void
+
+    private func schedulePendingRefresh(rootURL: URL, lifecycle: Int) {
+        guard !disabled, lifecycle == lifecycleGeneration, pendingRefresh, !isDiscovering,
+              scheduledRefreshID == nil else { return }
+        guard retryDeadline.map({ now() >= $0 }) ?? true else { return }
+        guard discoveryBudget.hasCapacity else { status = .discoveryStalled; return }
+        let scheduledID = UUID()
+        let sequence = discoverySequence
+        scheduledRefreshID = scheduledID
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self, !self.disabled, self.lifecycleGeneration == lifecycle,
+                  self.scheduledRefreshID == scheduledID else { return }
+            self.scheduledRefreshID = nil
+            guard self.discoverySequence == sequence else { return }
+            await self.reconcile(rootURL: rootURL, rediscover: true)
+        }
+    }
 
     /// Guards the cheap **re-sample** cadence (poll-timer-driven: a `stat` per known clip, no ffprobe).
     /// Deliberately **separate** from `isDiscovering` so a wedged discovery never blocks the cadence —
@@ -247,8 +274,12 @@ final class WatchFolderCoordinator: ObservableObject {
         ledgerNamespace: String? = nil,
         discoverBound: (@Sendable (URL) async -> WatchDiscovery)? = nil,
         fileIdentifier: @escaping @Sendable (URL) -> String? = { WatchFileGeneration.read($0)?.identifier },
-        persistSettings: @escaping (WatchFolderSettings) -> Void = { _ in }
+        persistSettings: @escaping (WatchFolderSettings) -> Void = { _ in },
+        timeoutSleep: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+        }
     ) {
+        self.timeoutSleep = timeoutSleep
         self.persistSettings = persistSettings
         self.watchEntryID = watchEntryID
         self.ledgerNamespace = ledgerNamespace ?? watchEntryID.uuidString
@@ -286,6 +317,7 @@ final class WatchFolderCoordinator: ObservableObject {
     /// Activates the watch-folder for `rootURL`: persists the bookmark, marks settings enabled,
     /// starts FSEvents monitoring, and kicks an immediate rescan.
     func enable(rootURL: URL) {
+        if currentRoot != nil { invalidateLifecycle() }
         disabled = false
         currentRoot = rootURL
         do {
@@ -300,8 +332,10 @@ final class WatchFolderCoordinator: ObservableObject {
         persistSettings(settings)
 
         startMonitor(rootURL: rootURL)
+        let lifecycle = lifecycleGeneration
         Task { @MainActor [weak self] in
-            await self?.rescan(rediscover: true)
+            guard let self, self.lifecycleGeneration == lifecycle, !self.disabled else { return }
+            await self.rescan(rediscover: true)
         }
     }
 
@@ -309,17 +343,31 @@ final class WatchFolderCoordinator: ObservableObject {
     /// persists the disabled state. No in-flight job is touched — the queue runs to completion.
     func disable() {
         disabled = true
+        invalidateLifecycle()
+        settings.enabled = false
+        persistSettings(settings)
+        stopMonitor()
+        status = .idle
+    }
+
+    private func invalidateLifecycle() {
         lifecycleGeneration += 1
+        activeDiscovery = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        scheduledRefreshID = nil
+        isDiscovering = false
+        isResampling = false
+        pendingRefresh = false
+        retryDeadline = nil
+        groupLastChanged.removeAll()
+        invalidatedApprovals.formUnion(approvedGenerations.keys)
         metadataGenerations.removeAll()
         reviewRecords.removeAll()
         lastGroups.removeAll()
         sampleHistory.removeAll()
         rejectedProbePaths.removeAll()
         rejectedProbeSamples.removeAll()
-        settings.enabled = false
-        persistSettings(settings)
-        stopMonitor()
-        status = .idle
     }
 
     // MARK: - Relaunch Resume (task 5.10)
@@ -334,9 +382,7 @@ final class WatchFolderCoordinator: ObservableObject {
     func resume() {
         guard settings.enabled, let rootURL = bookmark.resolve() else { return }
 
-        disabled = false
-        startMonitor(rootURL: rootURL)
-        Task { @MainActor [weak self] in await self?.rescan(rediscover: true) }
+        enable(rootURL: rootURL)
     }
 
     // MARK: - Private: Monitor lifecycle
@@ -344,11 +390,13 @@ final class WatchFolderCoordinator: ObservableObject {
     private func startMonitor(rootURL: URL) {
         stopMonitor() // idempotent teardown of any previous monitor
 
+        let lifecycle = lifecycleGeneration
         let wf = WatchFolder(url: rootURL, latency: 1.0) { [weak self] in
             // WatchFolder's onChange callback is @Sendable (GCD queue). Hop to MainActor.
             // A real filesystem change → re-discover (a new/changed segment may exist).
             Task { @MainActor [weak self] in
-                await self?.rescan(rediscover: true)
+                guard let self, self.lifecycleGeneration == lifecycle, !self.disabled else { return }
+                await self.rescan(rediscover: true)
             }
         }
         wf.start()
@@ -363,7 +411,8 @@ final class WatchFolderCoordinator: ObservableObject {
         ) { [weak self] _ in
             // Cadence pass: re-sample known files only (cheap), no ffprobe re-discovery.
             Task { @MainActor [weak self] in
-                await self?.rescan(rediscover: false)
+                guard let self, self.lifecycleGeneration == lifecycle, !self.disabled else { return }
+                await self.rescan(rediscover: false)
             }
         }
 
@@ -396,6 +445,7 @@ final class WatchFolderCoordinator: ObservableObject {
     /// identifies affected cached clips; unchanged generations remain available during a stall.
     func sourceDidChange(rootURL: URL) async {
         guard !disabled else { return }
+        eventGeneration += 1
         invalidatedApprovals.formUnion(approvedGenerations.keys)
         metadataGenerations = metadataGenerations.filter { generation(at: URL(fileURLWithPath: $0.key)) == $0.value }
         reviewRecords.removeAll { record in !record.generations.allSatisfy {
@@ -411,22 +461,41 @@ final class WatchFolderCoordinator: ObservableObject {
     /// re-enqueued after relaunch.
     func reconcile(rootURL: URL, rediscover: Bool) async {
         guard !disabled, historyIsAvailable() else { return }
+        if let currentRoot, currentRoot != rootURL { invalidateLifecycle() }
         currentRoot = rootURL
         invalidateChangedApprovals()
         let lifecycle = lifecycleGeneration
-        // Two independent latches (see `isDiscovering` / `isResampling`): the heavy discovery path and
-        // the cheap re-sample cadence each guard their own flag, so a wedged discovery can't freeze the
-        // cadence. The `defer` clears whichever latch this pass took — including after a discovery
-        // timeout, which is what makes recovery automatic.
+        let request: UUID?
+        var ownsResampling = false
+        let events = eventGeneration
         if rediscover {
-            guard !isDiscovering else { return }
+            guard !isDiscovering else { pendingRefresh = true; return }
+            guard retryDeadline.map({ now() >= $0 }) ?? true else { pendingRefresh = true; return }
+            guard let slot = discoveryBudget.acquire() else {
+                pendingRefresh = true
+                status = .discoveryStalled
+                return
+            }
+            request = slot
+            discoverySequence += 1
+            activeDiscovery = slot
+            pendingRefresh = false
+            retryDeadline = nil
             isDiscovering = true
         } else {
             guard !isResampling else { return }
+            request = nil
             isResampling = true
+            ownsResampling = true
         }
         defer {
-            if rediscover { isDiscovering = false } else { isResampling = false }
+            if lifecycle == lifecycleGeneration {
+                if rediscover, activeDiscovery == request {
+                    activeDiscovery = nil
+                    isDiscovering = false
+                } else if ownsResampling { isResampling = false }
+                schedulePendingRefresh(rootURL: rootURL, lifecycle: lifecycle)
+            }
         }
 
         // Metadata and its file-generation stamp travel together. Production stamps each
@@ -438,7 +507,9 @@ final class WatchFolderCoordinator: ObservableObject {
             })
             metadataGenerations = metadataGenerations.filter { generation(at: URL(fileURLWithPath: $0.key)) == $0.value }
             reviewRecords.removeAll { record in !record.generations.allSatisfy { generation(at: URL(fileURLWithPath: $0.key)) == $0.value } }
-            let result = await withDiscoverTimeout(seconds: settings.discoverTimeout) { [discover, discoverBound, sample, fileIdentifier] in
+            let result = await withDiscoverTimeout(seconds: settings.discoverTimeout, sleep: timeoutSleep, completed: { [discoveryBudget] in
+                discoveryBudget.complete(request!)
+            }) { [discover, discoverBound, sample, fileIdentifier] in
                 if let discoverBound { return await discoverBound(rootURL) }
                 let groups = await discover(rootURL)
                 var stamps: [String: WatchFileGeneration] = [:]
@@ -450,9 +521,20 @@ final class WatchFolderCoordinator: ObservableObject {
                 }
                 return WatchDiscovery(groups: groups, generations: stamps)
             }
-            guard lifecycle == lifecycleGeneration, !disabled else { return }
+            guard lifecycle == lifecycleGeneration, activeDiscovery == request, !disabled else { return }
+            if result == nil {
+                pendingRefresh = true
+                retryDeadline = now().addingTimeInterval(max(0.1, settings.pollInterval))
+                status = .discoveryStalled
+            }
+            // An event while probing makes this result obsolete; the coalesced trailing scan
+            // owns fresh metadata. Already-current unaffected cached groups can still settle.
+            guard events == eventGeneration else { return }
             invalidateChangedApprovals()
             if let result {
+                if status == .discoveryStalled {
+                    status = watchFolder == nil ? .idle : .watching(settlingCount: 0)
+                }
                 lastGroups = result.groups
                 rejectedProbePaths = result.retryPaths
                 rejectedProbeSamples = rejectedProbeSamples.filter { key, _ in result.retryPaths.contains { $0.path == key } }
@@ -478,6 +560,8 @@ final class WatchFolderCoordinator: ObservableObject {
         }
         guard !groups.isEmpty else {
             if !rediscover && !isDiscovering && rejectedReady {
+                isResampling = false
+                ownsResampling = false
                 await reconcile(rootURL: rootURL, rediscover: true)
             }
             return
@@ -640,6 +724,8 @@ final class WatchFolderCoordinator: ObservableObject {
             metadataGenerations[$0.videoURL.path] == nil && FileStabilityGate.isSettled(
                 samples: sampleHistory[$0.videoURL.path] ?? [], requiredStablePolls: settings.requiredStablePolls)
         })) {
+            isResampling = false
+            ownsResampling = false
             await reconcile(rootURL: rootURL, rediscover: true)
             return
         }
@@ -650,7 +736,9 @@ final class WatchFolderCoordinator: ObservableObject {
             return state == nil || state == .discovered || state == .settling || state == .grouped
         }.count
 
-        if currentOutputDestination() == .unavailable {
+        if pendingRefresh && retryDeadline != nil || !discoveryBudget.hasCapacity && !isDiscovering {
+            status = .discoveryStalled
+        } else if currentOutputDestination() == .unavailable {
             status = .outputUnavailable
         } else if sessionEnqueuedCount > 0 {
             status = .queued(count: sessionEnqueuedCount)
@@ -764,21 +852,25 @@ private actor ResumeGate {
 /// abandoned. This is deliberate: the thing we bound (an ffprobe `Process` inside `discover`) can
 /// ignore cooperative cancellation and stay wedged on a stalled mount, and awaiting it would just
 /// re-introduce the deadlock we're escaping. The orphaned task lingers until it eventually unblocks
-/// (or the app quits) — an acceptable cost for a rare stuck mount, since the caller recovers at once.
+/// (or the app quits). Its manager-owned budget slot is held until actual completion; no caller
+/// can create more than two underlying workers for this root in the session.
 /// Defined at file scope (not on the `@MainActor` coordinator) so its racing tasks run off the main
 /// actor and don't stall the UI while a scan is in flight.
 private func withDiscoverTimeout<T: Sendable>(
     seconds: TimeInterval,
+    sleep: @escaping @Sendable (TimeInterval) async -> Void,
+    completed: @escaping @MainActor @Sendable () -> Void,
     _ operation: @escaping @Sendable () async -> T
 ) async -> T? {
     let gate = ResumeGate()
     return await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
         let timeoutTask = Task {
-            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+            await sleep(seconds)
             if await gate.claim() { continuation.resume(returning: nil) }
         }
         Task {
             let result = await operation()
+            await completed()
             // Work won the race: stop the timer so a fast scan doesn't leave a sleeping task behind.
             if await gate.claim() {
                 timeoutTask.cancel()
@@ -786,4 +878,20 @@ private func withDiscoverTimeout<T: Sendable>(
             }
         }
     }
+}
+
+/// Counts actual underlying workers, not timeout waiters. Never release on cancellation,
+/// timeout or coordinator removal: an uncooperative reader may still own a process/mount.
+@MainActor
+final class WatchDiscoveryBudget {
+    private var workers: Set<UUID> = []
+    var hasCapacity: Bool { workers.count < 2 }
+    var workerCount: Int { workers.count }
+    func acquire() -> UUID? {
+        guard hasCapacity else { return nil }
+        let id = UUID()
+        workers.insert(id)
+        return id
+    }
+    func complete(_ id: UUID) { workers.remove(id) }
 }
