@@ -158,7 +158,8 @@ private struct WatchFolderRow: View {
                 height: 26,
                 minWidth: 300
             ) {
-                let url = WatchFoldersPanel.chooseDirectory(prompt: "Output")
+                // Cancel is no change; nil in setOutputFolder explicitly clears the destination.
+                guard let url = WatchFoldersPanel.chooseDirectory(prompt: "Output") else { return }
                 manager.setOutputFolder(entry.id, url: url)
             }
         }
