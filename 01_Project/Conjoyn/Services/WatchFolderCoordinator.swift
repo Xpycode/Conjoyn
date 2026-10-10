@@ -22,6 +22,8 @@ final class WatchFolderCoordinator: ObservableObject {
     enum Status: Equatable, Sendable {
         /// FSEvents monitor is not running.
         case idle
+        /// Configured output cannot currently be used; polling continues for recovery.
+        case outputUnavailable
         /// Monitor is active; N groups have been observed but have not yet settled / completed.
         case watching(settlingCount: Int)
         /// Groups have been enqueued into `QueueManager`.
@@ -32,11 +34,26 @@ final class WatchFolderCoordinator: ObservableObject {
 
     // MARK: - Output folder (Wave 5D)
 
-    /// User-chosen destination folder for joined files. When `nil`, output lands next to the
-    /// source inside the watched root (the v1 placeholder behaviour). Set by the owner
-    /// (`WatchFolderManager`) from the per-entry output bookmark; honoured by `destinationURL`.
-    /// MainActor-isolated like the rest of the coordinator, so the owner mutates it on the main actor.
-    var outputFolderURL: URL?
+    /// Resolve afresh on every pass and immediately before enqueue. The manager captures the
+    /// saved entry, so bookmark failures retain configured intent and restored volumes recover.
+    var resolveOutputDestination: () -> WatchFolderEntry.OutputDestination = { .unconfigured } {
+        didSet { refreshOutputAvailability() }
+    }
+
+    private func currentOutputDestination() -> WatchFolderEntry.OutputDestination {
+        let destination = resolveOutputDestination()
+        if case .resolved(let url) = destination,
+           !WatchFolderEntry.isUsableOutputDirectory(url) { return .unavailable }
+        return destination
+    }
+
+    private func refreshOutputAvailability() {
+        if currentOutputDestination() == .unavailable {
+            status = .outputUnavailable
+        } else if status == .outputUnavailable {
+            status = watchFolder == nil ? .idle : .watching(settlingCount: 0)
+        }
+    }
 
     // MARK: - Persisted group states
 
@@ -277,6 +294,7 @@ final class WatchFolderCoordinator: ObservableObject {
         }
 
         status = .watching(settlingCount: 0)
+        refreshOutputAvailability()
     }
 
     private func stopMonitor() {
@@ -341,6 +359,8 @@ final class WatchFolderCoordinator: ObservableObject {
         } else {
             groups = lastGroups
         }
+        // Discovery suspends: the destination may have vanished or been reselected meanwhile.
+        refreshOutputAvailability()
         guard !groups.isEmpty else { return }
 
         // Step 2: update sample history and last-change timestamps.
@@ -435,7 +455,10 @@ final class WatchFolderCoordinator: ObservableObject {
 
         // Step 5: enqueue ready groups.
         for group in ready {
-            let destURL = destinationURL(for: group, rootURL: rootURL)
+            guard let destURL = destinationURL(for: group, rootURL: rootURL) else {
+                status = .outputUnavailable
+                return // Do not seal these groups; the poll timer will retry after recovery.
+            }
             queue.addJob(
                 folderName: rootURL.lastPathComponent,
                 sourceFolderURL: rootURL,
@@ -468,7 +491,9 @@ final class WatchFolderCoordinator: ObservableObject {
             return state == nil || state == .discovered || state == .settling || state == .grouped
         }.count
 
-        if sessionEnqueuedCount > 0 {
+        if currentOutputDestination() == .unavailable {
+            status = .outputUnavailable
+        } else if sessionEnqueuedCount > 0 {
             status = .queued(count: sessionEnqueuedCount)
         } else if watchFolder != nil {
             status = .watching(settlingCount: settlingCount)
@@ -492,16 +517,21 @@ final class WatchFolderCoordinator: ObservableObject {
     // MARK: - Private: Destination URL
 
     /// Builds the output file URL for a group, named after the first segment's stem with `_joined`
-    /// appended. Lands in `outputFolderURL` when the user chose a dedicated destination (Wave 5D),
+    /// appended. Lands in the resolved output when the user chose a dedicated destination,
     /// otherwise next to the source inside `rootURL` (the v1 default).
     ///
     /// `QueueManager.addJob` calls `resolveFilenameConflict` internally to handle on-disk
     /// collisions, so we don't duplicate that logic here.
-    private func destinationURL(for group: RecordGroup, rootURL: URL) -> URL {
+    private func destinationURL(for group: RecordGroup, rootURL: URL) -> URL? {
         let stem = group.clips.first?.stem ?? "joined"
         let suffix = group.variantSuffix.map { "_\($0)" } ?? ""
         let filename = "\(stem)\(suffix)_joined.mp4"
-        let directory = outputFolderURL ?? rootURL
+        let directory: URL
+        switch currentOutputDestination() {
+        case .unconfigured: directory = rootURL
+        case .resolved(let url): directory = url
+        case .unavailable: return nil
+        }
         return directory.appendingPathComponent(filename)
     }
 

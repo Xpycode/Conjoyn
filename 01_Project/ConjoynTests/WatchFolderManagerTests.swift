@@ -157,6 +157,67 @@ final class WatchFolderManagerTests: XCTestCase {
         XCTAssertNil(m.entries.first?.outputBookmark)
     }
 
+    func testUnavailableBookmarkAndPathOnlyIntentSurvivePersistence() throws {
+        let suite = "test.output.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = freshTmpDir()
+        let output = freshTmpDir()
+        let corrupt = Data([0, 1, 2])
+        let entries = [
+            WatchFolderEntry(id: UUID(), rootBookmark: try WatchFolderEntry.makeBookmark(for: root),
+                             rootPath: root.path, outputBookmark: corrupt, outputPath: output.path),
+            WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: root.path,
+                             outputPath: output.path)
+        ]
+        defaults.set(try JSONEncoder().encode(entries), forKey: "watchFolder.entries.test")
+        let manager = makeManager(defaults: defaults, base: freshTmpDir())
+        XCTAssertEqual(manager.entries, entries)
+        XCTAssertTrue(manager.entries.allSatisfy { $0.outputDestination == .unavailable })
+        manager.resumeAll()
+        XCTAssertEqual(manager.statuses[entries[0].id], .outputUnavailable)
+        XCTAssertEqual(manager.entries[0].outputBookmark, corrupt)
+        XCTAssertEqual(manager.entries[0].outputPath, output.path)
+
+        manager.setOutputFolder(entries[0].id, url: output)
+        guard case .resolved(let resolved) = manager.entries[0].outputDestination else {
+            return XCTFail("reselecting a reachable output must recover")
+        }
+        XCTAssertEqual(resolved.resolvingSymlinksInPath(), output.resolvingSymlinksInPath())
+        XCTAssertNotEqual(manager.statuses[entries[0].id], .outputUnavailable)
+        manager.setOutputFolder(entries[0].id, url: nil)
+        XCTAssertEqual(manager.entries[0].outputDestination, .unconfigured)
+    }
+
+    func testOutputResolutionRequiresWritableDirectoryAndKeepsBookmarkWhenMissing() throws {
+        let output = freshTmpDir()
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/unused",
+                                    outputBookmark: try WatchFolderEntry.makeBookmark(for: output),
+                                    outputPath: output.path)
+        guard case .resolved = entry.outputDestination else { return XCTFail("folder must resolve") }
+        let savedData = try JSONEncoder().encode(entry)
+        try FileManager.default.removeItem(at: output)
+        XCTAssertEqual(entry.outputDestination, .unavailable)
+        XCTAssertEqual(try JSONDecoder().decode(WatchFolderEntry.self, from: savedData), entry)
+        // A file occupying the same path is never a usable output directory.
+        try Data("sentinel".utf8).write(to: output)
+        XCTAssertEqual(entry.outputDestination, .unavailable)
+    }
+
+    func testOutputWithoutDirectorySearchPermissionPausesAndRecovers() throws {
+        let output = freshTmpDir()
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/unused",
+                                    outputBookmark: try WatchFolderEntry.makeBookmark(for: output),
+                                    outputPath: output.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: output.path) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: output.path)
+        XCTAssertTrue(FileManager.default.isWritableFile(atPath: output.path))
+        XCTAssertFalse(WatchFolderEntry.isUsableOutputDirectory(output))
+        XCTAssertEqual(entry.outputDestination, .unavailable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: output.path)
+        guard case .resolved = entry.outputDestination else { return XCTFail("restored access must recover") }
+    }
+
     // MARK: - Remove
 
     func testRemoveDropsEntryAndStatus() {

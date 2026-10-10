@@ -151,7 +151,7 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         let queue = QueueManager(storageDirectory: freshTmpDir())
         let coord = makeCoordinator(ledger: ledger, queue: queue)
         let output = freshTmpDir()
-        coord.outputFolderURL = output
+        coord.resolveOutputDestination = { .resolved(output) }
 
         let root = freshTmpDir()
         await coord.reconcile(rootURL: root, rediscover: true)
@@ -163,10 +163,82 @@ final class WatchFolderCoordinatorTests: XCTestCase {
                        "with an output folder set, the join must land there, not next to source")
     }
 
+    func testDisappearingOutputPausesWithoutSealingAndRestoresAutomatically() async throws {
+        let ledgerDir = freshTmpDir()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: ledgerDir), queue: queue)
+        let output = freshTmpDir()
+        coord.resolveOutputDestination = { .resolved(output) }
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        try FileManager.default.removeItem(at: output)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertTrue(queue.jobs.isEmpty, "a missing configured output must not enqueue")
+        XCTAssertEqual(coord.status, .outputUnavailable)
+        XCTAssertFalse(ProcessedGroupLedger(storageDirectory: ledgerDir).contains(makeGroup()))
+
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1, "restoring the folder resumes without a source event")
+        XCTAssertEqual(queue.jobs.first?.destinationURL.deletingLastPathComponent().resolvingSymlinksInPath(),
+                       output.resolvingSymlinksInPath())
+    }
+
+    func testFailedBookmarkNeverFallsBackAndReselectionRecovers() async throws {
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()), queue: queue)
+        let output = freshTmpDir()
+        let entry = WatchFolderEntry(id: UUID(), rootBookmark: Data(), rootPath: "/unused",
+                                    outputBookmark: Data([0, 1, 2]), outputPath: output.path)
+        coord.resolveOutputDestination = { entry.outputDestination }
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        XCTAssertEqual(coord.status, .outputUnavailable)
+        coord.resolveOutputDestination = { .resolved(output) }
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1)
+        XCTAssertEqual(queue.jobs.first?.destinationURL.deletingLastPathComponent().resolvingSymlinksInPath(),
+                       output.resolvingSymlinksInPath())
+    }
+
+    func testOutputRemovedDuringAsyncDiscoveryIsRevalidatedBeforeEnqueue() async throws {
+        let output = freshTmpDir()
+        let root = freshTmpDir()
+        let group = makeGroup()
+        let counter = CallCounter()
+        let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let clock = FakeClock([t0, t0.addingTimeInterval(31)])
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let suite = "test.coord.discovery.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let coord = WatchFolderCoordinator(
+            discover: { _ in
+                if counter.bump() == 1 { try? FileManager.default.removeItem(at: output) }
+                return [group]
+            },
+            sample: { _ in FileStabilityGate.Sample(size: 800_000_000, modified: t0) },
+            now: { clock.next() }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: defaults, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir())
+        coord.resolveOutputDestination = { .resolved(output) }
+        await coord.reconcile(rootURL: root, rediscover: true)
+        await coord.reconcile(rootURL: root, rediscover: true)
+        XCTAssertEqual(counter.value, 2)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        XCTAssertEqual(coord.status, .outputUnavailable)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1)
+    }
+
     func testNilOutputFolderKeepsJoinNextToSource() async {
         let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir())
         let queue = QueueManager(storageDirectory: freshTmpDir())
-        let coord = makeCoordinator(ledger: ledger, queue: queue)   // outputFolderURL stays nil
+        let coord = makeCoordinator(ledger: ledger, queue: queue)   // destination stays unconfigured
 
         let root = freshTmpDir()
         await coord.reconcile(rootURL: root, rediscover: true)

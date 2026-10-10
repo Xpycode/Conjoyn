@@ -153,14 +153,20 @@ private struct WatchFolderRow: View {
 
             CJPathWell(
                 icon: "folder",
-                path: entry.outputPath,
-                placeholder: "Output: next to source",
+                path: entry.outputPath ?? entry.resolvedOutputURL?.path,
+                placeholder: entry.outputBookmark == nil ? "Output: next to source" : "Output unavailable",
                 height: 26,
                 minWidth: 300
             ) {
                 // Cancel is no change; nil in setOutputFolder explicitly clears the destination.
                 guard let url = WatchFoldersPanel.chooseDirectory(prompt: "Output") else { return }
                 manager.setOutputFolder(entry.id, url: url)
+            }
+            if status == .outputUnavailable {
+                Text("Output unavailable. Restore access to the folder or choose an output folder to resume.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.acc1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, 16)
@@ -193,6 +199,7 @@ private struct WatchStatusPill: View {
         guard enabled else { return "OFF" }
         switch status {
         case .idle:                         return "WAITING"
+        case .outputUnavailable:            return "OUTPUT UNAVAILABLE"
         case .watching(let n) where n > 0:  return "SETTLING \(n)"
         case .watching:                     return "WATCHING"
         case .queued(let n):                return "QUEUED \(n)"
@@ -203,6 +210,7 @@ private struct WatchStatusPill: View {
         guard enabled else { return Theme.txt3 }
         switch status {
         case .idle:                         return Theme.txt3
+        case .outputUnavailable:            return Theme.acc1
         case .watching(let n) where n > 0:  return Theme.acc1
         case .watching:                     return Theme.ok
         case .queued:                       return Theme.acc2

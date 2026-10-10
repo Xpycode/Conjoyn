@@ -136,7 +136,8 @@ final class WatchFolderManager: ObservableObject {
             entries[idx].outputPath = nil
         }
         save()
-        coordinators[id]?.outputFolderURL = entries[idx].resolvedOutputURL
+        let entry = entries[idx]
+        coordinators[id]?.resolveOutputDestination = { entry.outputDestination }
     }
 
     /// Replaces the per-folder tunables. A running coordinator captured the old settings at
@@ -207,7 +208,7 @@ final class WatchFolderManager: ObservableObject {
             settings: entry.settings,
             storageDirectory: storage
         )
-        coordinator.outputFolderURL = entry.resolvedOutputURL
+        coordinator.resolveOutputDestination = { entry.outputDestination }
         return coordinator
     }
 

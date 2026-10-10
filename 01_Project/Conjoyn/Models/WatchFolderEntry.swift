@@ -62,8 +62,33 @@ struct WatchFolderEntry: Identifiable, Codable, Equatable, Sendable {
     /// (volume erased/offline). Does **not** re-persist on staleness — the manager owns persistence.
     var resolvedRootURL: URL? { Self.resolve(rootBookmark) }
 
-    /// Resolves the output bookmark, or `nil` when no dedicated output folder was chosen.
-    var resolvedOutputURL: URL? { outputBookmark.flatMap(Self.resolve) }
+    /// Runtime-only state: persisted bookmark/path fields retain their existing Codable format.
+    enum OutputDestination: Equatable, Sendable {
+        case unconfigured
+        case resolved(URL)
+        case unavailable
+    }
+
+    /// A saved path also counts as configured intent (including older failed bookmark saves).
+    /// Never substitute that path for a failed bookmark: it may now identify a different volume.
+    var outputDestination: OutputDestination {
+        guard outputBookmark != nil || outputPath != nil else { return .unconfigured }
+        guard let data = outputBookmark, let url = Self.resolve(data),
+              Self.isUsableOutputDirectory(url) else { return .unavailable }
+        return .resolved(url)
+    }
+
+    var resolvedOutputURL: URL? {
+        if case .resolved(let url) = outputDestination { return url }
+        return nil
+    }
+
+    static func isUsableOutputDirectory(_ url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            && isDirectory.boolValue && FileManager.default.isWritableFile(atPath: url.path)
+            && FileManager.default.isExecutableFile(atPath: url.path)
+    }
 
     /// A short, human label for the root (the folder's own name).
     var rootDisplayName: String {
@@ -74,7 +99,7 @@ struct WatchFolderEntry: Identifiable, Codable, Equatable, Sendable {
     var outputDisplayName: String {
         if let url = resolvedOutputURL { return url.lastPathComponent }
         if let path = outputPath { return (path as NSString).lastPathComponent }
-        return "Next to source"
+        return outputBookmark == nil ? "Next to source" : "Output unavailable"
     }
 
     // MARK: - Bookmark helpers
@@ -90,7 +115,7 @@ struct WatchFolderEntry: Identifiable, Codable, Equatable, Sendable {
         var isStale = false
         return try? URL(
             resolvingBookmarkData: data,
-            options: [],
+            options: [.withoutUI, .withoutMounting],
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         )
