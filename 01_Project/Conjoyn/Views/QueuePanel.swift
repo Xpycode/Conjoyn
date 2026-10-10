@@ -954,6 +954,9 @@ struct FooterBar: View {
                     text: persistErr
                 )
             }
+            if let recovery = queue.recoveryState {
+                recoveryNotice(recovery)
+            }
 
             HStack(spacing: 16) {
                 Group {
@@ -1021,6 +1024,73 @@ struct FooterBar: View {
             Image(systemName: icon).foregroundStyle(color)
             Text(text).font(.system(size: 11)).foregroundStyle(color)
             Spacer()
+        }
+    }
+
+    private func recoveryNotice(_ recovery: QueueRecoveryState) -> some View {
+        let retainedURL = recovery.preservedURL ?? recovery.originalURL
+        let color = recovery.writesAllowed ? Theme.acc1 : Theme.bad
+        let message: String
+        if !recovery.writesAllowed {
+            message = "Previous queue could not be loaded or preserved. Original left untouched. Queue persistence is blocked; new queue changes are temporary and will not survive quitting."
+        } else if queue.persistenceError != nil {
+            message = "Previous queue could not be loaded. Original saved for recovery. Latest queue changes could not be saved."
+        } else {
+            message = "Previous queue could not be loaded. Original saved for recovery. New queue changes can be saved."
+        }
+
+        return HStack(spacing: 8) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .foregroundStyle(color)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(color)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(recovery.reason)
+            QueueRecoveryRevealButton(retainedURL: retainedURL)
+                .fixedSize()
+                .help("Show retained queue at \(retainedURL.path)")
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+/// Kept local to recovery presentation; the retained file may be the protected original when
+/// preservation failed, or the unique recovery copy after replacement writes have been allowed.
+private struct QueueRecoveryRevealButton: NSViewRepresentable {
+    let retainedURL: URL
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(title: "Show in Finder", target: context.coordinator,
+                              action: #selector(Coordinator.reveal))
+        button.bezelStyle = .rounded
+        button.controlSize = .small
+        button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        context.coordinator.retainedURL = retainedURL
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {
+        nsView.intrinsicContentSize
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(retainedURL: retainedURL)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var retainedURL: URL
+
+        init(retainedURL: URL) {
+            self.retainedURL = retainedURL
+        }
+
+        @objc func reveal() {
+            NSWorkspace.shared.activateFileViewerSelecting([retainedURL])
         }
     }
 }
