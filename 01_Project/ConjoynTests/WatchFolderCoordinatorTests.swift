@@ -77,13 +77,14 @@ final class WatchFolderCoordinatorTests: XCTestCase {
     /// Builds a coordinator whose group is always discovered, always reads as a small frozen file,
     /// and whose clock advances past the quiet window between pass 1 and pass 2.
     private func makeCoordinator(ledger: ProcessedGroupLedger,
-                                 queue: QueueManager) -> WatchFolderCoordinator {
-        let group = makeGroup()
+                                 queue: QueueManager,
+                                 groups: [RecordGroup]? = nil) -> WatchFolderCoordinator {
+        let discoveredGroups = groups ?? [makeGroup()]
         let t0 = Date(timeIntervalSinceReferenceDate: 1_000_000)
         let clock = FakeClock([t0, t0.addingTimeInterval(31)])   // 31s > quietWindow(30)
         let frozenSample = FileStabilityGate.Sample(size: 800_000_000, modified: t0) // < splitThreshold
         return WatchFolderCoordinator(
-            discover: { _ in [group] },
+            discover: { _ in discoveredGroups },
             sample: { _ in frozenSample },
             now: { clock.next() },
             queue: queue,
@@ -95,6 +96,52 @@ final class WatchFolderCoordinatorTests: XCTestCase {
             settings: settings,
             storageDirectory: freshTmpDir()
         )
+    }
+
+    func testCorruptV2HistoryBlocksAdmissionDespiteValidV1() async throws {
+        let ledgerDir = freshTmpDir()
+        let original = Data("[]".utf8)
+        let corrupt = Data("corrupt history".utf8)
+        try original.write(to: ledgerDir.appendingPathComponent("processed_groups.json"))
+        try corrupt.write(to: ledgerDir.appendingPathComponent("processed_groups_v2.json"))
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ProcessedGroupLedger(storageDirectory: ledgerDir), queue: queue)
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        await coord.reconcile(rootURL: root, rediscover: true)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        XCTAssertEqual(coord.status, .historyUnavailable)
+        XCTAssertEqual(try Data(contentsOf: ledgerDir.appendingPathComponent("processed_groups.json")), original)
+        XCTAssertEqual(try Data(contentsOf: ledgerDir.appendingPathComponent("processed_groups_v2.json")), corrupt)
+    }
+
+    func testFailedLedgerInsertStopsBatchAndAllLaterPollAdmissions() async {
+        let ledger = ProcessedGroupLedger(storageDirectory: freshTmpDir(), write: { _, _ in
+            throw CocoaError(.fileWriteOutOfSpace)
+        })
+        let first = makeGroup()
+        let second = RecordGroup(clips: [DJIClip(
+            videoURL: URL(fileURLWithPath: "/tmp/DJI_0002.MP4"), index: 2,
+            variantSuffix: nil, stem: "DJI_0002", duration: .zero
+        )], groupIndex: 2)
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        let coord = makeCoordinator(ledger: ledger, queue: queue, groups: [first, second])
+        let root = freshTmpDir()
+        await coord.reconcile(rootURL: root, rediscover: true)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        // Transitional enqueue-before-ledger behavior remains until W3. The failed first write
+        // must stop this batch and future polls rather than repeatedly adding unsealed jobs.
+        XCTAssertEqual(queue.jobs.count, 1)
+        XCTAssertEqual(coord.status, .historyUnavailable)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        await coord.reconcile(rootURL: root, rediscover: true)
+        XCTAssertEqual(queue.jobs.count, 1)
+        XCTAssertEqual(coord.status, .historyUnavailable)
+        // An unrelated output setting refresh cannot hide the history failure.
+        coord.resolveOutputDestination = { .unavailable }
+        XCTAssertEqual(coord.status, .historyUnavailable)
     }
 
     // MARK: - Regression: already-processed group is not re-enqueued after relaunch

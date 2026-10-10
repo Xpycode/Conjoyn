@@ -24,6 +24,8 @@ final class WatchFolderCoordinator: ObservableObject {
         case idle
         /// Configured output cannot currently be used; polling continues for recovery.
         case outputUnavailable
+        /// History could not be read or saved; further automatic admission is paused.
+        case historyUnavailable
         /// Monitor is active; N groups have been observed but have not yet settled / completed.
         case watching(settlingCount: Int)
         /// Groups have been enqueued into `QueueManager`.
@@ -48,11 +50,20 @@ final class WatchFolderCoordinator: ObservableObject {
     }
 
     private func refreshOutputAvailability() {
+        guard historyIsAvailable() else { return }
         if currentOutputDestination() == .unavailable {
             status = .outputUnavailable
         } else if status == .outputUnavailable {
             status = watchFolder == nil ? .idle : .watching(settlingCount: 0)
         }
+    }
+
+    private func historyIsAvailable() -> Bool {
+        guard ledger.persistenceError == nil else {
+            status = .historyUnavailable
+            return false
+        }
+        return true
     }
 
     // MARK: - Persisted group states
@@ -188,6 +199,7 @@ final class WatchFolderCoordinator: ObservableObject {
         }
 
         self.groupStates = Self.loadGroupStates(from: groupStatesURL)
+        if ledger.persistenceError != nil { status = .historyUnavailable }
     }
 
     // MARK: - Enable / Disable
@@ -323,6 +335,7 @@ final class WatchFolderCoordinator: ObservableObject {
     /// bookmark) and assert enqueue behaviour — notably that a ledger-recorded group is not
     /// re-enqueued after relaunch.
     func reconcile(rootURL: URL, rediscover: Bool) async {
+        guard historyIsAvailable() else { return }
         // Two independent latches (see `isDiscovering` / `isResampling`): the heavy discovery path and
         // the cheap re-sample cadence each guard their own flag, so a wedged discovery can't freeze the
         // cadence. The `defer` clears whichever latch this pass took — including after a discovery
@@ -453,8 +466,11 @@ final class WatchFolderCoordinator: ObservableObject {
             processedFingerprints: processedFingerprints()
         )
 
-        // Step 5: enqueue ready groups.
+        // Step 5: enqueue ready groups. Discovery may have suspended while another pass failed
+        // persistence. Never admit against unreadable or non-durable history.
+        guard historyIsAvailable() else { return }
         for group in ready {
+            guard historyIsAvailable() else { return }
             guard let destURL = destinationURL(for: group, rootURL: rootURL) else {
                 status = .outputUnavailable
                 return // Do not seal these groups; the poll timer will retry after recovery.
@@ -470,7 +486,14 @@ final class WatchFolderCoordinator: ObservableObject {
 
             // Seal the group in the ledger (persisted) so it's never re-enqueued — this session
             // or after relaunch.
-            ledger.insert(group)
+            guard ledger.insert(group) else {
+                // The first job was already handed to the queue under the existing admission
+                // order. Stop now: no later group/poll may repeat unsealed admissions. W3 owns
+                // the durable pending-job gate and recovery across the queue/ledger boundary.
+                saveGroupStates()
+                status = .historyUnavailable
+                return
+            }
 
             // Advance the group's state machine toward .joining.
             let fp = ProcessedGroupLedger.fingerprint(for: group)

@@ -162,7 +162,12 @@ private struct WatchFolderRow: View {
                 guard let url = WatchFoldersPanel.chooseDirectory(prompt: "Output") else { return }
                 manager.setOutputFolder(entry.id, url: url)
             }
-            if status == .outputUnavailable {
+            if status == .historyUnavailable {
+                Text("Processing history could not be read or saved. Automatic additions are paused. Check access to app storage; any jobs already added remain in the queue.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.acc1)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if status == .outputUnavailable {
                 Text("Output unavailable. Restore access to the folder or choose an output folder to resume.")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.acc1)
@@ -200,6 +205,7 @@ private struct WatchStatusPill: View {
         switch status {
         case .idle:                         return "WAITING"
         case .outputUnavailable:            return "OUTPUT UNAVAILABLE"
+        case .historyUnavailable:           return "HISTORY UNAVAILABLE"
         case .watching(let n) where n > 0:  return "SETTLING \(n)"
         case .watching:                     return "WATCHING"
         case .queued(let n):                return "QUEUED \(n)"
@@ -211,6 +217,7 @@ private struct WatchStatusPill: View {
         switch status {
         case .idle:                         return Theme.txt3
         case .outputUnavailable:            return Theme.acc1
+        case .historyUnavailable:           return Theme.acc1
         case .watching(let n) where n > 0:  return Theme.acc1
         case .watching:                     return Theme.ok
         case .queued:                       return Theme.acc2
