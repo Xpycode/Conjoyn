@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // MARK: - Shared controls (design handoff atoms)
 
@@ -139,6 +140,120 @@ struct CJSegGroup: View {
             }
             .buttonStyle(.plain)
             .onHover { hovered = $0 }
+        }
+    }
+}
+
+// MARK: Search field
+
+extension Notification.Name {
+    /// Posted by Edit › Find (⌘F); the recordings search field grabs focus when it arrives.
+    static let cjFocusRecordingsSearch = Notification.Name("CJFocusRecordingsSearch")
+}
+
+/// Compact search well for the recordings-list header, sized to sit beside `CJSegGroup` (same
+/// recessed well + corner radius). Hand-styled rather than `NSSearchField` for the same reason
+/// `CJCheckbox` exists — the stock control's chrome can't take the Theme. The field itself is a
+/// borderless `NSTextField` per the no-SwiftUI-`TextField` convention (modeled on
+/// `CaretTextField`); Escape clears + drops focus, ⌘F focuses via `.cjFocusRecordingsSearch`.
+struct CJSearchField: View {
+    @Binding var text: String
+    var placeholder = "Search"
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.txt3)
+            SearchTextField(text: $text, placeholder: placeholder)
+            // Clear button — opacity (not `if`) so the field width never jiggles as text
+            // appears/disappears.
+            Button { text = "" } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.txt3)
+            }
+            .buttonStyle(.plain)
+            .opacity(text.isEmpty ? 0 : 1)
+            .disabled(text.isEmpty)
+        }
+        .padding(.horizontal, 7)
+        .frame(width: 170, height: 22)
+        .background(Theme.recessed(0.28), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// The borderless field inside `CJSearchField`. Styling follows `CaretTextField`; adds a themed
+/// placeholder, Escape-clears, and a first-responder grab on `.cjFocusRecordingsSearch`.
+private struct SearchTextField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+
+    func makeNSView(context: Context) -> NSTextField {
+        let field = NSTextField(string: text)
+        field.delegate = context.coordinator
+        field.font = .systemFont(ofSize: 12)
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.textColor = NSColor(Theme.txt)
+        field.placeholderAttributedString = NSAttributedString(
+            string: placeholder,
+            attributes: [.foregroundColor: NSColor(Theme.txt3),
+                         .font: NSFont.systemFont(ofSize: 12)]
+        )
+        field.lineBreakMode = .byClipping
+        field.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        context.coordinator.listenForFocusRequests(on: field)
+        return field
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        if nsView.stringValue != text { nsView.stringValue = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        private let parent: SearchTextField
+        private weak var field: NSTextField?
+
+        init(_ parent: SearchTextField) { self.parent = parent }
+
+        /// Selector-based observation (not block-based) — auto-unregistered on dealloc, so no
+        /// `deinit` bookkeeping. The notification is only ever posted from a menu action, i.e.
+        /// on the main thread, matching the class's `@MainActor` isolation.
+        func listenForFocusRequests(on field: NSTextField) {
+            self.field = field
+            NotificationCenter.default.addObserver(self,
+                                                   selector: #selector(focusRequested),
+                                                   name: .cjFocusRecordingsSearch,
+                                                   object: nil)
+        }
+
+        @objc private func focusRequested() {
+            guard let field else { return }
+            field.window?.makeFirstResponder(field)
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? NSTextField else { return }
+            parent.text = field.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView,
+                     doCommandBy commandSelector: Selector) -> Bool {
+            // Escape clears the query and hands focus back to the window.
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.text = ""
+                control.stringValue = ""
+                control.window?.makeFirstResponder(nil)
+                return true
+            }
+            return false
         }
     }
 }

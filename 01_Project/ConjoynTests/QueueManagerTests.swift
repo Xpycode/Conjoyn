@@ -458,6 +458,46 @@ final class QueueManagerTests: XCTestCase {
             URL(fileURLWithPath: "/tmp/folderA"), URL(fileURLWithPath: "/tmp/folderB")))
     }
 
+    func testRestoredQueueOffersOutputChangeBeforeMovingJobs() async throws {
+        let original = makeManager()
+        original.addJob(makeJob(outputName: "Flight.mp4"))
+        let restored = makeManager()
+        let vm = ConversionViewModel(queue: restored)
+        XCTAssertNil(vm.outputFolderURL)
+        let oldDestination = restored.jobs[0].destinationURL
+        let newFolder = tmpDir.appendingPathComponent("NewOut", isDirectory: true)
+        try FileManager.default.createDirectory(at: newFolder, withIntermediateDirectories: true)
+
+        await vm.acceptOutputFolder(newFolder)
+
+        XCTAssertTrue(vm.showApplyFolderPrompt)
+        XCTAssertEqual(restored.jobs[0].destinationURL, oldDestination,
+                       "Choosing a folder must not move jobs before Apply")
+        vm.applyOutputFolderToPendingJobs()
+        XCTAssertFalse(vm.showApplyFolderPrompt)
+        XCTAssertEqual(makeManager().jobs[0].destinationURL.path,
+                       newFolder.appendingPathComponent("Flight.mp4").path)
+    }
+
+    func testReselectingOutputOffersPreviouslyKeptJobsAgain() async {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        let vm = ConversionViewModel(queue: manager)
+        let newFolder = tmpDir.appendingPathComponent("NewOut", isDirectory: true)
+        vm.outputFolderURL = newFolder
+        await vm.acceptOutputFolder(newFolder)
+        XCTAssertTrue(vm.showApplyFolderPrompt)
+    }
+
+    func testOutputSelectionDoesNotPromptForMatchingOrFinishedJobs() async {
+        let manager = makeManager()
+        manager.addJob(makeJob(outputName: "Flight.mp4"))
+        manager.addJob(makeJob(outputName: "Elsewhere/Done.mp4", status: .completed))
+        let vm = ConversionViewModel(queue: manager)
+        await vm.acceptOutputFolder(tmpDir)
+        XCTAssertFalse(vm.showApplyFolderPrompt)
+    }
+
     func testReassignMovesPendingJobsPreservingStem() throws {
         let manager = makeManager()
         manager.addJob(makeJob(outputName: "FlightA.mp4"))

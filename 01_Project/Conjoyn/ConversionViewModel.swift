@@ -19,19 +19,25 @@ final class ConversionViewModel: ObservableObject {
 
     /// The shared engine. Views also observe this directly for queue/console/progress state.
     let queue: QueueManager
-    private let ffmpeg: FFmpegWrapper
+    typealias DiscoveryReader = @Sendable (URL) async -> DJIFolderReader.Discovery
+    typealias DateWarmer = @Sendable ([RecordGroup], Date?) async -> [UUID: Date?]
+    private let discover: DiscoveryReader
+    private let warmDates: DateWarmer
+    private var scanTask: Task<Void, Never>?
+    private var scanGeneration: UInt64 = 0
+    private var publishedGeneration: UInt64?
     /// Row-thumbnail extraction (first frame of a group's first segment), shared across rows.
     let thumbnails: ThumbnailManager
 
     // MARK: - Pre-enqueue state
 
-    @Published var sourceFolderURL: URL?
+    @Published private(set) var sourceFolderURL: URL?
     @Published var outputFolderURL: URL?
     @Published var settings = ConversionSettings()
 
     /// Drives the "Apply new output folder to N pending jobs?" popover. Set true by
-    /// `chooseOutputFolder()` only when the chosen folder actually differs *and* there are pending
-    /// jobs to re-point; the popover's Keep/click-away resets it (the safe no-op).
+    /// `chooseOutputFolder()` when pending jobs target a different folder, including restored jobs.
+    /// The popover's Keep/click-away resets it (the safe no-op).
     @Published var showApplyFolderPrompt = false
 
     /// Output-renaming state. Session-only (not in `ConversionSettings`, which is `Codable` and
@@ -62,6 +68,11 @@ final class ConversionViewModel: ObservableObject {
     enum RecordingFilter { case all, splits, singles }
     @Published private(set) var recordingFilter: RecordingFilter = .all
 
+    /// Live search query narrowing the recordings list. Display-only: unlike `setFilter(_:)` it
+    /// never touches selection — a transient text filter silently changing what `addToQueue` will
+    /// enqueue would be a trap. Cleared on rescan.
+    @Published private(set) var searchText = ""
+
     /// Column the recordings list is ordered by. `.found` keeps the scanner's discovery order — the
     /// original pre-1.0.1 behaviour and the state every fresh scan resets to.
     enum SortKey: CaseIterable { case found, name, date, duration, size }
@@ -72,11 +83,18 @@ final class ConversionViewModel: ObservableObject {
     /// as the single chokepoint so selection (by id) and the rename cache stay valid regardless of
     /// display order — only what the list *shows* is reordered, never `groups` itself.
     var filteredGroups: [RecordGroup] {
-        let visible: [RecordGroup]
+        var visible: [RecordGroup]
         switch recordingFilter {
         case .all:     visible = groups
         case .splits:  visible = groups.filter { $0.groupType == .split }
         case .singles: visible = groups.filter { $0.groupType == .single }
+        }
+        if let query = Self.normalizedQuery(searchText) {
+            visible = visible.filter {
+                Self.matchesSearch(query,
+                                   title: $0.displayTitle,
+                                   filenames: $0.clips.map(\.videoURL.lastPathComponent))
+            }
         }
         guard sortKey != .found else { return visible }   // discovery order — leave untouched
         // Decorate-sort-undecorate: resolve each group's sort fields once (the date resolve is the
@@ -93,11 +111,30 @@ final class ConversionViewModel: ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var statusMessage: String?
 
-    init(queue: QueueManager = .shared) {
+    init(queue: QueueManager = .shared,
+         discover: DiscoveryReader? = nil,
+         warmDates: DateWarmer? = nil) {
         self.queue = queue
-        self.ffmpeg = queue.ffmpeg
-        self.thumbnails = ThumbnailManager(ffmpeg: queue.ffmpeg)
+        let ffmpeg = queue.ffmpeg
+        self.discover = discover ?? { source in
+            await DJIFolderReader.read(folder: source, using: ffmpeg)
+        }
+        self.warmDates = warmDates ?? { groups, override in
+            await Task.detached(priority: .utility) {
+                var resolved: [UUID: Date?] = [:]
+                for group in groups {
+                    let date = group.clips.first.flatMap {
+                        RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: override).date
+                    }
+                    resolved.updateValue(date, forKey: group.id)
+                }
+                return resolved
+            }.value
+        }
+        self.thumbnails = ThumbnailManager(ffmpeg: ffmpeg)
     }
+
+    deinit { scanTask?.cancel() }
 
     // MARK: - Derived
 
@@ -107,7 +144,10 @@ final class ConversionViewModel: ObservableObject {
     var selectedGroups: [RecordGroup] { groups.filter { selectedGroupIDs.contains($0.id) } }
     var selectedCount: Int { selectedGroupIDs.count }
 
-    var canAddToQueue: Bool { !selectedGroups.isEmpty && outputFolderURL != nil && !isScanning }
+    var canAddToQueue: Bool {
+        publishedGeneration == scanGeneration && !selectedGroups.isEmpty
+            && outputFolderURL != nil && !isScanning
+    }
 
     /// Pending (unstarted) jobs — the only ones `applyOutputFolderToPendingJobs` may re-point.
     var pendingJobCount: Int { queue.pendingCount }
@@ -142,6 +182,29 @@ final class ConversionViewModel: ObservableObject {
 
     /// Resets the filter to `.all` without changing selection. Called on rescan.
     func resetFilter() { recordingFilter = .all }
+
+    // MARK: - Search
+
+    func setSearch(_ text: String) { searchText = text }
+
+    /// Clears the search query. Called on rescan so a new card starts unfiltered.
+    func resetSearch() { searchText = "" }
+
+    /// The effective search query: trimmed, `nil` when empty — a whitespace-only query must not
+    /// narrow the list.
+    static func normalizedQuery(_ raw: String) -> String? {
+        let query = raw.trimmingCharacters(in: .whitespaces)
+        return query.isEmpty ? nil : query
+    }
+
+    /// Whether one recording matches a search query: case-insensitive substring of either the row
+    /// title (the stem range a split shows) or any segment's filename — so `GX016349` finds its
+    /// recording even when the title reads `GX016349 – GX026349`. Static over plain strings so the
+    /// match rule is unit-testable without a scanned card (mirrors `orders(_:before:by:)`).
+    static func matchesSearch(_ query: String, title: String, filenames: [String]) -> Bool {
+        title.localizedCaseInsensitiveContains(query)
+            || filenames.contains { $0.localizedCaseInsensitiveContains(query) }
+    }
 
     // MARK: - Sorting
 
@@ -269,10 +332,11 @@ final class ConversionViewModel: ObservableObject {
 
     /// Sets the source folder and kicks off a scan. Also the entry point for drag-and-drop of a
     /// folder onto the empty state.
-    func setSourceFolder(_ url: URL) {
+    @discardableResult
+    func setSourceFolder(_ url: URL) -> Task<Void, Never> {
         sourceFolderURL = url
         if outputFolderURL == nil { outputFolderURL = url }
-        Task { await scan() }
+        return requestScan(source: url)
     }
 
     func chooseOutputFolder() {
@@ -285,20 +349,31 @@ final class ConversionViewModel: ObservableObject {
         panel.message = "Choose where to save the joined file(s)"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        Task { await acceptOutputFolder(url) }
+    }
+
+    /// Handles an accepted picker selection without changing already-queued destinations.
+    /// Compare against the jobs, not the session-only selector (nil after restoring a queue).
+    func acceptOutputFolder(_ url: URL) async {
+
         // Per-job destinations were frozen at enqueue from the *old* folder; changing the folder now
         // only governs future adds. If the folder actually changed and pending jobs exist, offer to
         // re-point them so the change isn't a silent miss (the trap hit live 2026-06-10k).
-        let previous = outputFolderURL
         outputFolderURL = url
-        if QueueManager.directoriesDiffer(previous, url) && pendingJobCount > 0 {
+        showApplyFolderPrompt = false
+        if queue.jobs.contains(where: {
+            $0.status == .pending && QueueManager.directoriesDiffer(
+                $0.destinationURL.deletingLastPathComponent(), url
+            )
+        }) {
             // NSOpenPanel is ViewBridge-hosted (macOS 26+): presenting the popover in the same
             // runloop turn as panel dismissal races the remote view's async XPC teardown — its
             // stale notification observer throws and AppKit crash-on-exceptions kills the app
             // (crash 2026-07-18). Defer past the teardown before flipping the flag.
-            Task {
-                try? await Task.sleep(for: .milliseconds(400))
-                showApplyFolderPrompt = true
-            }
+            do { try await Task.sleep(for: .milliseconds(400)) }
+            catch { return }
+            guard outputFolderURL == url else { return }
+            showApplyFolderPrompt = true
         }
     }
 
@@ -312,8 +387,20 @@ final class ConversionViewModel: ObservableObject {
 
     // MARK: - Scan
 
-    func scan() async {
-        guard let source = sourceFolderURL else { return }
+    /// Invalidate synchronously at the UI action, before any new task can be scheduled.
+    /// Returning the retained task also lets callers await discovery and its cache prewarm.
+    @discardableResult
+    func scan() -> Task<Void, Never>? {
+        guard let source = sourceFolderURL else { return nil }
+        return requestScan(source: source)
+    }
+
+    private func requestScan(source: URL) -> Task<Void, Never> {
+        scanGeneration &+= 1
+        let generation = scanGeneration
+        scanTask?.cancel()
+        publishedGeneration = nil
+        selectedGroupIDs = []
         isScanning = true
         statusMessage = "Scanning \(source.lastPathComponent)…"
         groups = []
@@ -322,18 +409,38 @@ final class ConversionViewModel: ObservableObject {
         resolvedStartCache = [:]
         resetFilter()
         resetSort()
+        resetSearch()
 
-        let discovery = await DJIFolderReader.read(folder: source, using: ffmpeg)
+        let discover = self.discover
+        let warmDates = self.warmDates
+        let task = Task { [weak self] in
+            let discovery = await discover(source)
+            guard let self, self.scanGeneration == generation else { return }
+            self.publish(discovery, source: source, generation: generation)
+            // Cancellation cannot stop all filesystem/probe implementations. Ownership, not the
+            // cancellation bit or source URL, is authoritative after every suspension.
+            if !discovery.groups.isEmpty {
+                let resolved = await warmDates(discovery.groups, self.settings.dateOverride)
+                guard self.scanGeneration == generation else { return }
+                for (id, date) in resolved where self.resolvedStartCache[id] == nil {
+                    self.resolvedStartCache.updateValue(date, forKey: id)
+                }
+                self.startDateRevision &+= 1
+            }
+            self.scanTask = nil
+        }
+        scanTask = task
+        return task
+    }
 
+    private func publish(_ discovery: DJIFolderReader.Discovery, source: URL, generation: UInt64) {
+        publishedGeneration = generation
         groups = discovery.groups
         parseErrors = discovery.errors
         skippedFiles = discovery.skippedNonDJI
         // Pre-select the split recordings only — single lone clips need no join.
         selectSplitGroupsOnly()
         isScanning = false
-        // Warm the recording-start cache off-thread so a later "sort by Date" never blocks on SD-card
-        // `.SRT` reads. Fire-and-forget; the list re-sorts when it lands.
-        prewarmStartDates()
 
         if groups.isEmpty {
             // Say *why* it's empty when we saw plausible media and rejected it on the name. The
@@ -363,7 +470,7 @@ final class ConversionViewModel: ObservableObject {
     /// Per the design handoff: groups with a still-unfinished job are skipped (no accidental
     /// duplicates), and the selection clears once the jobs are added.
     func addToQueue() {
-        guard let source = sourceFolderURL, let outDir = outputFolderURL else { return }
+        guard canAddToQueue, let source = sourceFolderURL, let outDir = outputFolderURL else { return }
 
         // A group is "already queued" if some unfinished job starts with the same first segment.
         let unfinishedFirstClipIDs = Set(
@@ -443,33 +550,6 @@ final class ConversionViewModel: ObservableObject {
         }
         resolvedStartCache[group.id] = date
         return date
-    }
-
-    /// Resolves every group's recording-start date **off the main thread** right after a scan, so the
-    /// first "sort by Date" is an instant cache hit rather than opening dozens of `.SRT` files from
-    /// the SD card on the main thread (a visible beachball). Runs at `.utility` priority so it yields
-    /// to thumbnail extraction; fills only gaps, never clobbering an entry rename already resolved.
-    /// On completion it bumps `startDateRevision` to re-sort into corrected order.
-    private func prewarmStartDates() {
-        let items: [(id: UUID, clip: DJIClip?)] = groups.map { ($0.id, $0.clips.first) }
-        guard !items.isEmpty else { return }
-        let override = settings.dateOverride
-        Task.detached(priority: .utility) { [weak self] in
-            var resolved: [UUID: Date?] = [:]
-            for item in items {
-                let date = item.clip.flatMap {
-                    RecordingStartResolver.resolve(forFirstSegment: $0, manualOverride: override).date
-                }
-                resolved.updateValue(date, forKey: item.id)   // stores `.some(nil)`, not a delete
-            }
-            await MainActor.run {
-                guard let self else { return }
-                for (id, date) in resolved where self.resolvedStartCache[id] == nil {
-                    self.resolvedStartCache.updateValue(date, forKey: id)
-                }
-                self.startDateRevision &+= 1
-            }
-        }
     }
 
     /// Up to `limit` of the currently-selected recordings rendered through the active pattern, for

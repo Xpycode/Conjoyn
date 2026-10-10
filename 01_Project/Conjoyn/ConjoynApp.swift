@@ -37,8 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// Becomes the Edit menu's delegate and, every time the menu is about to open, deletes every item
-/// after "Select All". This catches AppKit's lazily-injected items (Writing Tools especially, which
-/// has no `UserDefaults` opt-out) that a one-time pass at launch would miss.
+/// after "Select All" — except the app's own Find (⌘F), which SwiftUI places in the same region.
+/// This catches AppKit's lazily-injected items (Writing Tools especially, which has no
+/// `UserDefaults` opt-out) that a one-time pass at launch would miss.
 @MainActor
 final class EditMenuTrimmer: NSObject, NSMenuDelegate {
     func attach(to menu: NSMenu) {
@@ -51,9 +52,21 @@ final class EditMenuTrimmer: NSObject, NSMenuDelegate {
     private func trim(_ menu: NSMenu) {
         guard let selectAll = menu.items.firstIndex(where: { $0.action == #selector(NSText.selectAll(_:)) })
         else { return }
-        while menu.items.count > selectAll + 1 {
-            menu.removeItem(at: selectAll + 1)
+        var i = selectAll + 1
+        while i < menu.items.count {
+            if Self.isPreserved(menu.items[i]) { i += 1 } else { menu.removeItem(at: i) }
         }
+        // The sweep also removes SwiftUI's separator above the preserved items; re-insert one so
+        // Find doesn't sit flush under Select All. Idempotent — the next sweep removes + re-adds it.
+        if menu.items.count > selectAll + 1, !menu.items[selectAll + 1].isSeparatorItem {
+            menu.insertItem(.separator(), at: selectAll + 1)
+        }
+    }
+
+    /// App-declared Edit items living below "Select All" that must survive the sweep — currently
+    /// only Find (`FindCommands`, ⌘F).
+    private static func isPreserved(_ item: NSMenuItem) -> Bool {
+        item.keyEquivalent == "f" && item.keyEquivalentModifierMask == [.command]
     }
 }
 
@@ -136,6 +149,7 @@ struct ConjoynApp: App {
         .defaultSize(width: 1240, height: 800)
         .commands {
             FileCommands(viewModel: viewModel)
+            FindCommands(viewModel: viewModel)
             HelpMenuCommands(content: helpContent, appName: "Conjoyn")
             // Separator between "Conjoyn Help" and "Send Feedback…". HelpMenu's items and
             // AppCitizenshipKit's FeedbackCommands are package types we can't edit, so the divider is
@@ -260,6 +274,26 @@ struct FileCommands: Commands {
             Button("Choose Source Folder\u{2026}") { viewModel.chooseSourceFolder() }
                 .keyboardShortcut("o", modifiers: [.command])
             Button("Choose Destination Folder\u{2026}") { viewModel.chooseOutputFolder() }
+        }
+    }
+}
+
+/// Adds **Edit › Find** (⌘F), which focuses the recordings-list search field via
+/// `.cjFocusRecordingsSearch`. Disabled until a scan has produced recordings — the search field
+/// only exists on screen with the list. SwiftUI lands the item after "Select All", inside the
+/// region `EditMenuTrimmer` sweeps; the trimmer preserves it by its ⌘F key equivalent. A
+/// `Commands` struct bound to the App's view model (same pattern as `FileCommands`) so the
+/// disabled state tracks the live scan.
+struct FindCommands: Commands {
+    @ObservedObject var viewModel: ConversionViewModel
+
+    var body: some Commands {
+        CommandGroup(after: .pasteboard) {
+            Button("Find") {
+                NotificationCenter.default.post(name: .cjFocusRecordingsSearch, object: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.command])
+            .disabled(viewModel.groups.isEmpty)
         }
     }
 }

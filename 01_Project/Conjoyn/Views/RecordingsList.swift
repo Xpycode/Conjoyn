@@ -56,20 +56,31 @@ struct RecordingsList: View {
                 title: "Discovered recordings",
                 count: countText
             ) {
-                CJSegGroup(
-                    actions: [
-                        ("All",     { vm.setFilter(.all) }),
-                        ("None",    { vm.selectNoGroups() }),
-                        ("Splits",  { vm.setFilter(.splits) }),
-                        ("Singles", { vm.setFilter(.singles) }),
-                    ],
-                    activeLabel: activeFilterLabel
-                )
+                HStack(spacing: 8) {
+                    CJSearchField(text: Binding(get: { vm.searchText },
+                                                set: { vm.setSearch($0) }))
+                    CJSegGroup(
+                        actions: [
+                            ("All",     { vm.setFilter(.all) }),
+                            ("None",    { vm.selectNoGroups() }),
+                            ("Splits",  { vm.setFilter(.splits) }),
+                            ("Singles", { vm.setFilter(.singles) }),
+                        ],
+                        activeLabel: activeFilterLabel
+                    )
+                }
             }
 
             ColumnHeaderBar()
 
             ScrollView {
+                if vm.filteredGroups.isEmpty, searchIsActive {
+                    Text("No recordings match “\(vm.searchText.trimmingCharacters(in: .whitespaces))”")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.txt3)
+                        .padding(.vertical, 24)
+                        .frame(maxWidth: .infinity)
+                }
                 LazyVStack(spacing: 0) {
                     ForEach(vm.filteredGroups) { group in
                         RecordingRow(
@@ -89,8 +100,15 @@ struct RecordingsList: View {
         }
     }
 
+    private var searchIsActive: Bool {
+        ConversionViewModel.normalizedQuery(vm.searchText) != nil
+    }
+
     private var countText: String {
         var text = "\(vm.selectedCount) of \(vm.groups.count) selected · \(vm.totalClips) clips on card"
+        if searchIsActive {
+            text = "showing \(vm.filteredGroups.count) of \(vm.groups.count) · " + text
+        }
         if !vm.skippedFiles.isEmpty { text += " · \(vm.skippedFiles.count) skipped" }
         if !vm.parseErrors.isEmpty { text += " · \(vm.parseErrors.count) unreadable" }
         return text

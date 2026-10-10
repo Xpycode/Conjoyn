@@ -71,7 +71,7 @@ struct ContentView: View {
             .withoutSharedBackground()
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    Task { await vm.scan() }
+                    vm.scan()
                 } label: {
                     Label(vm.isScanning ? "Scanning…" : "Scan", systemImage: "viewfinder")
                         // Toolbar items default Label to .iconOnly; force title+icon so the app's
