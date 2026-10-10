@@ -4,7 +4,7 @@ Chronological log of work sessions for Conjoyn.
 
 | Date | Focus | Outcome |
 |------|-------|---------|
-| [2026-10-10](2026-10-10.md) | Publish and close 1.0.6 | Sprint6/6 closed with explicit GUI waiver. Download/feed/site verified; dark mode and notes fixed. User confirms upgrade to1.0.6. Source, evidence and handoff prepared for Git sync; next feedback/1.1 triage. |
+| [2026-10-10](2026-10-10.md) | Publish and close 1.0.6 | Source/evidence/logs pushed to main; v1.0.6 tagged. Website fixes backed up. User confirms upgrade; formal GUI waiver retained. Sprint6/6 closed, deferred19. Next: feedback and1.1 triage. |
 | [2026-09-17](2026-09-17.md) | Export recovery and watch-output Cancel | Apply-after-restore fixed; 83 tests and user export pass. S1.2 guard implemented; 7 tests and review pass, fresh app launched. Live Cancel check interrupted; next finish acceptance. No commit/push. |
 | [2026-09-06](2026-09-06.md) | Queued-output fix and pre-clear handoff | S1.1 committed locally; four regressions failed before the fix, then 80 tests passed. Independent review clear. Sprint 1/5; next S1.2 watch-output Cancel. Prior changes preserved; no push or fresh user build. |
 | [2026-09-05](2026-09-05.md) | App/code review: usability and simplicity; next-session plan | Sol + Luna + web; fresh build, 625 tests/0 failures. Reproduced four jobs overwriting two output paths and hidden selection. Twelve findings captured; five-task output-safety plan next, ten review findings deferred. No source fixes or commits. |

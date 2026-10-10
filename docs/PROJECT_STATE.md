@@ -28,8 +28,9 @@
 - **Next:** monitor 1.0.6 feedback; schedule deferred 1.1 device-loss acceptance when media is available.
 - **App:** unchanged notarized artifact at `01_Project/build/E3-Acceptance/export/Conjoyn.app`;
   no new build or relaunch during publication. Source frozen at `c6a1b23`.
-- **Git:** user authorized full release-source integration and push on 2026-10-10;
-  closeout includes the published README, plans, evidence and session history.
+- **Git:** main includes the released source, README, plans, evidence and session history;
+  integrated/pushed at `98f9294`. Tag `v1.0.6` identifies shipped source `c6a1b23`.
+  Conjoyn website changes pushed to App-Websites main at `e77a40a`; unrelated local web work preserved.
 - **Deferred:** 19 groups/items; Inbox 0. Physical active-read device loss remains a 1.1 acceptance item.
 - **Known limit:** both stalled discovery workers require app relaunch; identical recording
   descriptors cannot distinguish every replacement. HERO11 H.264 and HERO7 footage checks pending.
