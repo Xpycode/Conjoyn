@@ -529,4 +529,231 @@ final class WatchFolderCoordinatorTests: XCTestCase {
         await delays.finish(0, ())
     }
 
+    func testNewPredecessorBlocksCachedTailWhileUnrelatedVariantSettles() async throws {
+        for alternateRoot in [false, true] {
+            try await assertPredecessorMembership(deliverEvent: true, omittedByInitialDiscovery: false,
+                                                   alternateRoot: alternateRoot)
+        }
+    }
+
+    func testPollDetectsNewPredecessorWithoutFilesystemEvent() async throws {
+        try await assertPredecessorMembership(deliverEvent: false, omittedByInitialDiscovery: false)
+    }
+
+    func testSuccessfulDiscoveryOmittingFailedPredecessorCannotAdmitTail() async throws {
+        try await assertPredecessorMembership(deliverEvent: false, omittedByInitialDiscovery: true)
+    }
+
+    private func assertPredecessorMembership(deliverEvent: Bool, omittedByInitialDiscovery: Bool, alternateRoot: Bool = false) async throws {
+        let reader = ControlledWork<[RecordGroup]>()
+        let delays = ControlledWork<Void>()
+        let clock = ManualClock()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        let selected = freshTmpDir()
+        let aliasPath = selected.path.hasPrefix("/var/") ? "/private" + selected.path : selected.resolvingSymlinksInPath().path
+        let root = alternateRoot ? URL(fileURLWithPath: aliasPath) : selected
+        func clip(_ name: String, _ index: Int, _ variant: String) -> DJIClip {
+            DJIClip(videoURL: root.appendingPathComponent(name + ".MP4"), index: index,
+                variantSuffix: variant, stem: name, creationDate: Date(timeIntervalSince1970: Double(index * 1000)), duration: .zero)
+        }
+        let tail = clip("DJI_20261010120000_0002_D", 2, "D")
+        let predecessor = clip("DJI_20261010115900_0001_D", 1, "D")
+        let healthy = clip("DJI_20261010120000_0003_W", 3, "W")
+        for item in [tail, healthy] { try Data([0]).write(to: item.videoURL) }
+        if omittedByInitialDiscovery { try Data([0]).write(to: predecessor.videoURL) }
+        let partial = RecordGroup(clips: [tail], groupIndex: 1)
+        let independent = RecordGroup(clips: [healthy], groupIndex: 2)
+        let coord = WatchFolderCoordinator(discover: { _ in await reader.run() },
+            sample: { url in .init(size: url.lastPathComponent == predecessor.videoURL.lastPathComponent ? 4_000_000_000 : 100,
+                                  modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.membership.\(UUID().uuidString)")!, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir(), timeoutSleep: { _ in await delays.run() })
+        let initial = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await reader.waitForCalls(1)
+        await delays.waitForCalls(1)
+        await reader.finish(0, [partial, independent])
+        await initial.value
+        clock.date.addTimeInterval(31)
+        try Data([0]).write(to: predecessor.videoURL)
+        let refresh = Task {
+            if deliverEvent { await coord.sourceDidChange(rootURL: root) }
+            else { await coord.reconcile(rootURL: root, rediscover: false) }
+        }
+        await reader.waitForCalls(2)
+        await delays.waitForCalls(2)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.map { $0.clips.map(\.stem) }, [[healthy.stem]],
+            "A newly copied predecessor must block the cached short tail, while another variant proceeds")
+        clock.date.addTimeInterval(31)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.count, 1, "Waiting longer cannot authorize obsolete membership")
+        await reader.finish(1, [RecordGroup(clips: [predecessor, tail], groupIndex: 1), independent])
+        await refresh.value
+        XCTAssertEqual(queue.jobs.count, 1, "Regrouping must restart the quiet window")
+        clock.date.addTimeInterval(31)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        XCTAssertEqual(queue.jobs.map { $0.clips.map(\.stem) }, [[healthy.stem], [predecessor.stem, tail.stem]])
+        coord.disable()
+        await delays.finish(0, ())
+        await delays.finish(1, ())
+    }
+
+    func testReviewCannotSealTailAfterUnprobedPredecessorAppears() async throws {
+        try await assertMembershipChangeInvalidatesReview(removeDirectory: false)
+    }
+
+    func testUnavailableMembershipCensusInvalidatesReview() async throws {
+        try await assertMembershipChangeInvalidatesReview(removeDirectory: true)
+    }
+
+    private func assertMembershipChangeInvalidatesReview(removeDirectory: Bool) async throws {
+        let root = sourceRoot
+        let tail = DJIClip(videoURL: root.appendingPathComponent("DJI_0002.MP4"),
+            index: 2, variantSuffix: nil, stem: "DJI_0002", duration: .zero)
+        try Data([0]).write(to: tail.videoURL)
+        let group = RecordGroup(clips: [tail], groupIndex: 1)
+        let clock = ManualClock()
+        let ledgerDirectory = freshTmpDir()
+        let ledger = ProcessedGroupLedger(storageDirectory: ledgerDirectory)
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        let coord = WatchFolderCoordinator(discover: { _ in [group] },
+            sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue, ledger: ledger,
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.membership.review.\(UUID().uuidString)")!, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir(), fileIdentifier: { _ in "stable" })
+        await coord.reconcile(rootURL: root, rediscover: true)
+        clock.date.addTimeInterval(31)
+        await coord.reconcile(rootURL: root, rediscover: false)
+        let review = try XCTUnwrap(coord.reviewRecords.first)
+        if removeDirectory { try FileManager.default.removeItem(at: root) }
+        else { try Data([0]).write(to: root.appendingPathComponent("DJI_0001.MP4")) }
+        await coord.resolveReview(review.id, as: .alreadyProcessed)
+        XCTAssertTrue(coord.reviewRecords.isEmpty)
+        XCTAssertNil(ProcessedGroupLedger(storageDirectory: ledgerDirectory).resolution(for: review.descriptor.identity),
+            "A pending review cannot seal a descriptor after its membership evidence becomes obsolete")
+        XCTAssertTrue(queue.jobs.isEmpty)
+        coord.disable()
+    }
+
+    func testSuspendedMembershipReadsShareWorkerCapAndFenceLateCompletion() async {
+        let census = ControlledWork<[URL]?>()
+        let deadlines = ControlledWork<Void>()
+        let reader = ControlledWork<[RecordGroup]>()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        let coord = WatchFolderCoordinator(discover: { _ in await reader.run() },
+            sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+            now: { Date() }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.membership.stall.\(UUID().uuidString)")!, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir(),
+            membershipReader: { _ in await census.run() },
+            membershipTimeoutSleep: { _ in await deadlines.run() })
+        let root = sourceRoot
+        let first = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await census.waitForCalls(1)
+        await deadlines.waitForCalls(1)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 1)
+        await deadlines.finish(0, ())
+        await first.value
+        XCTAssertEqual(coord.status, .discoveryStalled)
+        let second = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await census.waitForCalls(2)
+        await deadlines.waitForCalls(2)
+        await deadlines.finish(1, ())
+        await second.value
+        await coord.reconcile(rootURL: root, rediscover: false)
+        let censusCalls = await census.count
+        let discoveryCalls = await reader.count
+        XCTAssertEqual(censusCalls, 2)
+        XCTAssertEqual(discoveryCalls, 0)
+        XCTAssertEqual(coord.discoveryBudget.workerCount, 2, "Timeout retains census worker ownership")
+        coord.disable()
+        await census.finish(0, [root.appendingPathComponent("DJI_0001.MP4")])
+        await census.finish(1, [])
+        await waitUntil { coord.discoveryBudget.workerCount == 0 }
+        XCTAssertEqual(coord.status, .idle)
+        XCTAssertTrue(queue.jobs.isEmpty)
+    }
+
+    func testEventJoiningOlderCensusCannotAdmitAndRetainsTrailingDiscovery() async {
+        let census = ControlledWork<[URL]?>()
+        let reader = ControlledWork<[RecordGroup]>()
+        let clock = ManualClock()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        let root = sourceRoot
+        let group = makeGroup()
+        let paths = group.clips.map(\.videoURL)
+        let coord = WatchFolderCoordinator(discover: { _ in await reader.run() },
+            sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.membership.event.\(UUID().uuidString)")!, key: "root"),
+            settings: settings, storageDirectory: freshTmpDir(), membershipReader: { _ in await census.run() })
+        let initial = Task { await coord.reconcile(rootURL: root, rediscover: true) }
+        await census.waitForCalls(1)
+        await census.finish(0, paths)
+        await reader.waitForCalls(1)
+        await reader.finish(0, [group])
+        await census.waitForCalls(2)
+        await census.finish(1, paths)
+        await initial.value
+        clock.date.addTimeInterval(31)
+        let oldPoll = Task { await coord.reconcile(rootURL: root, rediscover: false) }
+        await census.waitForCalls(3)
+        let event = Task { await coord.sourceDidChange(rootURL: root) }
+        await waitUntil { coord.eventGeneration == 1 }
+        await census.finish(2, paths)
+        await oldPoll.value
+        await event.value
+        XCTAssertTrue(queue.jobs.isEmpty, "Neither caller may authorize admission from a pre-event census")
+        let retry = Task { await coord.reconcile(rootURL: root, rediscover: false) }
+        await census.waitForCalls(4)
+        // A new independent bucket must still trigger discovery, even though cached membership
+        // of the earlier group is unchanged and that group may now finish normally.
+        let newPath = root.appendingPathComponent("DJI_20261010120000_0003_W.MP4")
+        await census.finish(3, paths + [newPath])
+        await retry.value
+        await census.waitForCalls(5)
+        await census.finish(4, paths + [newPath])
+        await reader.waitForCalls(2)
+        let calls = await reader.count
+        XCTAssertEqual(calls, 2, "The source event survives joining an obsolete census")
+        let trailing = coord.refreshTask
+        coord.disable()
+        await reader.finish(1, [])
+        await trailing?.value
+    }
+
+    func testFailedPostDiscoveryCensusRetainsStallAndRetriesFromPoll() async {
+        let reads = CallCounter()
+        let clock = ManualClock()
+        let group = makeGroup()
+        let queue = QueueManager(storageDirectory: freshTmpDir())
+        queue.isProcessing = true
+        var tunables = settings
+        tunables.quietWindow = 0
+        let coord = WatchFolderCoordinator(discover: { _ in [group] },
+            sample: { _ in .init(size: 100, modified: Date(timeIntervalSince1970: 100)) },
+            now: { clock.date }, queue: queue,
+            ledger: ProcessedGroupLedger(storageDirectory: freshTmpDir()),
+            bookmark: WatchFolderBookmark(defaults: UserDefaults(suiteName: "test.membership.retry.\(UUID().uuidString)")!, key: "root"),
+            settings: tunables, storageDirectory: freshTmpDir(),
+            membershipReader: { _ in reads.bump() == 1 ? nil : [] })
+        await coord.reconcile(rootURL: sourceRoot, rediscover: true)
+        XCTAssertEqual(coord.status, .discoveryStalled)
+        XCTAssertTrue(queue.jobs.isEmpty)
+        clock.date.addTimeInterval(1)
+        await coord.reconcile(rootURL: sourceRoot, rediscover: false)
+        await coord.refreshTask?.value
+        XCTAssertEqual(queue.jobs.count, 1)
+        XCTAssertNotEqual(coord.status, .discoveryStalled)
+        coord.disable()
+    }
+
 }

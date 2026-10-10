@@ -390,7 +390,8 @@ final class WatchFolderManager: ObservableObject {
     }
 
     func resolveReview(entryID: UUID, recordingID: String, as resolution: ProcessedGroupLedger.Resolution) {
-        (coordinators[entryID] as? WatchFolderCoordinator)?.resolveReview(recordingID, as: resolution)
+        guard let coordinator = coordinators[entryID] as? WatchFolderCoordinator else { return }
+        Task { await coordinator.resolveReview(recordingID, as: resolution) }
     }
 
     /// Recovery belongs to the manager, not a monitor. MainActor plus synchronous persistence

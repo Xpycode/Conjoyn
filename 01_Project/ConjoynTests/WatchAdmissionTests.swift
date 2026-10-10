@@ -371,7 +371,7 @@ final class WatchMetadataTests: XCTestCase {
             XCTAssertEqual(coordinator.reviewRecords.count, 1)
             guard let record = coordinator.reviewRecords.first else { continue }
             XCTAssertTrue(record.reason.contains("Weak"))
-            coordinator.resolveReview(record.id, as: process ? .processOnce : .alreadyProcessed)
+            await coordinator.resolveReview(record.id, as: process ? .processOnce : .alreadyProcessed)
             let restarted = self.coordinator(feed, probe: probe, queue: queue, ledger: history)
             await settle(restarted, root: root)
             XCTAssertEqual(queue.jobs.count, process ? 1 : 0)
@@ -395,8 +395,8 @@ final class WatchMetadataTests: XCTestCase {
         XCTAssertEqual(queue.jobs.count, 1)
         XCTAssertEqual(coordinator.reviewRecords.count, 1)
         guard let review = coordinator.reviewRecords.first else { return }
-        coordinator.resolveReview(review.id, as: .processOnce)
-        coordinator.resolveReview(review.id, as: .processOnce)
+        await coordinator.resolveReview(review.id, as: .processOnce)
+        await coordinator.resolveReview(review.id, as: .processOnce)
         await coordinator.reconcile(rootURL: root, rediscover: false)
         await coordinator.reconcile(rootURL: root, rediscover: false)
         XCTAssertEqual(queue.jobs.count, 2)
@@ -411,7 +411,7 @@ final class WatchMetadataTests: XCTestCase {
             let coordinator = coordinator(feed, probe: probe, queue: queue, ledger: history)
             await settle(coordinator, root: root)
             guard let review = coordinator.reviewRecords.first else { XCTFail("Missing review"); return }
-            coordinator.resolveReview(review.id, as: .processOnce)
+            await coordinator.resolveReview(review.id, as: .processOnce)
             var replacement = discovery([group(root, date: nil)], modified: 2, identifier: "2")
             if changeDescriptor {
                 let path = replacement.groups[0].clips[0].videoURL.path
@@ -432,7 +432,7 @@ final class WatchMetadataTests: XCTestCase {
         let coordinator = coordinator(feed, probe: probe, queue: queue, ledger: history)
         await settle(coordinator, root: root)
         guard let review = coordinator.reviewRecords.first else { XCTFail("Missing review"); return }
-        coordinator.resolveReview(review.id, as: .processOnce)
+        await coordinator.resolveReview(review.id, as: .processOnce)
         feed.set(discovery([group(root, date: nil)], modified: 2, identifier: "2"))
         // No cadence pass observes the replacement before rediscovery overwrites the cache.
         await settle(coordinator, root: root)
@@ -576,7 +576,7 @@ final class WatchMetadataTests: XCTestCase {
         coordinator.reloadHistory = { ProcessedGroupLedger(storageDirectory: history, write: { try fault.write($0, $1) }) }
         await settle(coordinator, root: root)
         guard let review = coordinator.reviewRecords.first else { XCTFail("Missing review"); return }
-        coordinator.resolveReview(review.id, as: .processOnce)
+        await coordinator.resolveReview(review.id, as: .processOnce)
         XCTAssertEqual(coordinator.status, .historyUnavailable)
         XCTAssertTrue(queue.jobs.isEmpty)
         await coordinator.sourceDidChange(rootURL: root)
@@ -584,7 +584,7 @@ final class WatchMetadataTests: XCTestCase {
         await coordinator.reconcile(rootURL: root, rediscover: false)
         XCTAssertEqual(coordinator.reviewRecords.count, 1)
         XCTAssertNotEqual(coordinator.status, .historyUnavailable)
-        coordinator.resolveReview(review.id, as: .processOnce)
+        await coordinator.resolveReview(review.id, as: .processOnce)
         await coordinator.reconcile(rootURL: root, rediscover: false)
         XCTAssertEqual(queue.jobs.count, 1)
     }

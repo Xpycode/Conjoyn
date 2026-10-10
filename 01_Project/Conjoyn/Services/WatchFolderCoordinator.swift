@@ -47,6 +47,23 @@ final class WatchFolderCoordinator: ObservableObject {
     private let ledgerNamespace: String
     private let discoverBound: (@Sendable (URL) async -> WatchDiscovery)?
     private let fileIdentifier: @Sendable (URL) -> String?
+    // Filename membership is independent of metadata probing: even an unreadable new video
+    // can be a missing predecessor. Only a coherent, complete bucket may authorize admission.
+    private struct MembershipKey: Hashable, Sendable {
+        let family: String
+        let variant: String?
+        let recording: Int?
+    }
+    private typealias Membership = [MembershipKey: Set<String>]
+    private struct MembershipSnapshot: Sendable {
+        let buckets: Membership
+        let rootPaths: [String]
+    }
+    private var membershipGenerations: Membership = [:]
+    private var membershipTask: (id: UUID, events: Int, task: Task<MembershipSnapshot?, Never>)?
+    private var membershipRequestID: UUID?
+    private let membershipReader: @Sendable (URL) async -> [URL]?
+    private let membershipTimeoutSleep: @Sendable (TimeInterval) async -> Void
     private var metadataGenerations: [String: WatchFileGeneration] = [:]
     private var rejectedProbePaths: [URL] = []
     private var rejectedProbeSamples: [String: [FileStabilityGate.Sample]] = [:]
@@ -67,7 +84,8 @@ final class WatchFolderCoordinator: ObservableObject {
 
     /// A review result only authorizes this exact observed generation. Admission runs through
     /// the next normal readiness pass; dismissing the sheet never creates a decision.
-    func resolveReview(_ id: String, as resolution: ProcessedGroupLedger.Resolution) {
+    func resolveReview(_ id: String, as resolution: ProcessedGroupLedger.Resolution) async {
+        guard let currentRoot, await refreshMembership(rootURL: currentRoot) != nil else { return }
         guard !disabled, resolution != .admitted,
               let record = reviewRecords.first(where: { $0.id == id }),
               record.generations.allSatisfy({ generation(at: URL(fileURLWithPath: $0.key)) == $0.value }) else {
@@ -178,7 +196,7 @@ final class WatchFolderCoordinator: ObservableObject {
     private var discoverySequence = 0
     private var pendingRefresh = false
     private var retryDeadline: Date?
-    private var eventGeneration = 0
+    private(set) var eventGeneration = 0
     // Assigned by the manager before enable; retained across coordinator replacement.
     var discoveryBudget = WatchDiscoveryBudget()
     private let timeoutSleep: @Sendable (TimeInterval) async -> Void
@@ -275,10 +293,18 @@ final class WatchFolderCoordinator: ObservableObject {
         discoverBound: (@Sendable (URL) async -> WatchDiscovery)? = nil,
         fileIdentifier: @escaping @Sendable (URL) -> String? = { WatchFileGeneration.read($0)?.identifier },
         persistSettings: @escaping (WatchFolderSettings) -> Void = { _ in },
+        membershipReader: @escaping @Sendable (URL) async -> [URL]? = { url in
+            WatchFolderCoordinator.readMembershipFiles(rootURL: url)
+        },
+        membershipTimeoutSleep: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+        },
         timeoutSleep: @escaping @Sendable (TimeInterval) async -> Void = { seconds in
             try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
         }
     ) {
+        self.membershipReader = membershipReader
+        self.membershipTimeoutSleep = membershipTimeoutSleep
         self.timeoutSleep = timeoutSleep
         self.persistSettings = persistSettings
         self.watchEntryID = watchEntryID
@@ -363,6 +389,10 @@ final class WatchFolderCoordinator: ObservableObject {
         groupLastChanged.removeAll()
         invalidatedApprovals.formUnion(approvedGenerations.keys)
         metadataGenerations.removeAll()
+        membershipGenerations.removeAll()
+        membershipTask?.task.cancel()
+        membershipTask = nil
+        membershipRequestID = nil
         reviewRecords.removeAll()
         lastGroups.removeAll()
         sampleHistory.removeAll()
@@ -446,6 +476,7 @@ final class WatchFolderCoordinator: ObservableObject {
     func sourceDidChange(rootURL: URL) async {
         guard !disabled else { return }
         eventGeneration += 1
+        pendingRefresh = true
         invalidatedApprovals.formUnion(approvedGenerations.keys)
         metadataGenerations = metadataGenerations.filter { generation(at: URL(fileURLWithPath: $0.key)) == $0.value }
         reviewRecords.removeAll { record in !record.generations.allSatisfy {
@@ -464,7 +495,10 @@ final class WatchFolderCoordinator: ObservableObject {
         if let currentRoot, currentRoot != rootURL { invalidateLifecycle() }
         currentRoot = rootURL
         invalidateChangedApprovals()
+        if rediscover { pendingRefresh = true }
         let lifecycle = lifecycleGeneration
+        guard let membership = await refreshMembership(rootURL: rootURL),
+              lifecycle == lifecycleGeneration, !disabled else { return }
         let request: UUID?
         var ownsResampling = false
         let events = eventGeneration
@@ -535,6 +569,33 @@ final class WatchFolderCoordinator: ObservableObject {
                 if status == .discoveryStalled {
                     status = watchFolder == nil ? .idle : .watching(settlingCount: 0)
                 }
+                let after = await refreshMembership(rootURL: rootURL)
+                guard lifecycle == lifecycleGeneration, activeDiscovery == request,
+                      events == eventGeneration, !disabled else { return }
+                guard let after else {
+                    pendingRefresh = true
+                    retryDeadline = now().addingTimeInterval(max(0.1, settings.pollInterval))
+                    return
+                }
+                var probedPaths: [String: String] = [:]
+                for clip in result.groups.flatMap(\.clips) {
+                    probedPaths[Self.membershipPath(clip.videoURL, roots: after.rootPaths)] = clip.videoURL.path
+                }
+                var confirmed: Membership = [:]
+                for group in result.groups {
+                    guard let key = membershipKey(group),
+                          (membership.buckets[key] ?? []) == (after.buckets[key] ?? []) else { continue }
+                    let paths = after.buckets[key] ?? []
+                    guard paths.allSatisfy({ path in
+                        guard let original = probedPaths[path], let stamp = result.generations[original] else { return false }
+                        return generation(at: URL(fileURLWithPath: original)) == stamp
+                    }) else { continue }
+                    confirmed[key] = paths
+                    if membershipGenerations[key] == nil {
+                        groupLastChanged[ephemeralKey(group)] = nil
+                    }
+                }
+                membershipGenerations = confirmed
                 lastGroups = result.groups
                 rejectedProbePaths = result.retryPaths
                 rejectedProbeSamples = rejectedProbeSamples.filter { key, _ in result.retryPaths.contains { $0.path == key } }
@@ -671,6 +732,7 @@ final class WatchFolderCoordinator: ObservableObject {
         var currentReviews: [ReviewRecord] = []
         for group in ready {
             guard historyIsAvailable() else { return }
+            guard let key = membershipKey(group), membershipGenerations[key] != nil else { continue }
             guard group.clips.allSatisfy({ clip in
                 guard let stamp = metadataGenerations[clip.videoURL.path] else { return false }
                 return generation(at: clip.videoURL) == stamp
@@ -720,7 +782,10 @@ final class WatchFolderCoordinator: ObservableObject {
             return
         }
 
-        if !rediscover && !isDiscovering && (rejectedReady || groups.flatMap(\.clips).contains(where: {
+        if !rediscover && !isDiscovering && (rejectedReady || groups.contains(where: {
+            guard let key = membershipKey($0) else { return false }
+            return membershipGenerations[key] == nil
+        }) || groups.flatMap(\.clips).contains(where: {
             metadataGenerations[$0.videoURL.path] == nil && FileStabilityGate.isSettled(
                 samples: sampleHistory[$0.videoURL.path] ?? [], requiredStablePolls: settings.requiredStablePolls)
         })) {
@@ -750,6 +815,110 @@ final class WatchFolderCoordinator: ObservableObject {
     }
 
     // MARK: - Private: Helpers
+
+    private func membershipKey(_ group: RecordGroup) -> MembershipKey? {
+        guard let clip = group.clips.first else { return nil }
+        return MembershipKey(family: clip.family.rawValue, variant: clip.variantSuffix,
+                             recording: clip.recordingNumber)
+    }
+
+    /// Match discovery's bounded card-shaped descent and parser without launching any probes.
+    /// DJI indices cannot identify recordings; until metadata is available, conservatively hold
+    /// its variant bucket. Other variants/families/GoPro recording numbers continue settling.
+    nonisolated private static func readMembershipFiles(rootURL: URL) -> [URL]? {
+        do {
+            return try DJIFolderReader.resolveMediaFolders(startingAt: rootURL).flatMap { directory in
+                try FileManager.default.contentsOfDirectory(at: directory,
+                    includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants])
+                    .filter { DJIFilenameParser.parse($0)?.mediaKind == .video }
+            }
+        } catch { return nil }
+    }
+
+    /// Directory reads can stall on a disconnected mount too. Share discovery's actual-worker
+    /// budget and timeout semantics; concurrent polls/events await one owned census task.
+    private func refreshMembership(rootURL: URL) async -> MembershipSnapshot? {
+        guard !disabled else { return nil }
+        let lifecycle = lifecycleGeneration
+        let events = eventGeneration
+        let owned: (id: UUID, events: Int, task: Task<MembershipSnapshot?, Never>)
+        if let membershipTask {
+            owned = membershipTask
+        } else {
+            guard let slot = discoveryBudget.acquire() else {
+                invalidateMembership(using: nil)
+                status = .discoveryStalled
+                return nil
+            }
+            let timeout = settings.discoverTimeout
+            let task = Task { [membershipReader, membershipTimeoutSleep, discoveryBudget] in
+                let result = await withDiscoverTimeout(seconds: timeout, sleep: membershipTimeoutSleep,
+                    completed: { discoveryBudget.complete(slot) }) {
+                        guard let paths = await membershipReader(rootURL) else { return nil as MembershipSnapshot? }
+                        // Resolve aliases inside the bounded worker too; no new filesystem work
+                        // runs on MainActor. Membership keys remain relative to this watch root.
+                        let canonicalRoot = rootURL.resolvingSymlinksInPath().path
+                        var roots = [rootURL.path, canonicalRoot]
+                        var census: Membership = [:]
+                        for url in paths {
+                            guard let parsed = DJIFilenameParser.parse(url), parsed.mediaKind == .video else { continue }
+                            let key = MembershipKey(family: parsed.family.rawValue, variant: parsed.variantSuffix,
+                                                    recording: parsed.recordingNumber)
+                            let path = Self.membershipPath(url.resolvingSymlinksInPath(), roots: [canonicalRoot])
+                            // Foundation enumeration may return /var even when the selected root
+                            // uses /private/var. Retain the observed alias for reader clip paths.
+                            if !path.hasPrefix("/"), url.path.hasSuffix(path) {
+                                let prefix = String(url.path.dropLast(path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                                let alias = "/" + prefix
+                                if !roots.contains(alias) { roots.append(alias) }
+                            }
+                            census[key, default: []].insert(path)
+                        }
+                        return MembershipSnapshot(buckets: census, rootPaths: roots)
+                    }
+                return result ?? nil
+            }
+            owned = (slot, events, task)
+            membershipTask = owned
+            membershipRequestID = owned.id
+        }
+        let result = await owned.task.value
+        guard lifecycle == lifecycleGeneration, membershipRequestID == owned.id, !disabled else { return nil }
+        if membershipTask?.id == owned.id { membershipTask = nil }
+        guard owned.events == eventGeneration else { return nil }
+        invalidateMembership(using: result?.buckets)
+        if result == nil { status = .discoveryStalled }
+        return result
+    }
+
+    nonisolated private static func membershipPath(_ url: URL, roots: [String]) -> String {
+        let path = url.path
+        for root in roots {
+            let prefix = root.hasSuffix("/") ? root : root + "/"
+            if path.hasPrefix(prefix) { return String(path.dropFirst(prefix.count)) }
+        }
+        return path
+    }
+
+    private func invalidateMembership(using current: Membership?) {
+        let invalid = Set(membershipGenerations.keys.filter { key in
+            guard let current else { return true }
+            return membershipGenerations[key] != (current[key] ?? [])
+        })
+        guard !invalid.isEmpty else { return }
+        for group in lastGroups {
+            guard let key = membershipKey(group), invalid.contains(key) else { continue }
+            groupLastChanged[ephemeralKey(group)] = nil
+            let paths = Set(group.clips.map { $0.videoURL.path })
+            for (id, stamps) in approvedGenerations where !paths.isDisjoint(with: stamps.keys) {
+                invalidatedApprovals.insert(id)
+            }
+        }
+        reviewRecords.removeAll { record in
+            membershipKey(record.group).map { invalid.contains($0) } ?? true
+        }
+        for key in invalid { membershipGenerations[key] = nil }
+    }
 
     private func ephemeralKey(_ group: RecordGroup) -> String {
         // Length-prefixed paths make grouping/sampling independent of legacy and durable hashes.
